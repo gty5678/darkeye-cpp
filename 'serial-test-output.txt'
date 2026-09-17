@@ -1,0 +1,11 @@
+********* Start testing of SerialNumberCompatibilityTest *********
+Config: Using QtTest library 6.10.3, Qt 6.10.3 (x86_64-little_endian-llp64 shared (dynamic) debug build; by MSVC 2022), windows 11
+PASS   : SerialNumberCompatibilityTest::initTestCase()
+FAIL!  : SerialNumberCompatibilityTest::matchesFrozenGoldenSamples() Compared values are not the same
+   Actual   (darkeye::serial::normalizeRawName(row.at(0).toString())): "SNIS-001-1080P"
+   Expected (row.at(1).toString())                                   : "SNIS-001"
+C:\Users\yin\Desktop\darkeye-cpp\tests\compatibility\SerialNumberCompatibilityTest.cpp(39) : failure location
+PASS   : SerialNumberCompatibilityTest::removesConfiguredEscapeStrings()
+PASS   : SerialNumberCompatibilityTest::cleanupTestCase()
+Totals: 3 passed, 1 failed, 0 skipped, 0 blacklisted, 4ms
+********* Finished testing of SerialNumberCompatibilityTest *********

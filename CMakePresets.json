@@ -1,0 +1,84 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-msvc-debug",
+      "displayName": "Windows MSVC + Ninja + Qt 6.10.3 Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-msvc-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64",
+        "DARKEYE_BUILD_TESTS": "OFF",
+        "CMAKE_INSTALL_PREFIX": "C:/Users/yin/Desktop/DarkeyeCPP"
+      }
+    },
+    {
+      "name": "windows-msvc-release",
+      "displayName": "Windows MSVC + Ninja + Qt 6.10.3 Release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-msvc-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64",
+        "DARKEYE_BUILD_TESTS": "OFF",
+        "CMAKE_INSTALL_PREFIX": "C:/Users/yin/Desktop/DarkeyeCPP"
+      }
+    },
+    {
+      "name": "windows-msvc-debug-tests",
+      "displayName": "Windows MSVC + Ninja + Qt 6.10.3 Debug (tests and demos)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-msvc-debug-tests",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64",
+        "DARKEYE_BUILD_TESTS": "ON",
+        "CMAKE_INSTALL_PREFIX": "C:/Users/yin/Desktop/DarkeyeCPP"
+      }
+    },
+    {
+      "name": "windows-msvc-release-tests",
+      "displayName": "Windows MSVC + Ninja + Qt 6.10.3 Release (tests and demos)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-msvc-release-tests",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64",
+        "DARKEYE_BUILD_TESTS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "windows-msvc-debug"
+    },
+    {
+      "name": "release",
+      "configurePreset": "windows-msvc-release"
+    },
+    {
+      "name": "debug-tests",
+      "configurePreset": "windows-msvc-debug-tests"
+    },
+    {
+      "name": "release-tests",
+      "configurePreset": "windows-msvc-release-tests"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "windows-msvc-debug-tests",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

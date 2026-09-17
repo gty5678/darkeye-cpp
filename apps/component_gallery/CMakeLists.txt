@@ -1,0 +1,3 @@
+qt_add_executable(darkeye_component_gallery WIN32 main.cpp)
+target_link_libraries(darkeye_component_gallery PRIVATE darkeye::darkeye_ui)
+darkeye_apply_compiler_options(darkeye_component_gallery)

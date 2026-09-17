@@ -1,0 +1,561 @@
+QWidget {
+    background-color: @PAGE_BACKGROUND@;
+    color: @TEXT@;
+    font-family: "Microsoft YaHei";
+    font-size: 14px;
+}
+
+QListWidget#mainSidebar {
+    background-color: @BACKGROUND@;
+    border: 0;
+    border-right: 1px solid @BORDER@;
+    outline: 0;
+}
+
+QListWidget#mainSidebar::item {
+    padding: 11px 14px;
+}
+
+QListWidget#mainSidebar::item:hover {
+    background-color: @INPUT_BACKGROUND@;
+}
+
+QListWidget#mainSidebar::item:selected {
+    background-color: @PRIMARY@;
+    color: @TEXT_INVERSE@;
+}
+
+QComboBox#themeSelector,
+QComboBox#DesignComboBox,
+QComboBox#DesignMakerSelector,
+QComboBox#WorkSortSelector,
+QComboBox#PaginationPageSize,
+QLineEdit#DesignInput,
+QLineEdit#WorkSearchInput,
+QTextEdit#DesignTextEdit,
+QPlainTextEdit#DesignPlainTextEdit {
+    background-color: @BACKGROUND@;
+    border: 2px solid @BORDER@;
+    border-radius: 8px;
+    padding: 4px 8px;
+    color: @TEXT@;
+    selection-background-color: @PRIMARY@;
+}
+
+QComboBox#themeSelector:hover,
+QComboBox#DesignComboBox:hover,
+QComboBox#DesignMakerSelector:hover,
+QComboBox#WorkSortSelector:hover,
+QComboBox#PaginationPageSize:hover,
+QLineEdit#DesignInput:focus,
+QLineEdit#WorkSearchInput:focus,
+QTextEdit#DesignTextEdit:focus,
+QPlainTextEdit#DesignPlainTextEdit:focus {
+    border-color: @BORDER_FOCUS@;
+    background-color: @INPUT_BACKGROUND@;
+}
+
+QLineEdit#DesignInput:disabled,
+QTextEdit#DesignTextEdit:disabled,
+QPlainTextEdit#DesignPlainTextEdit:disabled {
+    color: @TEXT_DISABLED@;
+    background-color: @INPUT_BACKGROUND@;
+}
+
+QPushButton#DesignButton,
+QPushButton#WorkRefreshButton,
+QPushButton#WorkSaveButton {
+    background-color: @BACKGROUND@;
+    color: @TEXT@;
+    border: 2px solid @BORDER@;
+    border-radius: 8px;
+    padding: 4px 12px;
+}
+
+QPushButton#DesignButton:hover,
+QPushButton#WorkRefreshButton:hover,
+QPushButton#WorkSaveButton:hover {
+    border-color: @PRIMARY@;
+    background-color: @INPUT_BACKGROUND@;
+}
+
+QPushButton#DesignButton:pressed,
+QPushButton#WorkRefreshButton:pressed,
+QPushButton#WorkSaveButton:pressed {
+    background-color: @PRIMARY_HOVER@;
+}
+
+QPushButton#DesignButton:disabled,
+QPushButton#WorkRefreshButton:disabled,
+QPushButton#WorkSaveButton:disabled {
+    color: @TEXT_DISABLED@;
+    background-color: @INPUT_BACKGROUND@;
+}
+
+QPushButton#DesignButton[variant="primary"],
+QPushButton#WorkRefreshButton[variant="primary"],
+QPushButton#WorkSaveButton[variant="primary"] {
+    background-color: @PRIMARY@;
+    color: @TEXT_INVERSE@;
+    border-color: @PRIMARY@;
+}
+
+QPushButton#DesignIconPushButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 2px;
+}
+
+QPushButton#DesignIconPushButton:hover {
+    background-color: @INPUT_BACKGROUND@;
+}
+
+QPushButton#DesignIconPushButton:pressed {
+    background-color: @BORDER@;
+}
+
+QLabel#DesignAsyncImage {
+    background-color: transparent;
+    color: @TEXT_PLACEHOLDER@;
+}
+
+QLabel#RatingHeart {
+    background-color: transparent;
+    color: @TEXT_PLACEHOLDER@;
+    font-size: 28px;
+}
+
+QLabel#RatingHeart[active="true"] {
+    color: @PRIMARY@;
+}
+
+QLabel#PageHeading,
+QLabel#PaginationInfo,
+QLabel#DesignToastLabel {
+    background-color: transparent;
+}
+
+QLabel#DesignLabel,
+QLabel#DesignEmptyStateIcon,
+QLabel#DesignEmptyStateTitle,
+QLabel#DesignEmptyStateDescription {
+    background-color: transparent;
+    color: @TEXT@;
+}
+
+QLabel#DesignLabel[tone="muted"],
+QLabel#DesignEmptyStateDescription {
+    color: @TEXT_PLACEHOLDER@;
+}
+
+QLabel#DesignLabel[tone="inverse"],
+QLabel#DesignLabel[tone="onDark"],
+QLabel#DesignLabel[tone="onImage"] {
+    color: @TEXT_INVERSE@;
+}
+
+QCheckBox#DesignCheckBox,
+QRadioButton#DesignRadioButton,
+QGroupBox#DesignGroupBox {
+    color: @TEXT@;
+    background-color: transparent;
+}
+
+QCheckBox#DesignCheckBox::indicator,
+QRadioButton#DesignRadioButton::indicator {
+    width: 16px;
+    height: 16px;
+    border: 2px solid @BORDER@;
+    background-color: @BACKGROUND@;
+}
+
+QCheckBox#DesignCheckBox::indicator { border-radius: 4px; }
+QRadioButton#DesignRadioButton::indicator { border-radius: 10px; }
+QCheckBox#DesignCheckBox::indicator:checked,
+QRadioButton#DesignRadioButton::indicator:checked {
+    border-color: @PRIMARY@;
+    background-color: @PRIMARY@;
+}
+
+QSpinBox#DesignSpinBox {
+    background-color: @BACKGROUND@;
+    border: 2px solid @BORDER@;
+    border-radius: 8px;
+    padding: 4px 8px;
+    color: @TEXT@;
+}
+QSpinBox#DesignSpinBox:focus { border-color: @BORDER_FOCUS@; }
+
+QGroupBox#DesignGroupBox {
+    border: 1px solid @BORDER@;
+    border-radius: 8px;
+    margin-top: 10px;
+    padding-top: 8px;
+}
+QGroupBox#DesignGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+}
+
+QTabWidget#DesignTabWidget::pane {
+    border: 1px solid @BORDER@;
+    border-radius: 8px;
+    background-color: @BACKGROUND@;
+}
+QTabBar#DesignTabBar::tab {
+    color: @TEXT_PLACEHOLDER@;
+    background-color: transparent;
+    padding: 8px 14px;
+    border-bottom: 2px solid transparent;
+}
+QTabBar#DesignTabBar::tab:selected {
+    color: @PRIMARY@;
+    border-bottom-color: @PRIMARY@;
+}
+
+QProgressBar#DesignProgressBar {
+    color: @TEXT@;
+    background-color: @INPUT_BACKGROUND@;
+    border: 1px solid @BORDER@;
+    border-radius: 6px;
+    text-align: center;
+}
+QProgressBar#DesignProgressBar::chunk {
+    background-color: @PRIMARY@;
+    border-radius: 5px;
+}
+
+QPushButton#DesignStateToggleButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 0;
+}
+QPushButton#DesignStateToggleButton:hover { background-color: @INPUT_BACKGROUND@; }
+
+QPushButton#DesignChip {
+    color: @TEXT@;
+    background-color: @INPUT_BACKGROUND@;
+    border: 1px solid @BORDER@;
+    border-radius: 12px;
+    padding: 3px 10px;
+}
+QPushButton#DesignChip:hover,
+QPushButton#DesignChip:checked {
+    color: @TEXT_INVERSE@;
+    background-color: @PRIMARY@;
+    border-color: @PRIMARY@;
+}
+QPushButton#DesignChip[tone="success"] { border-color: @SUCCESS@; }
+QPushButton#DesignChip[tone="warning"] { border-color: @WARNING@; }
+QPushButton#DesignChip[tone="error"] { border-color: @ERROR@; }
+QPushButton#DesignChip[tone="info"] { border-color: @INFO@; }
+
+QWidget#DesignEmptyState { background-color: transparent; }
+QLabel#DesignEmptyStateIcon {
+    color: @TEXT_DISABLED@;
+    font-size: 36px;
+}
+QLabel#DesignEmptyStateTitle {
+    font-size: 18px;
+    font-weight: 600;
+}
+QPushButton#DesignEmptyStateAction {
+    color: @TEXT_INVERSE@;
+    background-color: @PRIMARY@;
+    border: 1px solid @PRIMARY@;
+    border-radius: 8px;
+    padding: 6px 14px;
+}
+
+QWidget#TransparentWidget { background-color: transparent; }
+
+QSlider#DesignClickableSlider::groove:horizontal {
+    height: 4px;
+    background-color: @PAGE_BACKGROUND@;
+    border-radius: 2px;
+}
+QSlider#DesignClickableSlider::handle:horizontal {
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    background-color: @PRIMARY@;
+    border-radius: 7px;
+}
+QSlider#DesignClickableSlider::groove:vertical {
+    width: 4px;
+    background-color: @PAGE_BACKGROUND@;
+    border-radius: 2px;
+}
+QSlider#DesignClickableSlider::handle:vertical {
+    width: 14px;
+    height: 14px;
+    margin: 0 -5px;
+    background-color: @PRIMARY@;
+    border-radius: 7px;
+}
+
+QPushButton#DesignRotateButton,
+QPushButton#DesignShakeButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 2px;
+}
+QPushButton#DesignRotateButton:hover,
+QPushButton#DesignShakeButton:hover {
+    background-color: @INPUT_BACKGROUND@;
+}
+
+QTableView#DesignTableView,
+QTableWidget#DesignTableWidget,
+QTreeView#DesignTreeView,
+QListView#DesignListView,
+QListWidget#DesignListWidget {
+    color: @TEXT@;
+    background-color: @BACKGROUND@;
+    alternate-background-color: @INPUT_BACKGROUND@;
+    border: 1px solid @BORDER@;
+    border-radius: 6px;
+    gridline-color: @BORDER@;
+    selection-color: @TEXT_INVERSE@;
+    selection-background-color: @PRIMARY@;
+    outline: none;
+}
+QHeaderView::section {
+    color: @TEXT@;
+    background-color: @INPUT_BACKGROUND@;
+    border: none;
+    border-right: 1px solid @BORDER@;
+    border-bottom: 1px solid @BORDER@;
+    padding: 6px;
+}
+
+QDateTimeEdit#DesignDateTimeEdit,
+QLineEdit#DesignKeySequenceEditLineEdit {
+    color: @TEXT@;
+    background-color: @BACKGROUND@;
+    border: 2px solid @BORDER@;
+    border-radius: 8px;
+    padding: 4px 8px;
+}
+QDateTimeEdit#DesignDateTimeEdit:focus,
+QLineEdit#DesignKeySequenceEditLineEdit:focus {
+    border-color: @BORDER_FOCUS@;
+}
+
+QToolButton#DesignCollapsibleToggle {
+    color: @TEXT@;
+    background-color: @PAGE_BACKGROUND@;
+    border: none;
+    padding: 8px;
+    font-weight: 600;
+    text-align: left;
+}
+QToolButton#DesignCollapsibleToggle:checked {
+    background-color: @INPUT_BACKGROUND@;
+}
+QWidget#DesignCollapsibleContent { background-color: transparent; }
+
+QDialog#DesignModalDialog {
+    color: @TEXT@;
+    background-color: @BACKGROUND@;
+    border: 1px solid @BORDER@;
+    border-radius: 8px;
+}
+QLabel#DesignModalTitle {
+    color: @TEXT@;
+    font-size: 16px;
+    font-weight: 700;
+}
+QLabel#DesignModalMessage { color: @TEXT@; }
+QPushButton#DesignModalConfirm,
+QPushButton#DesignModalCancel {
+    border: 1px solid @BORDER@;
+    border-radius: 8px;
+    padding: 4px 12px;
+}
+QPushButton#DesignModalConfirm {
+    color: @TEXT_INVERSE@;
+    background-color: @PRIMARY@;
+    border-color: @PRIMARY@;
+}
+QPushButton#DesignModalConfirm[variant="danger"] {
+    background-color: @ERROR@;
+    border-color: @ERROR@;
+}
+
+QAbstractItemView#DesignCompleterPopup {
+    color: @TEXT@;
+    background-color: @BACKGROUND@;
+    border: 1px solid @BORDER@;
+    padding: 4px;
+    selection-color: @TEXT_INVERSE@;
+    selection-background-color: @PRIMARY@;
+}
+
+QWidget#DesignSidebar {
+    background-color: @BACKGROUND@;
+    border-right: 1px solid @BORDER@;
+}
+QWidget#DesignSidebarMenuButton {
+    background-color: transparent;
+    border-left: 3px solid transparent;
+}
+QWidget#DesignSidebarMenuButton:hover { background-color: @INPUT_BACKGROUND@; }
+QWidget#DesignSidebarMenuButton[selected="true"] {
+    background-color: @INPUT_BACKGROUND@;
+    border-left-color: @PRIMARY@;
+}
+QLabel#DesignSidebarMenuText {
+    color: @TEXT@;
+    background-color: transparent;
+    font-size: 14px;
+}
+
+QWidget#DesignModernScrollMenu,
+QWidget#DesignScrollMenuSection { background-color: @BACKGROUND@; }
+QWidget#DesignScrollMenuNavigation { background-color: @BACKGROUND@; }
+QFrame#DesignScrollMenuSeparator {
+    background-color: @PAGE_BACKGROUND@;
+    min-height: 1px;
+    max-height: 1px;
+    margin: 10px 0;
+}
+QPushButton#DesignScrollMenuButton {
+    color: @TEXT_PLACEHOLDER@;
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    padding: 10px 15px;
+}
+QPushButton#DesignScrollMenuButton:hover { color: @TEXT@; }
+QPushButton#DesignScrollMenuButton:checked {
+    color: @PRIMARY@;
+    border-bottom-color: @PRIMARY@;
+    font-weight: 600;
+}
+QLabel#DesignScrollMenuTitle {
+    color: @TEXT@;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+QFrame#DesignLinkCard {
+    color: @TEXT@;
+    background-color: @BACKGROUND@;
+    border: 1px solid @BORDER@;
+    border-radius: 8px;
+}
+QFrame#DesignLinkCard:hover {
+    background-color: @INPUT_BACKGROUND@;
+    border-color: @PRIMARY@;
+}
+QLabel#DesignLinkCardTitle {
+    color: @TEXT@;
+    background-color: transparent;
+    font-weight: 600;
+}
+QLabel#DesignLinkCardDescription {
+    color: @TEXT_PLACEHOLDER@;
+    background-color: transparent;
+}
+QLabel#DesignLinkCardIcon { background-color: transparent; }
+
+QTabBar#VerticalTabBar::tab {
+    color: @TEXT@;
+    background-color: @BACKGROUND@;
+    border: 1px solid @BORDER@;
+    padding: 4px;
+}
+QTabBar#VerticalTabBar::tab:selected {
+    color: @TEXT_INVERSE@;
+    background-color: @PRIMARY@;
+}
+
+QPushButton#DesignButton[variant="primary"]:hover,
+QPushButton#DesignButton[variant="primary"]:pressed {
+    background-color: @PRIMARY_HOVER@;
+    border-color: @PRIMARY_HOVER@;
+}
+
+QScrollBar:vertical {
+    background-color: @PAGE_BACKGROUND@;
+    width: 10px;
+    margin: 0;
+    border: none;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: @BORDER@;
+    border-radius: 4px;
+    min-height: 30px;
+    margin: 2px 1px;
+}
+
+QScrollBar::handle:vertical:hover { background-color: @PRIMARY@; }
+QScrollBar::handle:vertical:pressed { background-color: @PRIMARY_HOVER@; }
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0;
+    background: none;
+    border: none;
+}
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical { background: none; }
+
+QScrollBar:horizontal {
+    background-color: @PAGE_BACKGROUND@;
+    height: 10px;
+    margin: 0;
+    border: none;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: @BORDER@;
+    border-radius: 4px;
+    min-width: 30px;
+    margin: 1px 2px;
+}
+
+QScrollBar::handle:horizontal:hover { background-color: @PRIMARY@; }
+QScrollBar::handle:horizontal:pressed { background-color: @PRIMARY_HOVER@; }
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal {
+    width: 0;
+    background: none;
+    border: none;
+}
+QScrollBar::add-page:horizontal,
+QScrollBar::sub-page:horizontal { background: none; }
+
+QScrollArea#DesignLazyScrollArea {
+    border: none;
+}
+
+QScrollArea#DesignLazyScrollArea QScrollBar:vertical {
+    background-color: @PAGE_BACKGROUND@;
+    width: 10px;
+    border: none;
+}
+
+QScrollArea#DesignLazyScrollArea QScrollBar::handle:vertical {
+    background-color: @BORDER@;
+    border-radius: 4px;
+    min-height: 30px;
+    margin: 2px 1px;
+}
+
+QScrollArea#DesignLazyScrollArea QScrollBar::handle:vertical:hover {
+    background-color: @PRIMARY@;
+}
+
+QScrollArea#DesignLazyScrollArea QScrollBar::add-line:vertical,
+QScrollArea#DesignLazyScrollArea QScrollBar::sub-line:vertical {
+    height: 0;
+}

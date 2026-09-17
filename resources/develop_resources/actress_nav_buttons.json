@@ -1,0 +1,44 @@
+[
+  {
+    "name": "Wikipedia(日文名)",
+    "url": "https://ja.wikipedia.org/wiki/{jp_name}",
+    "quote": ["jp_name"],
+    "description": "按日文名打开日文维基词条"
+  },
+  {
+    "name": "Google(日文名)",
+    "url": "https://www.google.com/search?q={jp_name}",
+    "quote": ["jp_name"],
+    "description": "按日文名搜索"
+  },
+  {
+    "name": "百度(中文名)",
+    "url": "https://www.baidu.com/s?wd={cn_name}",
+    "quote": ["cn_name"],
+    "description": "按中文名搜索"
+  },
+  {
+    "name": "minnao-av",
+    "url": "https://www.minnano-av.com/search_result.php?search_scope=actress&search_word={jp_name}&search=+Go",
+    "quote": ["jp_name"],
+    "description": "女优信息"
+  },
+  {
+    "name": "nvyourenwu",
+    "url": "https://www.nvyourenwu.com/search/{jp_name}",
+    "quote": ["jp_name"],
+    "description": "女优信息，国产优信息网站，信息详细"
+  },
+  {
+    "name": "风俗店女优查询1",
+    "url": "https://avfuuzoku.com",
+    "quote": ["cn_name"],
+    "description": "不知名网站"
+  },
+  {
+    "name": "风俗店查询2",
+    "url": "www.cityheaven.net",
+    "quote": ["cn_name"],
+    "description": "不知名网站"
+  }
+]

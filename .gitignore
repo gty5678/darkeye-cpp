@@ -1,0 +1,19 @@
+/build/
+/out/
+/.vs/
+/.idea/
+/.vscode/
+
+# User-owned runtime data. Keep only directory markers and examples.
+/data/**
+!/data/**/.gitkeep
+!/data/README.md
+
+*.user
+*.suo
+*.VC.db
+*.log
+*.db
+*.db-wal
+*.db-shm
+

@@ -1,0 +1,69 @@
+#ifndef SIMULATION_H
+#define SIMULATION_H
+
+#include "PhysicsState.h"
+#include "Forces.h"
+
+#include <string>
+#include <memory>
+#include <unordered_map>
+
+/**
+ * Simulation — force-directed graph simulation engine.
+ *
+ * Owns Forces; mutates the PhysicsState (pos, vel) each tick().
+ * Mirrors Python Simulation class from simulation_worker.py.
+ */
+class Simulation
+{
+public:
+    explicit Simulation(PhysicsState* state);
+
+    // Force management
+    void addForce(const std::string& name, std::unique_ptr<Force> force);
+    void removeForce(const std::string& name);
+    Force* getForce(const std::string& name) const;
+
+    // Single simulation step
+    void tick();
+
+    // Lifecycle
+    void start();
+    void stop();
+    void pause();
+    void resume();
+    void restart();
+    bool isActive() const { return m_active; }
+
+    // Read-only access
+    float alpha() const { return m_alpha; }
+    int tickCount() const { return m_tickCount; }
+
+private:
+    /** Integrate velocities into positions, respecting dragging & max displacement.
+     *  Returns total absolute speed (used for early-stop heuristic). */
+    float integrate();
+
+    PhysicsState* m_state;
+    std::unordered_map<std::string, std::unique_ptr<Force>> m_forces;
+
+    // Alpha (cooling)
+    float m_alpha        = 1.0f;
+    float m_alphaDecay   = 0.01f;
+    float m_alphaMin     = 0.001f;
+
+    // Integration
+    float m_velocityDecay = 0.75f;
+    float m_dt            = 0.1f;
+    float m_maxDisp       = 15.0f;
+
+    // State
+    bool  m_active         = false;
+    bool  m_firstStarted   = false;
+    int   m_tickCount      = 0;
+    int   m_cooldownDelay  = 150;
+};
+
+#endif // SIMULATION_H
+
+
