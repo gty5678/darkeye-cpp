@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://de4321.github.io/darkeye-webpage/" target="_blank">
-    <img src="https://raw.githubusercontent.com/de4321/darkeye/main/resources/icons/logo.svg" alt="DarkEye" width="128" />
+    <img src="https://raw.githubusercontent.com/gty5678/darkeye-cpp/main/resources/icons/logo.svg" alt="DarkEye" width="128" />
   </a>
   <h1>DarkEye</h1>
   <p><strong>ローカル資料管理を、より明確で整然と</strong></p>
@@ -43,7 +43,7 @@
 </p>
 
 <div align="center">
-  <a href="https://github.com/de4321/darkeye/releases" target="_blank">
+  <a href="https://github.com/gty5678/darkeye-cpp/releases" target="_blank">
     <img src="./docs/assets/show.jpg" alt="DarkEye 実物風 DVD の展示" width="100%" />
   </a>
 </div>
@@ -56,7 +56,7 @@
 ## ダウンロードと利用
 
 <div align="center">
-  <a href="https://github.com/de4321/darkeye/releases/download/v1.2.5/DarkEye-v1.2.5.zip">
+  <a href="https://github.com/gty5678/darkeye-cpp/releases/download/v1.2.5/DarkEye-v1.2.5.zip">
     <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Windows-blue?style=for-the-badge&logo=windows" alt="Windows 版をダウンロード" />
   </a>
   　　
@@ -73,11 +73,11 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 
 拡張単体の更新がない限り、通常は**拡張だけを別途ダウンロードする必要はありません**。
 <div align="center">
-  <a href="https://github.com/de4321/darkeye/releases/download/v1.2.5/chrome_capture.zip">
+  <a href="https://github.com/gty5678/darkeye-cpp/releases/download/v1.2.5/chrome_capture.zip">
     <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Chrome%2FEdge%20%E6%8B%A1%E5%BC%B5-blue?style=for-the-badge" alt="Chrome / Edge 拡張をダウンロード" />
   </a>
   　　
-  <a href="https://github.com/de4321/darkeye/releases/download/v1.2.5/firefox_capture.zip">
+  <a href="https://github.com/gty5678/darkeye-cpp/releases/download/v1.2.5/firefox_capture.zip">
     <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Firefox%20%E6%8B%A1%E5%BC%B5-blue?style=for-the-badge" alt="Firefox 拡張をダウンロード" />
   </a>
 </div>
@@ -270,8 +270,8 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 
 ## コントリビューター
 
-<a href="https://github.com/de4321/darkeye/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=de4321/darkeye" alt="Contributors" width="500" />
+<a href="https://github.com/gty5678/darkeye-cpp/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=gty5678/darkeye-cpp" alt="Contributors" width="500" />
 </a>
 
 ---
@@ -283,14 +283,13 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 [badge-readme-zh-CN]: https://img.shields.io/badge/README%20%C2%B7%20%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87-555555?style=for-the-badge
 [badge-readme-zh-TW]: https://img.shields.io/badge/README%20%C2%B7%20%E7%B9%81%E9%AB%94%E4%B8%AD%E6%96%87-555555?style=for-the-badge
 [badge-readme-ja]: https://img.shields.io/badge/README%20%C2%B7%20%E6%97%A5%E6%9C%AC%E8%AA%9E-2ea44f?style=for-the-badge
-[badge-python]: https://img.shields.io/badge/Python-3.13-blue.svg
-[badge-framework]: https://img.shields.io/badge/framework-PySide6%20(Qt6)-orange
+[badge-framework]: https://img.shields.io/badge/framework-Qt6.10-orange
 [badge-platform]: https://img.shields.io/badge/Platform-Windows-blue
-[badge-license]: https://img.shields.io/github/license/de4321/darkeye
-[badge-last-commit]: https://img.shields.io/github/last-commit/de4321/darkeye
-[badge-release]: https://img.shields.io/github/v/release/de4321/darkeye
-[badge-stars]: https://img.shields.io/github/stars/de4321/darkeye?style=social
-[badge-downloads]: https://img.shields.io/github/downloads/de4321/darkeye/total
+[badge-license]: https://img.shields.io/github/license/gty5678/darkeye-cpp
+[badge-last-commit]: https://img.shields.io/github/last-commit/gty5678/darkeye-cpp
+[badge-release]: https://img.shields.io/github/v/release/gty5678/darkeye-cpp
+[badge-stars]: https://img.shields.io/github/stars/gty5678/darkeye-cpp?style=social
+[badge-downloads]: https://img.shields.io/github/downloads/gty5678/darkeye-cpp/total
 
 <!-- Links -->
 
@@ -298,4 +297,4 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 [link-video]: https://youtu.be/VCsw1D0ccgY?si=e9typx4kPnzaVFZq
 [link-website]: https://de4321.github.io/darkeye-webpage/
 [link-discord]: https://discord.gg/3thnEguWUk
-[link-releases]: https://github.com/de4321/darkeye/releases
+[link-releases]: https://github.com/gty5678/darkeye-cpp/releases

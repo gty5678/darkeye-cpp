@@ -1,7 +1,10 @@
 <div align="center">
+  <a href="https://de4321.github.io/darkeye-webpage/" target="_blank">
+    <img src="https://raw.githubusercontent.com/de4321/darkeye/main/resources/icons/logo.svg" alt="DarkEye" width="128" />
+  </a>
   <h1>DarkEye</h1>
-  <p><strong>洞察與秩序</strong></p>
-  <p>一個純本機的個人媒體資料庫、中繼資料編輯器、關係分析器與歸檔瀏覽器。</p>
+  <p><strong>讓本機資料管理更清晰有序</strong></p>
+  <p>完全本機、重視隱私的媒體中繼資料與個人資料管理工具。支援透過瀏覽器擴充功能輔助抓取和擬物化 DVD 盒子陳列，將整理、搜尋、分析與視覺化整合在一起。</p>
   <br />
 
 [![README · 日本語][badge-readme-ja]](README.md)
@@ -15,6 +18,7 @@
 ![GitHub last commit][badge-last-commit]
 ![GitHub release][badge-release]
 ![GitHub Repo stars][badge-stars]
+![GitHub all releases][badge-downloads]
 
 <br />
 
@@ -26,32 +30,23 @@
 </div>
 
 <p align="center">
-  <a href="#compliance">合法合規使用聲明</a> •
   <a href="#download">下載與使用</a> •
+  <a href="#compliance">合法合規使用聲明</a> •
   <a href="#features">特性</a> •
   <a href="#screenshots">介面預覽</a> •
   <a href="#privacy">隱私與資料</a> •
   <a href="#migration">遷移與匯入</a> •
+  <a href="#crawler">抓取說明</a> •
   <a href="#development">開發與技術</a> •
   <a href="#community">社群</a> •
   <a href="#references">參考專案</a>
 </p>
 
-
----
-
-<a id="compliance"></a>
-
-## 合法合規使用聲明
-
-- 本工具僅用於管理使用者依法擁有、已獲授權或可合法處理的資料與中繼資訊。
-- 使用本工具時，請遵守各國現行法律法規及相關規定。
-- 嚴禁將本工具用於非法抓取、侵權傳播、繞過網站存取控制、未經授權處理他人資料等行為。
-- 第三方網站內容、介面與存取規則以其平台條款為準，使用者應自行確認並承擔相應合規責任。
-- 請不要隨意下載第三方軟體。
-- 本專案為通用本機工具，僅用於管理使用者依法擁有或已獲授權的資料。
-- 嚴禁用於侵權傳播、詐騙、繞過存取控制、未授權抓取等違法行為。
-- 官方不會私訊索求驗證碼、遠端控制或任何轉帳。請僅透過官方發布管道下載並驗證檔案雜湊／簽名。
+<div align="center">
+  <a href="https://github.com/de4321/darkeye/releases" target="_blank">
+    <img src="./docs/assets/show.jpg" alt="DarkEye 擬物化 DVD 展示" width="100%" />
+  </a>
+</div>
 
 <a id="download"></a>
 
@@ -94,9 +89,18 @@
 
 設定中可自動更新**軟體本體**；軟體不會自動更新，但是**外掛**會在軟體 `extensions` 目錄更新，需要**手動到瀏覽器重新載入**。外掛另外可在 [Releases][link-releases] 手動下載。
 
-遷移版本時請**更新瀏覽器外掛**；
+遷移版本時請**更新瀏覽器擴充功能**。抓取器可能因站點變更而很快失效，並會依據回饋人工維護；代理問題無法由軟體解決。只要目標站點能在瀏覽器中開啟，通常即可抓取。
 
+---
 
+<a id="compliance"></a>
+
+## 合法合規使用聲明
+
+- 本工具僅用於管理使用者依法擁有、已獲授權或可合法處理的資料與中繼資訊。
+- 使用本工具時，請遵守各國現行法律法規及相關規定。
+- 嚴禁將本工具用於非法抓取、侵權傳播、繞過網站存取控制、未經授權處理他人資料等行為。
+- 第三方網站內容、介面與存取規則以其平台條款為準，使用者應自行確認並承擔相應合規責任。
 
 ---
 
@@ -113,11 +117,14 @@
 | **分析與圖表** | 分析圖表與資料展示（仍有部分未完成功能） | ✅ |
 | **擬物化 DVD 盒子陳列** | 擬物化 DVD 陳列與收藏體驗 | ✅ |
 | **篩選過濾展示** | 篩選作品頁面 | ✅ |
+| **瀏覽器擴充功能** | Chrome / Edge / Firefox 擴充功能，支援沉浸式、互動式的多站點抓取 | ✅ |
+| **簡易抓取** | 可用性和品質取決於目標站點的公開政策及存取規則；詳見文件 | ✅ |
 | **關聯圖譜** | 檢視關聯；約 1 萬節點下約 60 幀 | ✅ |
 | **翻譯** | LLM 翻譯 + 一鍵覆蓋翻譯 | ✅ |
 | **本機影片連結** | 若本機已有影片，可將影片連結到資料庫 | ✅ |
 | **備份** | 備份系統，用於本機資料歸檔與還原 | ✅ |
 | **主題** | 主題切換（3D 場景尚不完全跟隨明／暗） | ✅ |
+| **螢幕截圖** | 部分介面支援截圖；女優頁面可按 C 鍵 | ✅ |
 | **自動更新** | 自動檢測並下載更新 | ✅ |
 | **mdcz NFO 匯入** | [mdcz](https://github.com/ShotHeadman/mdcz) NFO 匯入 | ✅ |
 | **Jvedio NFO 匯入** | Jvedio 資料匯出 NFO（測試中） | ✅ |
@@ -131,6 +138,9 @@
 
 長期規劃與更多細項見 [**更新日誌與路線圖**](docs/CHANGELOG.md)（隨開發滾動更新，不代表固定排期）。
 
+- **AI / 工具整合**：探索 CLI 與互動式能力（CHANGELOG 的 `3.x` 路線圖）。
+- **同步與共享**：WebDAV、多端備份、UGC 式資訊協作等（`2.x`）。
+- **體驗與基礎設施**：持續改進標籤、圖譜、UI、匯出、抓取器與資料庫（`1.x`）。
 
 
 ---
@@ -164,10 +174,49 @@
 
 ## 介面預覽
 
+### 擬物化 DVD
+
+![收藏](docs/assets/dvd.jpg)
+
+![展開](docs/assets/dvd2.jpg)
+
+![女優](docs/assets/actress.jpg)
+
+### 力導向圖
 
 ![力導向圖](docs/assets/directforceview.jpg)
 
+### 分析圖表
+
 ![圖表](docs/assets/chart.jpg)
+
+### 多作品瀑布流
+
+![多作品](docs/assets/mutiwork.jpg)
+
+### 編輯介面
+
+![編輯介面](docs/assets/edit.jpg)
+
+### 瀏覽器擴充功能（站點範例）
+
+開啟擴充功能後，它會與本機應用程式連線；點擊「新增」即可啟動抓取器並匯入本機。頁面上的「收藏／收錄」等功能僅在連接本機軟體時可用。
+
+![瀏覽器擴充功能連動範例](docs/assets/capture.JPG)
+
+---
+
+<a id="crawler"></a>
+
+## 抓取說明
+
+目前抓取會嘗試取得作品的發布日期、導演、中日標題與簡介、女優和男優（如適用）、標籤、封面、片長、廠商、廠牌、系列、劇照等資訊。
+
+女優資訊主要會取得頭像、出生日期、出道日期、三圍、身高與罩杯、曾用名等（曾用名的更新路徑尚未實作，因此首次以舊名登記時可能出現不一致）。
+
+首次抓取時，目標站點可能會依其存取政策顯示驗證或限制。是否能繼續取決於站點規則及使用者的存取權限。
+
+目前支援多個公開資料站點。實際可用站點會隨版本和目標站點政策變化，請以最新線上文件為準。
 
 ---
 
@@ -233,12 +282,13 @@
 [badge-readme-zh-TW]: https://img.shields.io/badge/README%20%C2%B7%20%E7%B9%81%E9%AB%94%E4%B8%AD%E6%96%87-2ea44f?style=for-the-badge
 [badge-readme-ja]: https://img.shields.io/badge/README%20%C2%B7%20%E6%97%A5%E6%9C%AC%E8%AA%9E-555555?style=for-the-badge
 [badge-python]: https://img.shields.io/badge/Python-3.13-blue.svg
-[badge-framework]: https://img.shields.io/badge/framework-PySide6%20(Qt6)-orange
+[badge-framework]: https://img.shields.io/badge/framework-Qt6.10-orange
 [badge-platform]: https://img.shields.io/badge/Platform-Windows-blue
 [badge-license]: https://img.shields.io/github/license/de4321/darkeye
 [badge-last-commit]: https://img.shields.io/github/last-commit/de4321/darkeye
 [badge-release]: https://img.shields.io/github/v/release/de4321/darkeye
 [badge-stars]: https://img.shields.io/github/stars/de4321/darkeye?style=social
+[badge-downloads]: https://img.shields.io/github/downloads/de4321/darkeye/total
 [badge-downloads]: https://img.shields.io/github/downloads/de4321/darkeye/total
 
 <!-- Links -->

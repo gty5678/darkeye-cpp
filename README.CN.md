@@ -3,8 +3,8 @@
     <img src="https://raw.githubusercontent.com/de4321/darkeye/main/resources/icons/logo.svg" alt="DarkEye" width="128" />
   </a>
   <h1>DarkEye</h1>
-  <p><strong>洞察与秩序</strong></p>
-  <p>一个纯本地的个人媒体资料库、元数据编辑器、关系分析器和归档浏览器。</p>
+  <p><strong>让本地资料管理更清晰有序</strong></p>
+  <p>完全本地、重视隐私的媒体元数据与个人资料管理工具。支持通过浏览器扩展辅助抓取和拟物化 DVD 盒子陈列，将整理、搜索、分析与可视化整合在一起。</p>
   <br />
 
 [![README · 日本語][badge-readme-ja]](README.md)
@@ -18,6 +18,7 @@
 ![GitHub last commit][badge-last-commit]
 ![GitHub release][badge-release]
 ![GitHub Repo stars][badge-stars]
+![GitHub all releases][badge-downloads]
 
 <br />
 
@@ -29,32 +30,23 @@
 </div>
 
 <p align="center">
-  <a href="#compliance">合法合规使用声明</a> •
   <a href="#download">下载与使用</a> •
+  <a href="#compliance">合法合规使用声明</a> •
   <a href="#features">特性</a> •
   <a href="#screenshots">界面预览</a> •
   <a href="#privacy">隐私与数据</a> •
   <a href="#migration">迁移与导入</a> •
+  <a href="#crawler">抓取说明</a> •
   <a href="#development">开发与技术</a> •
   <a href="#community">社群</a> •
   <a href="#references">参考项目</a>
 </p>
 
-
----
-
-<a id="compliance"></a>
-
-## 合法合规使用声明
-
-- 本工具仅用于管理用户依法拥有、已获授权或可合法处理的数据与元信息。
-- 使用本工具时，请遵守各国现行法律法规及相关规定。
-- 严禁将本工具用于非法抓取、侵权传播、绕过网站访问控制、未经授权处理他人数据等行为。
-- 第三方网站内容、接口与访问规则以其平台条款为准，用户应自行确认并承担相应合规责任。
-- 请不要随意下载第三方软件。
-- 本项目为通用本地工具，仅用于管理用户依法拥有或已获授权的数据。
-- 严禁用于侵权传播、诈骗、绕过访问控制、未授权抓取等违法行为。
-- 官方不会私聊索要验证码、远程控制或任何转账。请仅通过官方发布渠道下载并校验文件哈希/签名。
+<div align="center">
+  <a href="https://github.com/de4321/darkeye/releases" target="_blank">
+    <img src="./docs/assets/show.jpg" alt="DarkEye 拟物化 DVD 展示" width="100%" />
+  </a>
+</div>
 
 <a id="download"></a>
 
@@ -97,9 +89,18 @@
 
 设置中可自动更新**软件本体**；软件不会自动更新，但是**插件**会在软件`extensions` 目录更新，需要**手动去浏览器重新加载**。插件另外可在[Releases][link-releases] 手动下载。
 
-迁移版本时请**更新浏览器插件**；
+迁移版本时请**更新浏览器插件**。抓取器可能因站点变更而很快失效，并会依据反馈人工维护；代理问题无法由软件解决。只要目标站点能在浏览器中打开，通常即可抓取。
 
+---
 
+<a id="compliance"></a>
+
+## 合法合规使用声明
+
+- 本工具仅用于管理用户依法拥有、已获授权或可合法处理的数据与元信息。
+- 使用本工具时，请遵守各国现行法律法规及相关规定。
+- 严禁将本工具用于非法抓取、侵权传播、绕过网站访问控制、未经授权处理他人数据等行为。
+- 第三方网站内容、接口与访问规则以其平台条款为准，用户应自行确认并承担相应合规责任。
 
 ---
 
@@ -116,11 +117,14 @@
 | **分析与图表** | 分析图表与数据展示（仍有部分未完成功能） | ✅ |
 | **拟物化DVD盒子陈列** | 拟物化 DVD 陈列与收藏体验 | ✅ |
 | **筛选过滤展示** | 筛选作品页面 | ✅ |
+| **浏览器扩展** | Chrome / Edge / Firefox 扩展，支持沉浸式、互动式的多站点抓取 | ✅ |
+| **简易抓取** | 可用性和质量取决于目标站点的公开政策及访问规则；详见文档 | ✅ |
 | **关联图谱** | 查看关联；约 1 万节点下约 60 帧 | ✅ |
 | **翻译** | LLM 翻译 + 一键覆盖翻译 | ✅ |
 | **本地视频链接** | 如果本地存在视频可将视频链接到数据库中 | ✅ |
 | **备份** | 备份系统，用于本地资料归档与恢复 | ✅ |
 | **主题** | 主题切换（3D 场景尚不完全跟随时明/暗） | ✅ |
+| **截图** | 部分界面支持截图；女优页面可按 C 键 | ✅ |
 | **自动更新** | 自动检测并下载更新 | ✅ |
 | **mdcz NFO导入** | [mdcz](https://github.com/ShotHeadman/mdcz)  NFO 导入 | ✅ |
 | **Jvedio NFO导入** | Jvedio 数据导出 NFO（测试中） | ✅ |
@@ -134,6 +138,9 @@
 
 长期规划与更多细项见 [**更新日志与路线图**](docs/CHANGELOG.md)（随开发滚动更新，不代表固定排期）。
 
+- **AI / 工具集成**：探索 CLI 和交互式能力（CHANGELOG 的 `3.x` 路线图）。
+- **同步与共享**：WebDAV、多端备份、UGC 式信息协作等（`2.x`）。
+- **体验与基础设施**：持续改进标签、图谱、UI、导出、抓取器与数据库（`1.x`）。
 
 
 ---
@@ -167,10 +174,49 @@
 
 ## 界面预览
 
+### 拟物化 DVD
+
+![收藏](docs/assets/dvd.jpg)
+
+![展开](docs/assets/dvd2.jpg)
+
+![女优](docs/assets/actress.jpg)
+
+### 力导向图
 
 ![力导向图](docs/assets/directforceview.jpg)
 
+### 分析图表
+
 ![图表](docs/assets/chart.jpg)
+
+### 多作品瀑布流
+
+![多作品](docs/assets/mutiwork.jpg)
+
+### 编辑界面
+
+![编辑界面](docs/assets/edit.jpg)
+
+### 浏览器扩展（站点示例）
+
+打开扩展后，它会与本地应用连接；点击“添加”即可启动抓取器并导入本地。页面上的“收藏／收录”等功能仅在连接本机软件时可用。
+
+![浏览器扩展联动示例](docs/assets/capture.JPG)
+
+---
+
+<a id="crawler"></a>
+
+## 抓取说明
+
+当前抓取会尝试获取作品的发布日期、导演、中日标题与简介、女优和男优（如适用）、标签、封面、片长、厂商、厂牌、系列、剧照等信息。
+
+女优信息主要会获取头像、出生日期、出道日期、三围、身高与罩杯、曾用名等（曾用名的更新路径尚未实现，因此首次以旧名登记时可能出现不一致）。
+
+首次抓取时，目标站点可能会依据其访问政策显示验证或限制。是否能继续取决于站点规则及使用者的访问权限。
+
+当前支持多个公开数据站点。实际可用站点会随着版本和目标站点政策变化，请以最新在线文档为准。
 
 ---
 
@@ -234,12 +280,13 @@
 [badge-readme-zh-TW]: https://img.shields.io/badge/README%20%C2%B7%20%E7%B9%81%E9%AB%94%E4%B8%AD%E6%96%87-555555?style=for-the-badge
 [badge-readme-ja]: https://img.shields.io/badge/README%20%C2%B7%20%E6%97%A5%E6%9C%AC%E8%AA%9E-555555?style=for-the-badge
 [badge-python]: https://img.shields.io/badge/Python-3.13-blue.svg
-[badge-framework]: https://img.shields.io/badge/framework-PySide6%20(Qt6)-orange
+[badge-framework]: https://img.shields.io/badge/framework-Qt6.10-orange
 [badge-platform]: https://img.shields.io/badge/Platform-Windows-blue
 [badge-license]: https://img.shields.io/github/license/de4321/darkeye
 [badge-last-commit]: https://img.shields.io/github/last-commit/de4321/darkeye
 [badge-release]: https://img.shields.io/github/v/release/de4321/darkeye
 [badge-stars]: https://img.shields.io/github/stars/de4321/darkeye?style=social
+[badge-downloads]: https://img.shields.io/github/downloads/de4321/darkeye/total
 [badge-downloads]: https://img.shields.io/github/downloads/de4321/darkeye/total
 
 <!-- Links -->
