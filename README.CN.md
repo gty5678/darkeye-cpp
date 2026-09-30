@@ -281,7 +281,7 @@
 [badge-readme-zh-CN]: https://img.shields.io/badge/README%20%C2%B7%20%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87-2ea44f?style=for-the-badge
 [badge-readme-zh-TW]: https://img.shields.io/badge/README%20%C2%B7%20%E7%B9%81%E9%AB%94%E4%B8%AD%E6%96%87-555555?style=for-the-badge
 [badge-readme-ja]: https://img.shields.io/badge/README%20%C2%B7%20%E6%97%A5%E6%9C%AC%E8%AA%9E-555555?style=for-the-badge
-[badge-framework]: https://img.shields.io/badge/framework-Qt6.10-orange
+[badge-framework]: https://img.shields.io/badge/Qt-6.10-41CD52?logo=qt&logoColor=white
 [badge-cpp]: https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus
 [badge-cmake]: https://img.shields.io/badge/CMake-CMake-064F8C?logo=cmake
 [badge-msvc]: https://img.shields.io/badge/MSVC-2022-5C2D91?logo=visualstudio
