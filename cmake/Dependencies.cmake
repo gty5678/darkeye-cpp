@@ -6,6 +6,8 @@ endif()
 find_package(Qt6 6.10 REQUIRED COMPONENTS ${_darkeye_qt_components})
 qt_standard_project_setup(REQUIRES 6.10)
 find_package(OpenMP COMPONENTS CXX)
+find_package(Freetype CONFIG REQUIRED)
+find_package(msdfgen CONFIG REQUIRED)
 
 get_filename_component(DARKEYE_QT_PREFIX "${Qt6_DIR}/../../.." ABSOLUTE)
 set(DARKEYE_QT_BIN_DIR "${DARKEYE_QT_PREFIX}/bin")

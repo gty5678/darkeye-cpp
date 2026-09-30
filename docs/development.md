@@ -15,6 +15,42 @@ pip install -e ".[docs]"
 简单来说就是运行脚本scripts/develop_pre.ps1
 
 
+### C++ / Qt 环境（桌面 C++ 项目）
+
+仓库根目录的 C++ 桌面程序使用 **vcpkg manifest 模式**管理 `freetype` 和
+`msdfgen`。首次 CMake 配置会根据根目录的 `vcpkg.json` 自动安装它们；不要手动
+复制 `3rdparty/` 目录。
+
+新电脑从 GitHub 克隆后，在 **Developer PowerShell for VS 2022** 中按以下步骤构建：
+
+1. 安装 Visual Studio 2022，并勾选“使用 C++ 的桌面开发”；安装 CMake 3.25+ 和 Ninja。
+2. 安装 Qt 6.10.3 的 **MSVC 2022 64-bit** kit，并设置环境变量（PowerShell 示例）：
+
+   ```powershell
+   $env:Qt6_DIR = "C:/Qt/6.10.3/msvc2022_64/lib/cmake/Qt6"
+   ```
+
+3. 安装 vcpkg（只需一次），设置 `VCPKG_ROOT`；随后克隆并构建项目：
+
+   ```powershell
+   git clone https://github.com/microsoft/vcpkg C:/src/vcpkg
+   C:/src/vcpkg/bootstrap-vcpkg.bat
+   $env:VCPKG_ROOT = "C:/src/vcpkg"
+   git clone <GitHub-repository-url> darkeye-cpp
+   cd darkeye-cpp
+   cmake --preset windows-msvc-debug-tests
+   cmake --build --preset debug-tests
+   ctest --preset debug
+   ```
+
+   第一次 `cmake --preset ...` 会下载并编译 manifest 中锁定版本的 C++ 第三方库。
+   `x64-windows` triplet 与 Qt 的动态 MSVC runtime 匹配。若只构建应用、不构建测试，
+   使用 `windows-msvc-debug` / `debug`；发布构建使用 `release-no-data` 或 `release-data`。
+
+`vcpkg.json` 中的 baseline 必须随依赖升级提交，不能依赖开发者机器上全局安装的
+vcpkg 包版本。Qt 不通过 vcpkg 提供，因为本项目使用 Qt 6.10、`Qt6::GuiPrivate`、
+`windeployqt`，且需要与 PySide6/Shiboken 使用的 Qt SDK 保持一致。
+
 ### C++ qt环境(如果要修改绑定项目)
 安装qt6.10.3
 

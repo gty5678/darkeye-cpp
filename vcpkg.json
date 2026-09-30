@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "darkeye-cpp",
+  "version-string": "1.2.5",
+  "dependencies": [
+    "freetype",
+    {
+      "name": "msdfgen",
+      "default-features": false,
+      "features": [
+        "extensions"
+      ]
+    }
+  ],
+  "builtin-baseline": "64adda19c86e89526b5e27703a193c14477cce07"
+}

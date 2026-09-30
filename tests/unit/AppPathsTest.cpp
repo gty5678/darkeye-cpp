@@ -100,11 +100,11 @@ void AppPathsTest::createsEveryRuntimeDirectory()
     };
     const QJsonArray workNavigation = readNavigationExample(QStringLiteral("crawler_nav_buttons.json"));
     QCOMPARE(workNavigation.size(), 1);
-    QCOMPARE(workNavigation.constFirst().toObject().value(QStringLiteral("url")).toString(),
+    QCOMPARE(workNavigation.first().toObject().value(QStringLiteral("url")).toString(),
              QStringLiteral("https://www.google.com/search?q={serial}"));
     const QJsonArray actressNavigation = readNavigationExample(QStringLiteral("actress_nav_buttons.json"));
     QCOMPARE(actressNavigation.size(), 1);
-    QCOMPARE(actressNavigation.constFirst().toObject().value(QStringLiteral("url")).toString(),
+    QCOMPARE(actressNavigation.first().toObject().value(QStringLiteral("url")).toString(),
              QStringLiteral("https://www.google.com/search?q={jp_name}"));
 
     // 用户自定义的导航配置不可被后续启动覆盖。

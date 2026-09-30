@@ -95,8 +95,8 @@ private:
     double m_ascender = 0.0;
     double m_descender = 0.0;
     double m_lineHeight = 1.0;
+    double m_emSize = 1.0;
 };
 
 #endif // MSDFFONTATLAS_H
-
 

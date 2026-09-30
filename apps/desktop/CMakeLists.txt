@@ -6,7 +6,13 @@ add_library(darkeye::desktop_ui ALIAS darkeye_desktop_ui)
 target_include_directories(darkeye_desktop_ui PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
 )
-target_link_libraries(darkeye_desktop_ui PUBLIC darkeye::app)
+target_link_libraries(darkeye_desktop_ui PUBLIC
+    darkeye::app
+    # MainWindow.h directly includes graph/GraphManager.h.  Keep the direct
+    # usage requirement visible to CMake generators and Visual Studio's
+    # IntelliSense target model instead of relying only on the app facade.
+    darkeye::graph
+)
 if(WIN32)
     target_link_libraries(darkeye_desktop_ui PRIVATE Psapi)
 endif()

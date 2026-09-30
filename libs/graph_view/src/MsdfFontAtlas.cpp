@@ -141,11 +141,14 @@ bool MsdfFontAtlas::queryFontMetrics()
     if (!m_font) return false;
 
     msdfgen::FontMetrics metrics;
-    const bool ok = msdfgen::getFontMetrics(metrics, static_cast<msdfgen::FontHandle*>(m_font), msdfgen::FONT_SCALING_EM_NORMALIZED);
+    const bool ok = msdfgen::getFontMetrics(metrics, static_cast<msdfgen::FontHandle*>(m_font));
     if (ok) {
-        m_ascender = metrics.ascenderY;//字体的高点一般为正
-        m_descender = metrics.descenderY;//字体低点一般为负
-        m_lineHeight = metrics.lineHeight;
+        // msdfgen 1.10 returns font-unit coordinates. Keep the public atlas
+        // metrics in em units, matching the former EM_NORMALIZED API.
+        m_emSize = metrics.emSize > 0.0 ? metrics.emSize : 1.0;
+        m_ascender = metrics.ascenderY / m_emSize;//字体的高点一般为正
+        m_descender = metrics.descenderY / m_emSize;//字体低点一般为负
+        m_lineHeight = metrics.lineHeight / m_emSize;
     }
     // 若字体未提供度量，使用合理默认值
     if (!(m_lineHeight > 0.0)) m_lineHeight = 1.0;
@@ -227,14 +230,14 @@ bool MsdfFontAtlas::buildAtlasData(const QStringList& labels, AtlasData& out, QS
         // 加载字形轮廓和 advance（水平推进量）
         msdfgen::Shape shape;
         double advance = 0.0;
-        const bool loaded = msdfgen::loadGlyph(shape, static_cast<msdfgen::FontHandle*>(m_font), glyphIndex, msdfgen::FONT_SCALING_EM_NORMALIZED, &advance);
+        const bool loaded = msdfgen::loadGlyph(shape, static_cast<msdfgen::FontHandle*>(m_font), glyphIndex, &advance);
         if (!loaded) {
             continue;
         }
 
         GlyphInfo info;
         info.codepoint = cp;
-        info.advance = static_cast<float>(advance);
+        info.advance = static_cast<float>(advance / m_emSize);
         info.drawable = false;
         newGlyphs[cp] = info;
 
@@ -248,14 +251,14 @@ bool MsdfFontAtlas::buildAtlasData(const QStringList& labels, AtlasData& out, QS
 
         // 根据字形尺寸计算位图大小，使主体约 targetInnerPixels 像素
         const msdfgen::Shape::Bounds bounds = shape.getBounds();
-        const double glyphWEm = std::max(1e-6, bounds.r - bounds.l);
-        const double glyphHEm = std::max(1e-6, bounds.t - bounds.b);
-        const double glyphMaxEm = std::max(glyphWEm, glyphHEm);
-        const double emToPx = std::max(1.0, targetInnerPixels / glyphMaxEm);
-        const double rangeEm = std::max(1e-6, m_config.pxRange / emToPx);
+        const double glyphW = std::max(1e-6, bounds.r - bounds.l);
+        const double glyphH = std::max(1e-6, bounds.t - bounds.b);
+        const double glyphMax = std::max(glyphW, glyphH);
+        const double fontUnitsToPx = std::max(1e-6, targetInnerPixels / glyphMax);
+        const double rangeFontUnits = std::max(1e-6, m_config.pxRange / fontUnitsToPx);
 
-        const int bitmapW = std::max(4, static_cast<int>(std::ceil(glyphWEm * emToPx)) + 2 * sdfPadding);
-        const int bitmapH = std::max(4, static_cast<int>(std::ceil(glyphHEm * emToPx)) + 2 * sdfPadding);
+        const int bitmapW = std::max(4, static_cast<int>(std::ceil(glyphW * fontUnitsToPx)) + 2 * sdfPadding);
+        const int bitmapH = std::max(4, static_cast<int>(std::ceil(glyphH * fontUnitsToPx)) + 2 * sdfPadding);
 
         PendingGlyph pg;
         pg.bitmap = msdfgen::Bitmap<float, 3>(bitmapW, bitmapH);
@@ -264,24 +267,24 @@ bool MsdfFontAtlas::buildAtlasData(const QStringList& labels, AtlasData& out, QS
         pg.info = info;
         pg.info.drawable = true;
 
-        // 生成 MSDF 位图（scale + translate 将 em 坐标映射到像素）
+        // 生成 MSDF 位图（scale + translate 将字体内部单位映射到像素）
         // Projection 约定: pixel = scale * (shape + translate)
         // 要使 shape bounds.l 映射到 pixel sdfPadding:
-        //   sdfPadding = emToPx * (bounds.l + translate.x)
-        //   translate.x = sdfPadding / emToPx - bounds.l
-        const msdfgen::Vector2 scale(emToPx, emToPx);
+        //   sdfPadding = fontUnitsToPx * (bounds.l + translate.x)
+        //   translate.x = sdfPadding / fontUnitsToPx - bounds.l
+        const msdfgen::Vector2 scale(fontUnitsToPx, fontUnitsToPx);
         const msdfgen::Vector2 translate(
-            static_cast<double>(sdfPadding) / emToPx - bounds.l,
-            static_cast<double>(sdfPadding) / emToPx - bounds.b
+            static_cast<double>(sdfPadding) / fontUnitsToPx - bounds.l,
+            static_cast<double>(sdfPadding) / fontUnitsToPx - bounds.b
         );
-        msdfgen::generateMSDF(pg.bitmap, shape, msdfgen::Range(rangeEm), scale, translate);
+        msdfgen::generateMSDF(pg.bitmap, shape, rangeFontUnits, scale, translate);
 
         // 记录平面坐标（em 单位，用于着色器中的纹理坐标映射）
-        const double paddingEm = static_cast<double>(sdfPadding) / emToPx;
-        pg.info.planeLeft = static_cast<float>(bounds.l - paddingEm);
-        pg.info.planeBottom = static_cast<float>(bounds.b - paddingEm);
-        pg.info.planeRight = static_cast<float>(bounds.r + paddingEm);
-        pg.info.planeTop = static_cast<float>(bounds.t + paddingEm);
+        const double paddingFontUnits = static_cast<double>(sdfPadding) / fontUnitsToPx;
+        pg.info.planeLeft = static_cast<float>((bounds.l - paddingFontUnits) / m_emSize);
+        pg.info.planeBottom = static_cast<float>((bounds.b - paddingFontUnits) / m_emSize);
+        pg.info.planeRight = static_cast<float>((bounds.r + paddingFontUnits) / m_emSize);
+        pg.info.planeTop = static_cast<float>((bounds.t + paddingFontUnits) / m_emSize);
         pending.push_back(std::move(pg));
     }
 
@@ -391,8 +394,8 @@ float MsdfFontAtlas::kerning(uint32_t previousCodepoint, uint32_t currentCodepoi
     if (it != m_kerningCache.end()) return it->second;
 
     double value = 0.0;
-    const bool ok = msdfgen::getKerning(value, static_cast<msdfgen::FontHandle*>(m_font), previousCodepoint, currentCodepoint, msdfgen::FONT_SCALING_EM_NORMALIZED);
-    const float kerningValue = ok ? static_cast<float>(value) : 0.0f;
+    const bool ok = msdfgen::getKerning(value, static_cast<msdfgen::FontHandle*>(m_font), previousCodepoint, currentCodepoint);
+    const float kerningValue = ok ? static_cast<float>(value / m_emSize) : 0.0f;
     m_kerningCache[key] = kerningValue;
     return kerningValue;
 }
@@ -439,7 +442,6 @@ void MsdfFontAtlas::clear()
     m_atlasHeight = 0;
     m_generation = 0;
     m_ready = false;
+    m_emSize = 1.0;
 }
-
-
 

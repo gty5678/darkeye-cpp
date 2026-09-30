@@ -8,67 +8,118 @@
   "configurePresets": [
     {
       "name": "windows-msvc-debug",
-      "displayName": "Windows MSVC + Ninja + Qt 6.10.3 Debug",
+      "displayName": "Windows MSVC + Ninja + Qt 6.10.3 + vcpkg Debug",
       "generator": "Ninja",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "toolset": {
+        "value": "host=x64",
+        "strategy": "external"
+      },
       "binaryDir": "${sourceDir}/build/windows-msvc-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64",
+        "Qt6_DIR": "$env{Qt6_DIR}",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
         "DARKEYE_BUILD_TESTS": "OFF",
-        "CMAKE_INSTALL_PREFIX": "C:/Users/yin/Desktop/DarkeyeCPP",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/debug",
         "CMAKE_INSTALL_BINDIR": "."
       }
     },
     {
       "name": "windows-msvc-release-no-data",
-      "displayName": "Windows MSVC + Ninja + Qt 6.10.3 Release",
+      "displayName": "Windows MSVC + Ninja + Qt 6.10.3 + vcpkg Release",
       "generator": "Ninja",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "toolset": {
+        "value": "host=x64",
+        "strategy": "external"
+      },
       "binaryDir": "${sourceDir}/build/windows-msvc-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64",
+        "Qt6_DIR": "$env{Qt6_DIR}",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
         "DARKEYE_BUILD_TESTS": "OFF",
-        "CMAKE_INSTALL_PREFIX": "C:/Users/yin/Desktop/Darkeye-no-data",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/release-no-data",
         "DARKEYE_INSTALL_DATA": "OFF",
         "CMAKE_INSTALL_BINDIR": "."
       }
     },
     {
       "name": "windows-msvc-release-data",
-      "displayName": "Windows MSVC + Ninja + Qt 6.10.3 Release",
+      "displayName": "Windows MSVC + Ninja + Qt 6.10.3 + vcpkg Release",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/windows-msvc-release",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "toolset": {
+        "value": "host=x64",
+        "strategy": "external"
+      },
+      "binaryDir": "${sourceDir}/build/windows-msvc-release-data",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64",
+        "Qt6_DIR": "$env{Qt6_DIR}",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
         "DARKEYE_BUILD_TESTS": "OFF",
-        "CMAKE_INSTALL_PREFIX": "C:/Users/yin/Desktop/DarkeyeCPP-data",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/release-data",
         "DARKEYE_INSTALL_DATA": "ON",
         "CMAKE_INSTALL_BINDIR": "."
       }
     },
     {
       "name": "windows-msvc-debug-tests",
-      "displayName": "Windows MSVC + Ninja + Qt 6.10.3 Debug (tests and demos)",
+      "displayName": "Windows MSVC + Ninja + Qt 6.10.3 + vcpkg Debug (tests and demos)",
       "generator": "Ninja",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "toolset": {
+        "value": "host=x64",
+        "strategy": "external"
+      },
       "binaryDir": "${sourceDir}/build/windows-msvc-debug-tests",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64",
+        "Qt6_DIR": "$env{Qt6_DIR}",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
         "DARKEYE_BUILD_TESTS": "ON",
-        "CMAKE_INSTALL_PREFIX": "C:/Users/yin/Desktop/DarkeyeCPP",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/debug-tests",
         "CMAKE_INSTALL_BINDIR": "."
       }
     },
     {
       "name": "windows-msvc-release-tests",
-      "displayName": "Windows MSVC + Ninja + Qt 6.10.3 Release (tests and demos)",
+      "displayName": "Windows MSVC + Ninja + Qt 6.10.3 + vcpkg Release (tests and demos)",
       "generator": "Ninja",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "toolset": {
+        "value": "host=x64",
+        "strategy": "external"
+      },
       "binaryDir": "${sourceDir}/build/windows-msvc-release-tests",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64",
+        "Qt6_DIR": "$env{Qt6_DIR}",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
         "DARKEYE_BUILD_TESTS": "ON",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/release-tests",
         "CMAKE_INSTALL_BINDIR": "."
       }
     }

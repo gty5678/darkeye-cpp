@@ -15,7 +15,6 @@ include(CompilerOptions)
 include(Dependencies)
 include(Packaging)
 
-add_subdirectory(3rdparty)
 add_subdirectory(libs)
 add_subdirectory(apps)
 

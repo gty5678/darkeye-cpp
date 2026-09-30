@@ -36,7 +36,11 @@
 !/data/**/.gitkeep
 !/data/README.md
 /data2/
-3rdparty/
+# Legacy local vendor checkout (no longer used by CMake). Dependencies are declared
+# in vcpkg.json; keep this ignored so an existing checkout does not become dirty.
+/3rdparty/
+# vcpkg manifest-mode output.
+/vcpkg_installed/
 
 # Local databases, logs, and test artifacts
 *.db

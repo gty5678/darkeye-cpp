@@ -300,6 +300,7 @@ void OKLCHColorWheel::updateLayout()
 
 void OKLCHColorWheel::paintEvent(QPaintEvent *event)
 {
+    Q_UNUSED(event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.save();
@@ -381,7 +382,6 @@ void OKLCHColorWheel::drawInnerCircle(QPainter &painter)
 {
     painter.save();
 
-    float halfSide = m_side / 2.0f;
     // Calculate position based on L and C
     // L goes from 0 (left) to 1 (right)
     // C goes from 0.37 (bottom) to 0 (top) -- Wait, Python says:
@@ -472,6 +472,7 @@ void OKLCHColorWheel::mouseMoveEvent(QMouseEvent *event)
 
 void OKLCHColorWheel::mouseReleaseEvent(QMouseEvent *event)
 {
+    Q_UNUSED(event)
     m_isChoosingRing = false;
     m_isChoosingSquare = false;
 }
@@ -889,6 +890,5 @@ void ColorWheelSimple::setInitialColor(const QString& hex)
 }
 
 } // namespace darkeye
-
 
 

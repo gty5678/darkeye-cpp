@@ -8,10 +8,15 @@
 
 # 文档工具的使用
 
-mkdocs serve 启动然后点击链接
+uv pip install -r requirements-docs.txt --index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
-mkdocs build 构建
 
+
+uv run mkdocs serve
+
+uv run mkdocs build --strict
+
+uv run mkdocs gh-deploy
 
 # 项目整体的结构
 AVmanagement_project/

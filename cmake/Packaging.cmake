@@ -3,7 +3,7 @@ include(GNUInstallDirs)
 function(darkeye_configure_packaging target)
 
     # --------------------------------
-    # ¿ª·¢½×¶Î£ºÈÃ build Ä¿Â¼ÖĞµÄ³ÌĞò¿ÉÒÔÖ±½ÓÔËĞĞ
+    # å¼€å‘é˜¶æ®µï¼šè®© build ç›®å½•ä¸­çš„ç¨‹åºå¯ä»¥ç›´æ¥è¿è¡Œ
     # --------------------------------
     if(WIN32 AND DARKEYE_DEPLOY_QT_RUNTIME)
         find_program(DARKEYE_WINDEPLOYQT_EXECUTABLE
@@ -26,7 +26,7 @@ function(darkeye_configure_packaging target)
     endif()
 
     # --------------------------------
-    # install£º°²×°³ÌĞò±¾Éí
+    # installï¼šå®‰è£…ç¨‹åºæœ¬èº«
     # --------------------------------
     install(
         TARGETS ${target}
@@ -34,12 +34,38 @@ function(darkeye_configure_packaging target)
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
 
-    # resources ·ÅÔÚ exe ÅÔ±ß
+    # Qt's deployment script only installs Qt runtime files. msdfgen is a
+    # shared vcpkg dependency, so install both imported DLLs and recursively
+    # collect their non-system dependencies (FreeType, PNG, zlib, and so on).
+    if(WIN32)
+        install(
+            IMPORTED_RUNTIME_ARTIFACTS
+                msdfgen::msdfgen-core
+                msdfgen::msdfgen-ext
+            RUNTIME_DEPENDENCY_SET darkeye_msdfgen_runtime_dependencies
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        )
+
+        install(
+            RUNTIME_DEPENDENCY_SET darkeye_msdfgen_runtime_dependencies
+            DIRECTORIES
+                "$<$<CONFIG:Debug>:${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin>"
+                "$<$<NOT:$<CONFIG:Debug>>:${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin>"
+            PRE_EXCLUDE_REGEXES
+                "^api-ms-"
+                "^ext-ms-"
+            POST_EXCLUDE_REGEXES
+                "^[A-Za-z]:[/\\\\][Ww][Ii][Nn][Dd][Oo][Ww][Ss][/\\\\][Ss][Yy][Ss][Tt][Ee][Mm]32[/\\\\].*"
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        )
+    endif()
+
+    # resources æ”¾åœ¨ exe æ—è¾¹ï¼Œè¿™ä¸ªæ˜¯æ— è®ºå¦‚ä½•éƒ½æ”¾ç€çš„
     install(
         DIRECTORY "${PROJECT_SOURCE_DIR}/resources/"
         DESTINATION "${CMAKE_INSTALL_BINDIR}/resources"
     )
-    # data ·ÅÔÚ exe ÅÔ±ß
+    # data æ”¾åœ¨ exe æ—è¾¹
     if(DARKEYE_INSTALL_DATA)
         install(
             DIRECTORY "${PROJECT_SOURCE_DIR}/data/"
@@ -48,7 +74,7 @@ function(darkeye_configure_packaging target)
     endif()
 
     # --------------------------------
-    # install£º²¿Êğ Qt DLL / plugins
+    # installï¼šéƒ¨ç½² Qt DLL / plugins
     # --------------------------------
     qt_generate_deploy_app_script(
         TARGET ${target}
