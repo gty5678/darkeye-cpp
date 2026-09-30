@@ -2,18 +2,40 @@
 
 #include "ui/components/AsyncImageLabel.h"
 #include "ui/components/ClickableLabel.h"
+#include "darkeye_ui/components/DesignLabel.h"
+#include "utils/GeneralUtils.h"
+#include "utils/TextUtils.h"
 
+#include <QCoreApplication>
 #include <QDir>
+#include <QEvent>
 #include <QFileInfo>
+#include <QFocusEvent>
 #include <QFontMetrics>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLayout>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QScrollArea>
+#include <QTimer>
 #include <QVBoxLayout>
 
 namespace {
+
+const QStringList &sensitiveWords()
+{
+    static const QStringList words = darkeye::utils::loadSensitiveWords(
+        QDir(QCoreApplication::applicationDirPath())
+            .filePath(QStringLiteral("resources/config/sensitive_words.txt")));
+    return words;
+}
+
+QString displayedTitle(const QString &title, bool greenMode)
+{
+    return greenMode ? darkeye::utils::replaceSensitive(title, sensitiveWords()) : title;
+}
 
 QColor cardColor(int tagId)
 {
@@ -35,8 +57,15 @@ namespace darkeye {
 
 WorkCard::WorkCard(const WorkSummary &work, const QString &coverDirectory,
                    bool largeCoverView, QWidget *parent)
+    : WorkCard(work, coverDirectory, largeCoverView, parent, false, false)
+{
+}
+
+WorkCard::WorkCard(const WorkSummary &work, const QString &coverDirectory,
+                   bool largeCoverView, QWidget *parent, bool greenMode,
+                   bool deferCoverLoad)
     : QWidget(parent), m_workId(work.id), m_backgroundColor(cardColor(work.highlightTagId)),
-      m_largeCoverView(largeCoverView)
+      m_largeCoverView(largeCoverView), m_originalTitle(work.chineseTitle), m_greenMode(greenMode)
 {
     setObjectName(QStringLiteral("WorkCard"));
     setProperty("workId", work.id);
@@ -44,8 +73,7 @@ WorkCard::WorkCard(const WorkSummary &work, const QString &coverDirectory,
     const int imageWidth = largeCoverView ? 240 : 210;
     const int imageHeight = largeCoverView ? 162 : (work.standard ? 300 : 120);
     setFixedWidth(cardWidth);
-    setFocusPolicy(Qt::StrongFocus);
-    setCursor(Qt::PointingHandCursor);
+    setFocusPolicy(largeCoverView ? Qt::StrongFocus : Qt::NoFocus);
     setAccessibleName(QStringLiteral("%1 %2").arg(work.serialNumber, work.chineseTitle));
 
     auto *layout = new QVBoxLayout(this);
@@ -53,33 +81,46 @@ WorkCard::WorkCard(const WorkSummary &work, const QString &coverDirectory,
                                largeCoverView ? 8 : 20);
     layout->setSpacing(largeCoverView ? 4 : 6);
     auto *serial = new ClickableLabel(work.serialNumber, false, this);
+    serial->setObjectName(QStringLiteral("WorkCardSerialNumber"));
     serial->setStyleSheet(QStringLiteral(
         "font-size: 16px; font-family: 'Microsoft YaHei'; font-weight: bold;"));
     serial->ensurePolished();
     serial->setAlignment(Qt::AlignCenter);
     if (largeCoverView) {
         serial->setFixedSize(240, 22);
+    } else {
+        serial->setFixedWidth(210);
     }
-    layout->addWidget(serial);
+    layout->addWidget(serial, 0, Qt::AlignHCenter);
 
-    auto *cover = new AsyncImageLabel(this);
-    cover->setFixedSize(imageWidth, imageHeight);
-    cover->setFitMode(largeCoverView ? ImageFitMode::Contain
-                                     : (work.standard ? ImageFitMode::RightCover
-                                                      : ImageFitMode::Contain));
+    m_cover = new AsyncImageLabel(this);
+    m_cover->setObjectName(QStringLiteral("WorkCardCover"));
+    m_cover->setFixedSize(imageWidth, imageHeight);
+    m_cover->setPlaceholderText(QStringLiteral("无封面"));
+    m_cover->setDeferredLoading(deferCoverLoad);
+    connect(m_cover, &AsyncImageLabel::imageLoaded, this,
+            [this] { emit coverLoadFinished(); });
+    connect(m_cover, &AsyncImageLabel::imageLoadFailed, this,
+            [this] { emit coverLoadFinished(); });
+    m_cover->setGreenMode(m_greenMode);
+    m_cover->setFitMode(largeCoverView ? ImageFitMode::Contain
+                                       : (work.standard ? ImageFitMode::RightCover
+                                                        : ImageFitMode::Contain));
     QString imagePath = work.imageUrl.trimmed();
     if (!imagePath.isEmpty() && !QFileInfo(imagePath).isAbsolute()) {
         imagePath = QDir(coverDirectory).filePath(imagePath);
     }
-    cover->setSource(imagePath);
-    cover->setAttribute(Qt::WA_TransparentForMouseEvents);
-    layout->addWidget(cover, 0, Qt::AlignCenter);
+    m_cover->setSource(imagePath);
+    m_cover->setCursor(Qt::PointingHandCursor);
+    m_cover->installEventFilter(this);
+    layout->addWidget(m_cover, 0, Qt::AlignCenter);
 
-    QString displayedTitle = work.chineseTitle;
+    QString displayedTitle = ::displayedTitle(m_originalTitle, m_greenMode);
     if (largeCoverView) {
         displayedTitle = displayedTitle.left(40);
     }
-    auto *title = new QLabel(displayedTitle, this);
+    auto *title = new DesignLabel(displayedTitle, this);
+    m_title = title;
     title->setStyleSheet(QStringLiteral(
         "font-size: 14px; font-family: 'Microsoft YaHei'; font-weight: bold;"));
     title->ensurePolished();
@@ -91,8 +132,14 @@ WorkCard::WorkCard(const WorkSummary &work, const QString &coverDirectory,
     } else {
         title->setMaximumHeight(48);
     }
-    title->setAttribute(Qt::WA_TransparentForMouseEvents);
+    if (!largeCoverView)
+        title->setAttribute(Qt::WA_TransparentForMouseEvents);
     layout->addWidget(title);
+
+    if (largeCoverView) {
+        serial->installEventFilter(this);
+        title->installEventFilter(this);
+    }
 
     if (largeCoverView) {
         setFixedHeight(248);
@@ -116,24 +163,97 @@ qint64 WorkCard::workId() const noexcept
     return m_workId;
 }
 
-void WorkCard::mouseReleaseEvent(QMouseEvent *event)
+void WorkCard::setGreenMode(bool enabled)
 {
-    if (event->button() == Qt::LeftButton) {
-        setFocus();
-        emit activated(m_workId);
-        event->accept();
+    if (m_greenMode == enabled) return;
+    m_greenMode = enabled;
+    m_cover->setGreenMode(enabled);
+    QString title = ::displayedTitle(m_originalTitle, enabled);
+    if (m_largeCoverView)
+        title = title.left(40);
+    m_title->setText(title);
+}
+
+bool WorkCard::greenMode() const noexcept
+{
+    return m_greenMode;
+}
+
+void WorkCard::startCoverLoad(int priority)
+{
+    if (m_cover->source().isEmpty()) {
+        emit coverLoadFinished();
         return;
     }
-    if (event->button() == Qt::RightButton) {
-        emit editRequested(m_workId);
-        event->accept();
-        return;
+    m_cover->startDeferredLoad(priority);
+}
+
+bool WorkCard::eventFilter(QObject *watched, QEvent *event)
+{
+    if (m_largeCoverView && event->type() == QEvent::MouseButtonPress) {
+        setFocus(Qt::MouseFocusReason);
     }
-    QWidget::mouseReleaseEvent(event);
+    if (watched == m_cover
+        && (event->type() == QEvent::ContextMenu
+            || (event->type() == QEvent::MouseButtonPress
+                && static_cast<QMouseEvent *>(event)->button() == Qt::RightButton))) {
+        // Right-click releases request editing.  The associated press/context
+        // events must stay on the cover instead of reaching controls below it.
+        event->accept();
+        return true;
+    }
+    if (watched == m_cover && event->type() == QEvent::MouseButtonRelease) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if (mouseEvent->button() == Qt::LeftButton) {
+            setFocus();
+            emit activated(m_workId);
+            return true;
+        }
+        if (mouseEvent->button() == Qt::RightButton) {
+            // On Windows the context-menu event follows the release.  Defer
+            // navigation exactly as the Python cover widget does, otherwise
+            // that event lands on the newly displayed page.
+            const qint64 workId = m_workId;
+            QTimer::singleShot(0, this, [this, workId] { emit editRequested(workId); });
+            return true;
+        }
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
+void WorkCard::focusInEvent(QFocusEvent *event)
+{
+    QWidget::focusInEvent(event);
+    if (!m_largeCoverView) return;
+    for (QWidget *ancestor = parentWidget(); ancestor != nullptr;
+         ancestor = ancestor->parentWidget()) {
+        if (auto *scrollArea = qobject_cast<QScrollArea *>(ancestor)) {
+            scrollArea->ensureWidgetVisible(this, 24, 24);
+            break;
+        }
+    }
 }
 
 void WorkCard::keyPressEvent(QKeyEvent *event)
 {
+    if (m_largeCoverView
+        && (event->key() == Qt::Key_Left || event->key() == Qt::Key_Right)) {
+        QWidget *container = parentWidget();
+        QLayout *layout = container ? container->layout() : nullptr;
+        QList<WorkCard *> cards;
+        if (layout != nullptr) {
+            for (int index = 0; index < layout->count(); ++index) {
+                if (auto *card = qobject_cast<WorkCard *>(layout->itemAt(index)->widget()))
+                    cards.append(card);
+            }
+        }
+        const int current = cards.indexOf(this);
+        const int next = current + (event->key() == Qt::Key_Left ? -1 : 1);
+        if (current >= 0 && next >= 0 && next < cards.size())
+            cards.at(next)->setFocus(Qt::TabFocusReason);
+        event->accept();
+        return;
+    }
     if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter
         || event->key() == Qt::Key_Space) {
         emit activated(m_workId);

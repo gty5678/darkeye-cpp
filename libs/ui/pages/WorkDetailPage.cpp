@@ -81,20 +81,22 @@ WorkDetailPage::WorkDetailPage(QSqlDatabase publicDatabase,
                                QSqlDatabase privateDatabase,
                                ThemeService &themes, QString coverDirectory,
                                QWidget *parent)
-    : QWidget(parent), m_themes(themes),
+    : LazyWidget(parent), m_themes(themes),
       m_repository(std::move(publicDatabase)),
       m_privateRepository(std::move(privateDatabase)),
       m_coverDirectory(std::move(coverDirectory))
 {
-    setObjectName(QStringLiteral("WorkDetailPage"));
     setAttribute(Qt::WA_StyledBackground, true);
+}
+
+void WorkDetailPage::lazyLoad()
+{
     buildUi();
 }
 
 void WorkDetailPage::buildUi()
 {
     m_backdrop = new WorkBackdrop(this);
-    m_backdrop->setObjectName(QStringLiteral("WorkDetailBackdrop"));
     m_backdrop->lower();
 
     m_rootLayout = new QHBoxLayout(this);
@@ -103,7 +105,6 @@ void WorkDetailPage::buildUi()
     m_rootLayout->addStretch();
 
     auto *content = new QWidget(this);
-    content->setObjectName(QStringLiteral("WorkDetailContent"));
     content->setFixedHeight(550);
     content->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     auto *contentLayout = new QHBoxLayout(content);
@@ -119,17 +120,21 @@ void WorkDetailPage::buildUi()
     auto *trash = new IconButton(QStringLiteral("trash_2"), &m_themes, tools);
     auto *modify = new IconButton(QStringLiteral("square_pen"), &m_themes, tools);
     auto *watch = new IconButton(QStringLiteral("tv"), &m_themes, tools);
-    for (IconButton *button : {trash, modify, watch}) {
+    auto *fanart = new IconButton(QStringLiteral("image"), &m_themes, tools);
+    fanart->setObjectName(QStringLiteral("WorkDetailFanartButton"));
+    for (IconButton *button : {trash, modify, watch, fanart}) {
         button->setInverted(true);
         button->setButtonPixelSize(32);
     }
     trash->setToolTip(QStringLiteral("标记删除作品"));
     modify->setToolTip(QStringLiteral("修改作品"));
     watch->setToolTip(QStringLiteral("播放本地视频"));
+    fanart->setToolTip(QStringLiteral("浏览剧照"));
     toolLayout->addWidget(m_heart, 0, Qt::AlignHCenter);
     toolLayout->addWidget(trash, 0, Qt::AlignHCenter);
     toolLayout->addWidget(modify, 0, Qt::AlignHCenter);
     toolLayout->addWidget(watch, 0, Qt::AlignHCenter);
+    toolLayout->addWidget(fanart, 0, Qt::AlignHCenter);
     toolLayout->addStretch();
     contentLayout->addWidget(tools);
 
@@ -194,10 +199,14 @@ void WorkDetailPage::buildUi()
         if (m_details.has_value()) emit editRequested(m_details->work.id);
     });
     connect(watch, &QPushButton::clicked, this, &WorkDetailPage::playCurrentWork);
+    connect(fanart, &QPushButton::clicked, this, [this] {
+        if (m_details.has_value()) emit fanartRequested(m_details->work.id);
+    });
 }
 
 bool WorkDetailPage::showWork(qint64 workId)
 {
+    initialize();
     QString errorMessage;
     const std::optional<WorkDetails> details =
         m_repository.findDetailsById(workId, &errorMessage);
@@ -298,7 +307,9 @@ void WorkDetailPage::toggleFavorite(bool favorite)
         m_heart->setState(!favorite);
         ToastNotification::showMessage(window(), errorMessage,
             ToastNotification::Level::Error, 3500, &m_themes);
+        return;
     }
+    emit favoriteChanged(m_details->work.id);
 }
 
 void WorkDetailPage::deleteCurrentWork()
@@ -332,10 +343,12 @@ void WorkDetailPage::playCurrentWork()
 void WorkDetailPage::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
+    if (!m_backdrop || !m_rootLayout)
+    {
+        return;
+    }
     m_backdrop->setGeometry(rect());
     m_rootLayout->setContentsMargins(0, 0, qRound(height() * 0.8), 0);
 }
 
 } // namespace darkeye
-
-

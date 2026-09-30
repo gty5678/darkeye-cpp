@@ -1,4 +1,4 @@
-#include "app/AppPaths.h"
+#include "settings/Paths.h"
 #include "database/DatabaseManager.h"
 #include "database/SchemaManager.h"
 #include "database/SqlScriptRunner.h"
@@ -52,6 +52,14 @@ void SchemaManagerTest::initializesAndValidatesPublicDatabase()
     QCOMPARE(connection.schemaVersion(), QStringLiteral("2"));
     QVERIFY(connection.database().tables(QSql::Tables).contains(QStringLiteral("work")));
     QVERIFY(connection.database().tables(QSql::Views).contains(QStringLiteral("v_work_all_info")));
+
+    QSqlQuery contentCountQuery(connection.database());
+    QVERIFY(contentCountQuery.exec(QStringLiteral("SELECT COUNT(*) FROM tag")));
+    QVERIFY(contentCountQuery.next());
+    QVERIFY(contentCountQuery.value(0).toInt() > 0);
+    QVERIFY(contentCountQuery.exec(QStringLiteral("SELECT COUNT(*) FROM maker")));
+    QVERIFY(contentCountQuery.next());
+    QVERIFY(contentCountQuery.value(0).toInt() > 0);
 }
 
 void SchemaManagerTest::acceptsPublicUserVersionWithoutLegacyTable()
@@ -179,7 +187,8 @@ void SchemaManagerTest::managerBacksUpBeforeMigratingLegacyPublicDatabase()
 {
     QTemporaryDir temporaryDirectory;
     QVERIFY(temporaryDirectory.isValid());
-    darkeye::AppPaths paths(temporaryDirectory.path());
+    const QString applicationDirectory = temporaryDirectory.path();
+    const darkeye::settings::Paths paths(applicationDirectory);
     QVERIFY(paths.ensureRuntimeDirectories());
 
     {

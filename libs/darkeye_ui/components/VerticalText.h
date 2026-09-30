@@ -43,9 +43,16 @@ class TokenVLabel final : public QLabel
 public:
     explicit TokenVLabel(const QString &text = {}, ThemeService *themes = nullptr,
                          QWidget *parent = nullptr);
+    TokenVLabel(const QString &text, const QColor &background,
+                const QColor &textColor = {}, int fixedWidth = 0,
+                int fixedHeight = 0, const QColor &border = {},
+                const QColor &hover = {}, ThemeService *themes = nullptr,
+                QWidget *parent = nullptr);
     void setTextDynamic(const QString &text);
     void setColors(const QColor &background, const QColor &text,
                    const QColor &hover = {});
+    void setBorderColor(const QColor &border);
+    void setHoverColor(const QColor &hover);
     void flashInvert(int durationMilliseconds = 3000,
                      int intervalMilliseconds = 300);
     QSize sizeHint() const override;
@@ -65,7 +72,10 @@ private:
     QColor m_hoverColor;
     bool m_hovered = false;
     bool m_inverted = false;
-    bool m_explicitColors = false;
+    bool m_explicitBackground = false;
+    bool m_explicitTextColor = false;
+    bool m_explicitBorder = false;
+    bool m_explicitHoverColor = false;
     qint64 m_flashEnd = 0;
     QTimer *m_flashTimer = nullptr;
 };

@@ -14,6 +14,7 @@ public:
     explicit RatingSelector(QWidget *parent = nullptr);
 
     int rating() const;
+    int getRating() const { return rating(); }
     void setRating(int rating, bool notify = false);
 
 signals:

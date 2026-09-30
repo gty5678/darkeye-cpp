@@ -9,13 +9,15 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QImageReader>
+#include <QLabel>
 #include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QProcess>
+#include <QResizeEvent>
 #include <QSaveFile>
 #include <QUrl>
-#include <QVBoxLayout>
 
 namespace darkeye
 {
@@ -25,16 +27,24 @@ ImageDropWidget::ImageDropWidget(QString managedDirectory, QWidget *parent)
 {
     setObjectName(QStringLiteral("ImageDropWidget"));
     setAcceptDrops(true);
-    setMinimumSize(220, 260);
-    auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(4, 4, 4, 4);
+    setMinimumSize(0, 0);
     m_preview = new AsyncImageLabel(this);
     m_preview->setObjectName(QStringLiteral("ImageDropPreview"));
     m_preview->setPlaceholderText(QStringLiteral("点击或拖入人物头像"));
     m_preview->setFitMode(ImageFitMode::Contain);
     m_preview->setMinimumSize(200, 240);
+    // 预览图的像素尺寸不应参与 MyADS 工作区的尺寸协商；否则图片加载完成后会
+    // 改变 sizeHint，触发布局、resizeEvent 和下一次异步加载，形成可见的闪烁循环。
+    m_preview->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     m_preview->installEventFilter(this);
-    layout->addWidget(m_preview);
+    m_qualityBadge = new QLabel(QStringLiteral("非高清图"), this);
+    m_qualityBadge->setObjectName(QStringLiteral("coverQualityBadge"));
+    m_qualityBadge->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_qualityBadge->setStyleSheet(QStringLiteral(
+        "QLabel#coverQualityBadge { background-color: rgba(0, 0, 0, 160);"
+        " color: #FFD54F; border: 1px solid #FFD54F; border-radius: 8px;"
+        " font-size: 12px; font-weight: 600; padding: 1px 6px; }"));
+    m_qualityBadge->hide();
     refreshStyle();
 }
 
@@ -51,13 +61,39 @@ QString ImageDropWidget::purpose() const
     return m_purpose;
 }
 
+void ImageDropWidget::setFitMode(ImageFitMode mode)
+{
+    m_preview->setFitMode(mode);
+}
+
+void ImageDropWidget::setPreviewAspectRatio(qreal aspectRatio)
+{
+    m_previewAspectRatio = aspectRatio > 0.0 ? aspectRatio : 0.0;
+    if (m_previewAspectRatio > 0.0)
+        m_preview->setMinimumSize(0, 0);
+    updatePreviewGeometry();
+}
+
+void ImageDropWidget::setQualityBadgeEnabled(bool enabled)
+{
+    m_qualityBadgeEnabled = enabled;
+    updateQualityBadge();
+}
+
 void ImageDropWidget::setImagePath(const QString &path)
 {
-    m_imagePath = path.trimmed();
+    const QString normalized = path.trimmed();
+    if (m_imagePath == normalized)
+    {
+        setDirty(false);
+        return;
+    }
+    m_imagePath = normalized;
     if (m_imagePath.isEmpty())
         m_preview->clearSource();
     else
         m_preview->setSource(resolvedImagePath());
+    updateQualityBadge();
     setDirty(false);
 }
 
@@ -94,6 +130,7 @@ void ImageDropWidget::clearImage()
         return;
     m_imagePath.clear();
     m_preview->clearSource();
+    updateQualityBadge();
     setDirty(true);
     emit imageChanged({});
 }
@@ -178,6 +215,12 @@ bool ImageDropWidget::eventFilter(QObject *watched, QEvent *event)
     return QWidget::eventFilter(watched, event);
 }
 
+void ImageDropWidget::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    updatePreviewGeometry();
+}
+
 void ImageDropWidget::dragEnterEvent(QDragEnterEvent *event)
 {
     if (event->mimeData()->hasUrls())
@@ -199,11 +242,24 @@ void ImageDropWidget::dropEvent(QDropEvent *event)
 void ImageDropWidget::contextMenuEvent(QContextMenuEvent *event)
 {
     QMenu menu(this);
+    const QFileInfo imageInfo(resolvedImagePath());
+    QAction *openFolder = menu.addAction(QStringLiteral("打开图片所在位置"));
+    openFolder->setEnabled(imageInfo.exists());
     QAction *select = menu.addAction(QStringLiteral("选择%1").arg(m_purpose));
     QAction *clear = menu.addAction(QStringLiteral("清除%1").arg(m_purpose));
     clear->setEnabled(!m_imagePath.isEmpty());
     QAction *chosen = menu.exec(event->globalPos());
-    if (chosen == select)
+    if (chosen == openFolder)
+    {
+#ifdef Q_OS_WIN
+        QProcess::startDetached(QStringLiteral("explorer"),
+                                {QStringLiteral("/select,"),
+                                 QDir::toNativeSeparators(imageInfo.absoluteFilePath())});
+#else
+        QProcess::startDetached(QStringLiteral("xdg-open"), {imageInfo.absolutePath()});
+#endif
+    }
+    else if (chosen == select)
         chooseImage();
     else if (chosen == clear)
         clearImage();
@@ -230,19 +286,55 @@ bool ImageDropWidget::acceptImage(const QString &path, QString *errorMessage)
     }
     m_imagePath = QDir::cleanPath(path);
     m_preview->setSource(m_imagePath);
+    updateQualityBadge();
     setDirty(true);
     emit imageChanged(m_imagePath);
     return true;
 }
 
+void ImageDropWidget::updatePreviewGeometry()
+{
+    QRect available = rect();
+    if (available.isEmpty())
+        return;
+    if (m_previewAspectRatio > 0.0)
+    {
+        QSize previewSize = available.size();
+        if (qreal(previewSize.width()) / previewSize.height() > m_previewAspectRatio)
+            previewSize.setWidth(qRound(previewSize.height() * m_previewAspectRatio));
+        else
+            previewSize.setHeight(qRound(previewSize.width() / m_previewAspectRatio));
+        const int x = available.x() + (available.width() - previewSize.width()) / 2;
+        const int y = available.y() + (available.height() - previewSize.height()) / 2;
+        m_preview->setGeometry(x, y, previewSize.width(), previewSize.height());
+    }
+    else
+    {
+        m_preview->setGeometry(available);
+    }
+    updateQualityBadge();
+}
+
+void ImageDropWidget::updateQualityBadge()
+{
+    const QFileInfo imageInfo(resolvedImagePath());
+    const bool showBadge = m_qualityBadgeEnabled && imageInfo.exists() &&
+                           imageInfo.size() < 500 * 1024;
+    m_qualityBadge->setVisible(showBadge);
+    if (!showBadge)
+        return;
+    m_qualityBadge->adjustSize();
+    constexpr int margin = 6;
+    m_qualityBadge->move(m_preview->geometry().right() - m_qualityBadge->width() - margin + 1,
+                         m_preview->geometry().top() + margin);
+    m_qualityBadge->raise();
+}
+
 void ImageDropWidget::refreshStyle()
 {
-    const QString border = m_dirty ? QStringLiteral("#ff9800") : QStringLiteral("#8a8a8a");
-    m_preview->setStyleSheet(
-        QStringLiteral("#ImageDropPreview { border: 2px dashed %1; border-radius: 4px; }")
-            .arg(border));
+    m_preview->setProperty("imageDropBorder", true);
+    m_preview->setProperty("imageDropDirty", m_dirty);
+    m_preview->update();
 }
 
 } // namespace darkeye
-
-

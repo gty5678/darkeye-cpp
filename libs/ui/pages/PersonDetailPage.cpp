@@ -1,9 +1,12 @@
 #include "ui/pages/PersonDetailPage.h"
 
 #include "darkeye_ui/components/ToastNotification.h"
+#include "ui/components/ActressWorkTimeline.h"
 #include "ui/components/PersonInfoPanel.h"
 
+#include <QHBoxLayout>
 #include <QScrollArea>
+#include <QSizePolicy>
 #include <QDesktopServices>
 #include <QUrlQuery>
 #include <QVBoxLayout>
@@ -15,26 +18,50 @@ PersonDetailPage::PersonDetailPage(PersonKind kind, QSqlDatabase publicDatabase,
                                    QSqlDatabase privateDatabase, ThemeService &themes,
                                    QString imageDirectory, QWidget *parent,
                                    QString coverDirectory)
-    : QWidget(parent), m_kind(kind), m_repository(std::move(publicDatabase)),
-      m_privateRepository(std::move(privateDatabase)), m_themes(themes)
+    : LazyWidget(parent), m_kind(kind), m_repository(std::move(publicDatabase)),
+      m_privateRepository(std::move(privateDatabase)), m_themes(themes),
+      m_imageDirectory(std::move(imageDirectory)), m_coverDirectory(std::move(coverDirectory))
 {
-    setObjectName(kind == PersonKind::Actress ? QStringLiteral("ActressDetailPage")
-                                              : QStringLiteral("ActorDetailPage"));
+}
+
+void PersonDetailPage::lazyLoad()
+{
     auto *root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
-    auto *scroll = new QScrollArea(this);
-    scroll->setObjectName(QStringLiteral("PersonDetailScroll"));
-    scroll->setWidgetResizable(true);
-    scroll->setFrameShape(QFrame::NoFrame);
-    m_panel = new PersonInfoPanel(m_themes, std::move(imageDirectory), scroll,
-                                  std::move(coverDirectory));
-    scroll->setWidget(m_panel);
-    root->addWidget(scroll);
+
+    if (m_kind == PersonKind::Actress)
+    {
+        auto *infoRow = new QHBoxLayout;
+        infoRow->setContentsMargins(0, 0, 0, 0);
+        infoRow->setSpacing(0);
+        m_panel = new PersonInfoPanel(m_themes, std::move(m_imageDirectory), this);
+        m_panel->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Preferred);
+        infoRow->addStretch();
+        infoRow->addWidget(m_panel, 0, Qt::AlignTop);
+        infoRow->addStretch();
+        root->addLayout(infoRow);
+
+        m_timeline = new ActressWorkTimeline(this, std::move(m_coverDirectory));
+        m_timeline->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        root->addWidget(m_timeline, 1);
+    }
+    else
+    {
+        auto *scroll = new QScrollArea(this);
+        scroll->setWidgetResizable(true);
+        scroll->setFrameShape(QFrame::NoFrame);
+        m_panel = new PersonInfoPanel(m_themes, std::move(m_imageDirectory), scroll);
+        scroll->setWidget(m_panel);
+        root->addWidget(scroll);
+    }
 
     connect(m_panel, &PersonInfoPanel::favoriteChanged, this, &PersonDetailPage::toggleFavorite);
     connect(m_panel, &PersonInfoPanel::editRequested, this,
             [this](qint64 personId) { emit editRequested(m_kind, personId); });
     connect(m_panel, &PersonInfoPanel::workRequested, this, &PersonDetailPage::workRequested);
+    if (m_timeline != nullptr)
+        connect(m_timeline, &ActressWorkTimeline::workRequested,
+                this, &PersonDetailPage::workRequested);
     connect(m_panel, &PersonInfoPanel::actressExternalSearchRequested, this,
             [](const QString &name) {
         QUrl url(QStringLiteral("https://www.minnano-av.com/search_result.php"));
@@ -49,6 +76,7 @@ PersonDetailPage::PersonDetailPage(PersonKind kind, QSqlDatabase publicDatabase,
 
 bool PersonDetailPage::showPerson(qint64 personId)
 {
+    initialize();
     QString errorMessage;
     const auto details = m_repository.findDetails(m_kind, personId, &errorMessage);
     if (!details.has_value())
@@ -62,7 +90,15 @@ bool PersonDetailPage::showPerson(qint64 personId)
     const bool favorite = m_kind == PersonKind::Actress &&
                           m_privateRepository.isFavoriteActress(personId, &errorMessage);
     m_panel->setDetails(*details, favorite);
+    if (m_timeline != nullptr)
+        m_timeline->setWorks(details->works);
     return true;
+}
+
+QWidget *PersonDetailPage::captureContent()
+{
+    initialize();
+    return m_panel;
 }
 
 qint64 PersonDetailPage::currentPersonId() const noexcept

@@ -55,6 +55,22 @@ QPlainTextEdit#DesignPlainTextEdit:focus {
     background-color: @INPUT_BACKGROUND@;
 }
 
+QComboBox#DesignComboBox {
+    padding-right: 24px;
+}
+
+QComboBox#DesignComboBox::drop-down {
+    border: none;
+    width: 20px;
+    background: transparent;
+}
+
+QComboBox#DesignComboBox::down-arrow {
+    image: none;
+    width: 16px;
+    height: 16px;
+}
+
 QLineEdit#DesignInput:disabled,
 QTextEdit#DesignTextEdit:disabled,
 QPlainTextEdit#DesignPlainTextEdit:disabled {
@@ -64,6 +80,7 @@ QPlainTextEdit#DesignPlainTextEdit:disabled {
 
 QPushButton#DesignButton,
 QPushButton#WorkRefreshButton,
+QPushButton#WorkLoadButton,
 QPushButton#WorkSaveButton {
     background-color: @BACKGROUND@;
     color: @TEXT@;
@@ -74,6 +91,7 @@ QPushButton#WorkSaveButton {
 
 QPushButton#DesignButton:hover,
 QPushButton#WorkRefreshButton:hover,
+QPushButton#WorkLoadButton:hover,
 QPushButton#WorkSaveButton:hover {
     border-color: @PRIMARY@;
     background-color: @INPUT_BACKGROUND@;
@@ -81,12 +99,14 @@ QPushButton#WorkSaveButton:hover {
 
 QPushButton#DesignButton:pressed,
 QPushButton#WorkRefreshButton:pressed,
+QPushButton#WorkLoadButton:pressed,
 QPushButton#WorkSaveButton:pressed {
     background-color: @PRIMARY_HOVER@;
 }
 
 QPushButton#DesignButton:disabled,
 QPushButton#WorkRefreshButton:disabled,
+QPushButton#WorkLoadButton:disabled,
 QPushButton#WorkSaveButton:disabled {
     color: @TEXT_DISABLED@;
     background-color: @INPUT_BACKGROUND@;
@@ -98,6 +118,53 @@ QPushButton#WorkSaveButton[variant="primary"] {
     background-color: @PRIMARY@;
     color: @TEXT_INVERSE@;
     border-color: @PRIMARY@;
+}
+
+/* AddWorkTabPage3 mirrors the Python editor's three explicit submit states. */
+QPushButton#WorkSaveButton[variant="add"] {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 6px;
+}
+
+QPushButton#WorkSaveButton[variant="modify"],
+QPushButton#WorkLoadButton[variant="warning"] {
+    background-color: #FFA500;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 6px;
+}
+
+QPushButton#WorkSaveButton[variant="disabled"] {
+    background-color: #999999;
+    color: #CCCCCC;
+    border: none;
+    border-radius: 5px;
+    padding: 6px;
+}
+
+QPushButton#WorkLoadButton[variant="disabled"] {
+    background-color: gray;
+    color: darkGray;
+}
+
+/* Changed fields in the AddWork editor use the same orange warning frame as
+ * the Python implementation.  The property is deliberately local to that
+ * editor, so ordinary focused controls keep their theme-specific border. */
+QLineEdit#DesignInput[addWorkModified="true"],
+QTextEdit#DesignTextEdit[addWorkModified="true"],
+QPlainTextEdit#DesignPlainTextEdit[addWorkModified="true"],
+QSpinBox#DesignSpinBox[addWorkModified="true"],
+QComboBox#DesignComboBox[addWorkModified="true"],
+QWidget#WorkCoverDropWidget[addWorkModified="true"],
+QWidget#WorkActressSelector[addWorkModified="true"],
+QWidget#WorkActorSelector[addWorkModified="true"],
+QWidget#WorkTagSelector[addWorkModified="true"],
+QWidget#FanartStripWidget[addWorkModified="true"] {
+    border: 2px solid #FFA500;
 }
 
 QPushButton#DesignIconPushButton {
@@ -183,9 +250,53 @@ QSpinBox#DesignSpinBox {
     border: 2px solid @BORDER@;
     border-radius: 8px;
     padding: 4px 8px;
+    padding-right: 24px;
     color: @TEXT@;
+    min-height: 1.2em;
+    selection-background-color: @PRIMARY@;
 }
-QSpinBox#DesignSpinBox:focus { border-color: @BORDER_FOCUS@; }
+QSpinBox#DesignSpinBox:hover {
+    border-color: @PRIMARY@;
+    background-color: @INPUT_BACKGROUND@;
+}
+QSpinBox#DesignSpinBox:focus {
+    border-color: @BORDER_FOCUS@;
+    background-color: @INPUT_BACKGROUND@;
+}
+QSpinBox#DesignSpinBox:disabled {
+    color: @TEXT_DISABLED@;
+    background-color: @INPUT_BACKGROUND@;
+}
+QSpinBox#DesignSpinBox::up-button,
+QSpinBox#DesignSpinBox::down-button {
+    subcontrol-origin: border;
+    width: 20px;
+    border-left: 2px solid @BORDER@;
+    background-color: @INPUT_BACKGROUND@;
+}
+QSpinBox#DesignSpinBox::up-button {
+    subcontrol-position: top right;
+    border-top-right-radius: 8px;
+}
+QSpinBox#DesignSpinBox::down-button {
+    subcontrol-position: bottom right;
+    border-bottom-right-radius: 8px;
+}
+QSpinBox#DesignSpinBox::up-button:hover,
+QSpinBox#DesignSpinBox::down-button:hover {
+    background-color: @PRIMARY@;
+    border-left-color: @PRIMARY@;
+}
+QSpinBox#DesignSpinBox::up-button:pressed,
+QSpinBox#DesignSpinBox::down-button:pressed {
+    background-color: @PRIMARY_HOVER@;
+}
+QSpinBox#DesignSpinBox::up-arrow,
+QSpinBox#DesignSpinBox::down-arrow {
+    image: none;
+    width: 12px;
+    height: 12px;
+}
 
 QGroupBox#DesignGroupBox {
     border: 1px solid @BORDER@;
@@ -359,6 +470,37 @@ QToolButton#DesignCollapsibleToggle:checked {
 }
 QWidget#DesignCollapsibleContent { background-color: transparent; }
 
+QScrollArea#ForceViewSettingsPanel {
+    background-color: @BACKGROUND@;
+    border: 1px solid @BORDER@;
+    border-radius: 8px;
+}
+QScrollArea#ForceViewSettingsPanel::viewport,
+QScrollArea#ForceViewSettingsPanel > QWidget,
+QWidget#ForceViewSettingsContent,
+QScrollArea#ForceViewSettingsPanel QWidget {
+    background-color: @BACKGROUND@;
+}
+QScrollArea#ForceViewSettingsPanel QSlider#DesignClickableSlider::groove:horizontal {
+    background-color: @PAGE_BACKGROUND@;
+}
+QScrollArea#ForceViewSettingsPanel QSlider#DesignClickableSlider::handle:horizontal {
+    background-color: @PRIMARY@;
+}
+QScrollArea#ForceViewSettingsPanel QScrollBar:vertical {
+    width: 8px;
+    background: transparent;
+}
+QScrollArea#ForceViewSettingsPanel QScrollBar::handle:vertical {
+    background-color: @BORDER@;
+    border-radius: 4px;
+    min-height: 28px;
+}
+QLabel#DesignColorPicker {
+    border: 1px solid @BORDER@;
+    border-radius: 3px;
+}
+
 QDialog#DesignModalDialog {
     color: @TEXT@;
     background-color: @BACKGROUND@;
@@ -415,7 +557,11 @@ QLabel#DesignSidebarMenuText {
     font-size: 14px;
 }
 
+/* Match the Python ModernScrollMenu's locally applied token background.  The
+ * content-page root must not fall back to the application's page-grey QWidget
+ * rule, while nested inputs retain their component-specific backgrounds. */
 QWidget#DesignModernScrollMenu,
+QWidget[designScrollMenuContent="true"],
 QWidget#DesignScrollMenuSection { background-color: @BACKGROUND@; }
 QWidget#DesignScrollMenuNavigation { background-color: @BACKGROUND@; }
 QFrame#DesignScrollMenuSeparator {

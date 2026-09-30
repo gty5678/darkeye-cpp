@@ -7,6 +7,7 @@
 
 class QHBoxLayout;
 class QPushButton;
+class QWidget;
 
 namespace darkeye
 {
@@ -37,6 +38,7 @@ public:
     void setUrlList(const QStringList &urls);
     void setCanAdd(bool canAdd);
     [[nodiscard]] bool canAdd() const noexcept;
+    void setPreviewMode(bool enabled);
 
     bool addLocalImage(const QString &path, QString *errorMessage = nullptr);
     bool removeEntry(int index);
@@ -63,6 +65,9 @@ private:
     void chooseLocalImage();
     void addUrl();
     void editEntry(int index);
+    void enterEditMode();
+    void leaveEditMode();
+    void showPreview(int index);
     void rebuild();
     [[nodiscard]] QString resolvedPath(const FanartEntry &entry) const;
     [[nodiscard]] static bool saveAsJpeg(const QString &sourcePath, const QString &targetPath,
@@ -73,9 +78,10 @@ private:
     ImageFetchService *m_imageFetch = nullptr;
     QList<FanartEntry> m_entries;
     QHBoxLayout *m_stripLayout = nullptr;
-    QPushButton *m_addImageButton = nullptr;
-    QPushButton *m_addUrlButton = nullptr;
     bool m_canAdd = true;
+    bool m_previewMode = false;
+    bool m_editMode = false;
+    int m_selectedIndex = -1;
     int m_activeDownloadIndex = -1;
     quint64 m_activeRequestId = 0;
 };

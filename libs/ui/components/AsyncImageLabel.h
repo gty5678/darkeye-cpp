@@ -31,12 +31,15 @@ public:
     void setGreenMode(bool enabled);
     QString placeholderText() const;
     void setPlaceholderText(const QString &text);
+    void setDeferredLoading(bool deferred);
+    void startDeferredLoad(int priority = 0);
 
 signals:
     void imageLoaded(const QString &path);
     void imageLoadFailed(const QString &path);
 
 protected:
+    void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
 
 private:
@@ -48,6 +51,9 @@ private:
     QString m_placeholder = QStringLiteral("无图片");
     ImageFitMode m_fitMode = ImageFitMode::Contain;
     bool m_greenMode = false;
+    bool m_deferredLoading = false;
+    bool m_loadPending = false;
+    int m_loadPriority = 0;
     quint64 m_requestId = 0;
 };
 

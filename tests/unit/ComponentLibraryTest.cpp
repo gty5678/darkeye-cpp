@@ -22,7 +22,8 @@
 #include "darkeye_ui/components/ModernScrollMenu.h"
 #include "darkeye_ui/components/OctImage.h"
 #include "ui/components/PathManagement.h"
-#include "ui/components/MakerSelector.h"
+#include "darkeye_ui/components/MakerSelector.h"
+#include "darkeye_ui/components/MakerComboDelegate.h"
 #include "darkeye_ui/components/SearchBar.h"
 #include "darkeye_ui/components/Sidebar.h"
 #include "darkeye_ui/components/StateToggleButton.h"
@@ -33,13 +34,37 @@
 #include "ui/components/WorkCompletenessIndicators.h"
 
 #include <QApplication>
+#include <QColor>
 #include <QCompleter>
+#include <QContextMenuEvent>
+#include <QFile>
 #include <QFrame>
 #include <QGraphicsScene>
 #include <QHeaderView>
+#include <QImage>
 #include <QSignalSpy>
+#include <QStandardItemModel>
 #include <QTabBar>
+#include <QTemporaryDir>
 #include <QtTest>
+
+#include <algorithm>
+
+namespace
+{
+class ContextMenuSpy final : public QWidget
+{
+public:
+    int contextMenuEvents = 0;
+
+protected:
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        ++contextMenuEvents;
+        event->accept();
+    }
+};
+} // namespace
 
 class ComponentLibraryTest final : public QObject
 {
@@ -55,12 +80,15 @@ private slots:
     void animatedIndicatorsKeepStateContract();
     void loadingAndInteractionEffectsKeepContract();
     void tokenViewsAndCollapsibleSectionKeepContract();
+    void editableTableShortcutsKeepContract();
     void completerModalAndColorPickerKeepContract();
     void avatarsHeartAndChamferButtonKeepContract();
     void chartComponentsRenderCurrentData();
     void navigationComponentsKeepSelectionContract();
+    void sidebarResolvesExternalIconBasePath();
     void linkImageAndVerticalComponentsKeepContract();
     void makerSelectorKeepsIdAliasAndReloadContract();
+    void makerComboDelegateKeepsTableEditContract();
     void paginationKeepsDynamicPageSizeContract();
     void oklchColorWheelKeepsPickerContract();
     void toastKeepsPythonFactoriesAndStackingContract();
@@ -105,6 +133,27 @@ void ComponentLibraryTest::workCompletenessIndicatorsKeepPythonContract()
     QVERIFY(darkeye::WorkCompletenessBitsDelegate::tooltipForBits(
                 QStringLiteral("011111111111111"))
                 .contains(QStringLiteral("缺：封面")));
+}
+
+void ComponentLibraryTest::makerComboDelegateKeepsTableEditContract()
+{
+    QStandardItemModel model(1, 3);
+    model.setData(model.index(0, 2), 17, Qt::EditRole);
+    darkeye::MakerOption maker;
+    maker.id = 17;
+    maker.chineseName = QStringLiteral("示例片商");
+    darkeye::MakerComboDelegate delegate({maker}, 2);
+    QWidget parent;
+    QStyleOptionViewItem option;
+    std::unique_ptr<QWidget> editor(delegate.createEditor(&parent, option, model.index(0, 2)));
+    auto *selector = qobject_cast<darkeye::MakerSelector *>(editor.get());
+    QVERIFY(selector != nullptr);
+    delegate.setEditorData(selector, model.index(0, 2));
+    QCOMPARE(selector->maker(), std::optional<qint64>(17));
+
+    selector->setMaker(std::nullopt);
+    delegate.setModelData(selector, &model, model.index(0, 2));
+    QVERIFY(!model.index(0, 2).data(Qt::EditRole).isValid());
 }
 
 void ComponentLibraryTest::pathManagementKeepsPythonContract()
@@ -166,6 +215,8 @@ void ComponentLibraryTest::tokenControlsKeepPythonObjectNames()
 
 void ComponentLibraryTest::labelSupportsToneAndFormColumn()
 {
+    darkeye::DesignLabel constructed(QStringLiteral("标题"), QStringLiteral("inverse"));
+    QCOMPARE(constructed.tone(), QStringLiteral("inverse"));
     darkeye::DesignLabel label(QStringLiteral("演员"));
     label.setTone(QStringLiteral("muted"));
     label.setFormLabelColumn(4);
@@ -193,8 +244,10 @@ void ComponentLibraryTest::stateButtonTogglesAndRefreshes()
                                       &themes);
     QSignalSpy changed(&button, &darkeye::StateToggleButton::stateChanged);
     QVERIFY(!button.state());
+    QVERIFY(!button.getState());
     button.click();
     QVERIFY(button.state());
+    QVERIFY(button.getState());
     QCOMPARE(changed.count(), 1);
     QVERIFY(themes.setTheme(darkeye::ThemeId::Dark));
     QVERIFY(!button.icon().isNull());
@@ -260,6 +313,10 @@ void ComponentLibraryTest::animatedIndicatorsKeepStateContract()
     darkeye::CircularLoading loading(32, 4, &themes);
     loading.show();
     QTRY_VERIFY_WITH_TIMEOUT(loading.isAnimating(), 200);
+    loading.stop();
+    QVERIFY(!loading.isAnimating());
+    loading.start();
+    QVERIFY(loading.isAnimating());
     loading.hide();
     QVERIFY(!loading.isAnimating());
 }
@@ -267,6 +324,12 @@ void ComponentLibraryTest::animatedIndicatorsKeepStateContract()
 void ComponentLibraryTest::loadingAndInteractionEffectsKeepContract()
 {
     darkeye::ThemeService themes(*qApp);
+    darkeye::DesignButton iconButton(QStringLiteral("带图标"), QStringLiteral("primary"),
+                                     QStringLiteral("check"), QSize(18, 20),
+                                     QColor(QStringLiteral("#336699")));
+    QCOMPARE(iconButton.variant(), QStringLiteral("primary"));
+    QCOMPARE(iconButton.iconSize(), QSize(18, 20));
+    QVERIFY(!iconButton.icon().isNull());
     darkeye::Skeleton skeleton(16, 6, true, 20, &themes);
     QCOMPARE(skeleton.objectName(), QStringLiteral("DesignSkeleton"));
     QVERIFY(skeleton.isAnimating());
@@ -284,6 +347,17 @@ void ComponentLibraryTest::loadingAndInteractionEffectsKeepContract()
 
     darkeye::RotateButton rotate(QStringLiteral("refresh"), &themes);
     darkeye::ShakeButton shake(QStringLiteral("settings"), &themes);
+    darkeye::IconButton configuredIcon(QStringLiteral("settings"), {}, 18, 40,
+                                       false, true, &themes);
+    QCOMPARE(configuredIcon.iconSize(), QSize(18, 18));
+    QCOMPARE(configuredIcon.size(), QSize(40, 40));
+    QCOMPARE(configuredIcon.property("hoverable").toBool(), false);
+    darkeye::RotateButton configuredRotate(QStringLiteral("refresh"), {}, 19, 41,
+                                           false, &themes);
+    darkeye::ShakeButton configuredShake(QStringLiteral("settings"), {}, 20, 42,
+                                         true, &themes);
+    QCOMPARE(configuredRotate.size(), QSize(41, 41));
+    QCOMPARE(configuredShake.size(), QSize(42, 42));
     QTest::mousePress(&rotate, Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(rotate.angle() > 0.0, 200);
     QTest::mousePress(&shake, Qt::LeftButton);
@@ -329,6 +403,37 @@ void ComponentLibraryTest::tokenViewsAndCollapsibleSectionKeepContract()
     QCOMPARE(toggled.count(), 1);
     section.collapse();
     QVERIFY(!section.isExpanded());
+
+    darkeye::TokenVLabel explicitLabel(
+        QStringLiteral("标签"), QColor(QStringLiteral("#112233")),
+        QColor(QStringLiteral("#f0f0f0")), 72, 144,
+        QColor(QStringLiteral("#445566")), QColor(QStringLiteral("#778899")),
+        &themes);
+    QCOMPARE(explicitLabel.size(), QSize(72, 144));
+    explicitLabel.setTextDynamic(QStringLiteral("新标签"));
+    QVERIFY(explicitLabel.size().width() > 0);
+    QVERIFY(explicitLabel.size().height() > 0);
+}
+
+void ComponentLibraryTest::editableTableShortcutsKeepContract()
+{
+    darkeye::TokenTableWidget table(1, 1);
+    QSignalSpy addRequested(&table, &darkeye::TokenTableWidget::addRequested);
+    QSignalSpy deleteRequested(&table, &darkeye::TokenTableWidget::deleteRequested);
+    QSignalSpy submitRequested(&table, &darkeye::TokenTableWidget::submitRequested);
+
+    QTest::keyClick(&table, Qt::Key_N, Qt::ControlModifier);
+    QTest::keyClick(&table, Qt::Key_Delete);
+    QTest::keyClick(&table, Qt::Key_S, Qt::ControlModifier);
+    QCOMPARE(addRequested.count(), 1);
+    QCOMPARE(deleteRequested.count(), 1);
+    QCOMPARE(submitRequested.count(), 1);
+
+    darkeye::ReorderableTokenTableWidget reorderable;
+    QVERIFY(reorderable.dragEnabled());
+    QVERIFY(reorderable.acceptDrops());
+    QVERIFY(reorderable.showDropIndicator());
+    QCOMPARE(reorderable.dragDropMode(), QAbstractItemView::InternalMove);
 }
 
 void ComponentLibraryTest::completerModalAndColorPickerKeepContract()
@@ -351,8 +456,10 @@ void ComponentLibraryTest::completerModalAndColorPickerKeepContract()
     darkeye::ColorPicker picker(QColor(QStringLiteral("#123456")));
     QSignalSpy colors(&picker, &darkeye::ColorPicker::colorChanged);
     QCOMPARE(picker.color(), QStringLiteral("#123456"));
+    QCOMPARE(picker.getColor(), QStringLiteral("#123456"));
     picker.setColor(QStringLiteral("#abcdef"));
     QCOMPARE(picker.color(), QStringLiteral("#abcdef"));
+    QCOMPARE(picker.getColor(), QStringLiteral("#abcdef"));
     QCOMPARE(colors.count(), 1);
     picker.setShape(darkeye::ColorPicker::Shape::Circle);
     QCOMPARE(picker.size(), QSize(32, 32));
@@ -375,6 +482,7 @@ void ComponentLibraryTest::avatarsHeartAndChamferButtonKeepContract()
     QSignalSpy clicked(&heart, &darkeye::HeartLabel::clicked);
     QTest::mousePress(&heart, Qt::LeftButton);
     QVERIFY(heart.isChecked());
+    QVERIFY(heart.getState());
     QCOMPARE(clicked.count(), 1);
 
     darkeye::ChamferButton chamfer(QStringLiteral("刷新"), QStringLiteral("refresh"), 20, 40, 0.22,
@@ -385,6 +493,36 @@ void ComponentLibraryTest::avatarsHeartAndChamferButtonKeepContract()
     QCOMPARE(chamfer.chamferRatio(), 1.0);
     chamfer.setSelected(true);
     QVERIFY(chamfer.isSelected());
+    chamfer.setHoverable(false);
+    QVERIFY(!chamfer.isHoverable());
+    chamfer.setMenuId(QStringLiteral("library"));
+    QCOMPARE(chamfer.menuId(), QStringLiteral("library"));
+    chamfer.setUseNativeTooltip(false);
+    QVERIFY(!chamfer.usesNativeTooltip());
+    QVERIFY(chamfer.toolTip().isEmpty());
+
+    chamfer.setIconName({});
+    QImage withoutExternalIcon(chamfer.size(), QImage::Format_ARGB32_Premultiplied);
+    withoutExternalIcon.fill(Qt::transparent);
+    chamfer.render(&withoutExternalIcon);
+
+    QTemporaryDir iconDirectory;
+    QVERIFY(iconDirectory.isValid());
+    const QString externalIconPath = iconDirectory.filePath(QStringLiteral("external-icon.svg"));
+    QFile externalIcon(externalIconPath);
+    QVERIFY(externalIcon.open(QIODevice::WriteOnly | QIODevice::Text));
+    QVERIFY(externalIcon.write(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\">"
+        "<rect width=\"24\" height=\"24\" fill=\"currentColor\"/></svg>") > 0);
+    externalIcon.close();
+
+    chamfer.setIconPath(externalIconPath);
+    QImage withExternalIcon(chamfer.size(), QImage::Format_ARGB32_Premultiplied);
+    withExternalIcon.fill(Qt::transparent);
+    chamfer.render(&withExternalIcon);
+    QVERIFY(withExternalIcon != withoutExternalIcon);
+
+    chamfer.setIconName(QStringLiteral("refresh"));
 }
 
 void ComponentLibraryTest::chartComponentsRenderCurrentData()
@@ -452,6 +590,31 @@ void ComponentLibraryTest::navigationComponentsKeepSelectionContract()
     QCOMPARE(compact.selectedId(), QStringLiteral("home"));
 }
 
+void ComponentLibraryTest::sidebarResolvesExternalIconBasePath()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString iconPath = directory.filePath(QStringLiteral("external.svg"));
+    QFile iconFile(iconPath);
+    QVERIFY(iconFile.open(QIODevice::WriteOnly | QIODevice::Text));
+    iconFile.write("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\">"
+                   "<path fill=\"currentColor\" d=\"M0 0h16v16H0z\"/></svg>");
+    iconFile.close();
+
+    darkeye::ThemeService themes(*qApp);
+    darkeye::Sidebar sidebar(
+        {{QStringLiteral("external"), QStringLiteral("外部图标"),
+          QStringLiteral("external.svg")}},
+        directory.path(), &themes);
+    const auto iconButtons = sidebar.findChildren<darkeye::IconButton *>();
+    const auto external = std::find_if(
+        iconButtons.cbegin(), iconButtons.cend(),
+        [](const darkeye::IconButton *button)
+        { return button->iconName() == QStringLiteral("external.svg"); });
+    QVERIFY(external != iconButtons.cend());
+    QVERIFY(!(*external)->icon().isNull());
+}
+
 void ComponentLibraryTest::linkImageAndVerticalComponentsKeepContract()
 {
     darkeye::ThemeService themes(*qApp);
@@ -473,7 +636,8 @@ void ComponentLibraryTest::linkImageAndVerticalComponentsKeepContract()
     QVERIFY(!oct.pixmap().isNull());
     QVERIFY(!oct.mask().isEmpty());
     oct.updateImage({});
-    QCOMPARE(oct.text(), QStringLiteral("无图片"));
+    QTRY_VERIFY_WITH_TIMEOUT(!oct.pixmap().isNull(), 1000);
+    QCOMPARE(oct.source(), QStringLiteral(":/icons/anonymous.jpg"));
 
     darkeye::VerticalTextLabel vertical(QStringLiteral("作品ABP"), QStringLiteral("normal"),
                                         &themes);
@@ -573,6 +737,7 @@ void ComponentLibraryTest::oklchColorWheelKeepsPickerContract()
     QSignalSpy ratings(&rating, &darkeye::RatingSelector::ratingChanged);
     QTest::mousePress(hearts.at(2), Qt::LeftButton);
     QCOMPARE(rating.rating(), 3);
+    QCOMPARE(rating.getRating(), 3);
     QCOMPARE(ratings.count(), 1);
     QCOMPARE(hearts.at(2)->text(), QStringLiteral("❤️"));
 }
@@ -607,16 +772,23 @@ void ComponentLibraryTest::toastKeepsPythonFactoriesAndStackingContract()
 
 void ComponentLibraryTest::personCardKeepsAvatarInteractionContract()
 {
-    darkeye::PersonCard card(42, QStringLiteral("示例演员"));
+    ContextMenuSpy host;
+    darkeye::PersonCard card(42, QStringLiteral("示例演员"), {}, {}, &host);
     QCOMPARE(card.objectName(), QStringLiteral("PersonCard"));
     QCOMPARE(card.personId(), qint64(42));
     QCOMPARE(card.name(), QStringLiteral("示例演员"));
     QSignalSpy activated(&card, &darkeye::PersonCard::activated);
     QSignalSpy edited(&card, &darkeye::PersonCard::editRequested);
+    QVERIFY(!card.avatar()->mask().contains(QPoint(0, 0)));
+    QVERIFY(card.avatar()->mask().contains(QPoint(75, 75)));
     QTest::mouseClick(card.avatar(), Qt::LeftButton);
     QTest::mouseClick(card.avatar(), Qt::RightButton);
     QCOMPARE(activated.count(), 1);
-    QCOMPARE(edited.count(), 1);
+    QTRY_COMPARE(edited.count(), 1);
+    QContextMenuEvent contextMenu(QContextMenuEvent::Mouse, card.avatar()->rect().center(),
+                                  card.avatar()->mapToGlobal(card.avatar()->rect().center()));
+    QCoreApplication::sendEvent(card.avatar(), &contextMenu);
+    QCOMPARE(host.contextMenuEvents, 0);
     card.updateData(84, QStringLiteral("更新姓名"), {});
     QCOMPARE(card.personId(), qint64(84));
     QCOMPARE(card.name(), QStringLiteral("更新姓名"));

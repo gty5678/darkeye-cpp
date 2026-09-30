@@ -1,4 +1,4 @@
-#include "app/AppPaths.h"
+#include "settings/Paths.h"
 #include "settings/Settings.h"
 
 #include <QDir>
@@ -14,44 +14,16 @@ class AppPathsTest final : public QObject
 
 private slots:
     void usesPortableLayoutByDefault();
-    void prefersPreparedPreviewData();
-    void developmentBuildUsesProjectData();
     void createsEveryRuntimeDirectory();
+    void initializesMissingSettingsFile();
     void honorsLegacyRelativeAndAbsoluteDatabasePaths();
     void readsAndWritesTypedSettings();
 };
 
-void AppPathsTest::developmentBuildUsesProjectData()
-{
-    QTemporaryDir temporaryDirectory;
-    QVERIFY(temporaryDirectory.isValid());
-    QDir root(temporaryDirectory.path());
-    QVERIFY(QFile(root.filePath(QStringLiteral("CMakeLists.txt"))).open(QIODevice::WriteOnly));
-    QVERIFY(root.mkpath(QStringLiteral("data/public")));
-    QFile readme(root.filePath(QStringLiteral("data/README.md")));
-    QVERIFY(readme.open(QIODevice::WriteOnly));
-    readme.close();
-    QFile database(root.filePath(QStringLiteral("data/public/public.db")));
-    QVERIFY(database.open(QIODevice::WriteOnly));
-    database.close();
-    QSettings settings(root.filePath(QStringLiteral("data/settings.ini")),
-                       QSettings::IniFormat);
-    settings.setValue(QStringLiteral("Paths/Database"),
-                      QStringLiteral("data/public/public.db"));
-    settings.sync();
-    QVERIFY(root.mkpath(QStringLiteral("build/windows-msvc-debug-tests")));
-
-    darkeye::AppPaths paths(root.filePath(QStringLiteral("build/windows-msvc-debug-tests")));
-    QCOMPARE(QDir::fromNativeSeparators(paths.dataDirectory()),
-             QDir::fromNativeSeparators(root.filePath(QStringLiteral("data"))));
-    QCOMPARE(QDir::fromNativeSeparators(paths.publicDatabase()),
-             QDir::fromNativeSeparators(
-                 root.filePath(QStringLiteral("data/public/public.db"))));
-}
-
 void AppPathsTest::usesPortableLayoutByDefault()
 {
-    darkeye::AppPaths paths(QStringLiteral("C:/portable/Darkeye"));
+    const QString applicationDirectory = QStringLiteral("C:/portable/Darkeye");
+    const darkeye::settings::Paths paths(applicationDirectory);
     QCOMPARE(QDir::fromNativeSeparators(paths.dataDirectory()),
              QStringLiteral("C:/portable/Darkeye/data"));
     QCOMPARE(QDir::fromNativeSeparators(paths.publicDatabase()),
@@ -64,7 +36,7 @@ void AppPathsTest::usesPortableLayoutByDefault()
              QStringLiteral("C:/portable/Darkeye/data/public/workcovers"));
     QCOMPARE(QDir::fromNativeSeparators(paths.fanartDirectory()),
              QStringLiteral("C:/portable/Darkeye/data/public/fanart"));
-    const darkeye::CrawlerSettings crawler = darkeye::Settings(paths.settingsFile()).crawler();
+    const darkeye::CrawlerSettings crawler = darkeye::settings::crawler(paths.settingsFile());
     QCOMPARE(crawler.coverFetchApiUrl, QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/image")));
     QCOMPARE(crawler.workApiBaseUrl, QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/work")));
     QCOMPARE(crawler.actressApiBaseUrl,
@@ -87,31 +59,16 @@ void AppPathsTest::usesPortableLayoutByDefault()
              QStringLiteral("C:/portable/Darkeye/data/add_work_workspace_layout.json"));
 }
 
-void AppPathsTest::prefersPreparedPreviewData()
-{
-    QTemporaryDir temporaryDirectory;
-    QVERIFY(temporaryDirectory.isValid());
-    const QString previewPublic =
-        QDir(temporaryDirectory.path()).filePath(QStringLiteral("preview-data/public"));
-    QVERIFY(QDir().mkpath(previewPublic));
-    QFile database(QDir(previewPublic).filePath(QStringLiteral("public.db")));
-    QVERIFY(database.open(QIODevice::WriteOnly));
-    database.close();
-
-    darkeye::AppPaths paths(temporaryDirectory.path());
-    QCOMPARE(QDir::fromNativeSeparators(paths.dataDirectory()),
-             QDir::fromNativeSeparators(
-                 QDir(temporaryDirectory.path()).filePath(QStringLiteral("preview-data"))));
-}
-
 void AppPathsTest::createsEveryRuntimeDirectory()
 {
     QTemporaryDir temporaryDirectory;
     QVERIFY(temporaryDirectory.isValid());
 
-    darkeye::AppPaths paths(temporaryDirectory.path());
+    const QString applicationDirectory = temporaryDirectory.path();
+    const darkeye::settings::Paths paths(applicationDirectory);
     QString errorMessage;
-    QVERIFY2(paths.ensureRuntimeDirectories(&errorMessage), qPrintable(errorMessage));
+    QVERIFY2(paths.ensureRuntimeDirectories(&errorMessage),
+             qPrintable(errorMessage));
 
     const QStringList expectedDirectories = {
         QStringLiteral("public/public_backup"),
@@ -134,6 +91,35 @@ void AppPathsTest::createsEveryRuntimeDirectory()
     }
 }
 
+void AppPathsTest::initializesMissingSettingsFile()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    const QString settingsFile =
+        QDir(temporaryDirectory.path()).filePath(QStringLiteral("data/settings.ini"));
+    QVERIFY(!QFileInfo::exists(settingsFile));
+    QVERIFY(darkeye::settings::ensureDefaults(settingsFile));
+    QVERIFY(QFileInfo::exists(settingsFile));
+
+    QSettings ini(settingsFile, QSettings::IniFormat);
+    QCOMPARE(ini.value(QStringLiteral("window/size")).toSize(), QSize(800, 600));
+    QCOMPARE(ini.value(QStringLiteral("App/Theme")).toString(), QStringLiteral("LIGHT"));
+    QCOMPARE(ini.value(QStringLiteral("Paths/Database")).toString(),
+             QStringLiteral("data/public/public.db"));
+    QCOMPARE(ini.value(QStringLiteral("Crawler/WorkApiBaseUrl")).toString(),
+             QStringLiteral("http://127.0.0.1:56790/api/v1/work"));
+    QCOMPARE(ini.value(QStringLiteral("WebDAV/RemoteRoot")).toString(),
+             QStringLiteral("/darkeye"));
+    QCOMPARE(ini.value(QStringLiteral("Translation/Engine")).toString(),
+             QStringLiteral("google"));
+    QCOMPARE(ini.value(QStringLiteral("LlamaCpp/Mode")).toString(), QStringLiteral("cpu"));
+
+    ini.setValue(QStringLiteral("App/Theme"), QStringLiteral("DARK"));
+    ini.sync();
+    QVERIFY(darkeye::settings::ensureDefaults(settingsFile));
+    QCOMPARE(darkeye::settings::app(settingsFile).themeId, QStringLiteral("DARK"));
+}
+
 void AppPathsTest::honorsLegacyRelativeAndAbsoluteDatabasePaths()
 {
     QTemporaryDir temporaryDirectory;
@@ -141,11 +127,16 @@ void AppPathsTest::honorsLegacyRelativeAndAbsoluteDatabasePaths()
     const QString absolutePrivate =
         QDir(temporaryDirectory.path()).filePath(QStringLiteral("external/private.db"));
 
-    darkeye::AppPaths paths(temporaryDirectory.path());
+    const QString applicationDirectory = temporaryDirectory.path();
+    const darkeye::settings::Paths paths(applicationDirectory);
     QVERIFY(paths.ensureRuntimeDirectories());
     QSettings settings(paths.settingsFile(), QSettings::IniFormat);
     settings.setValue(QStringLiteral("Paths/Database"), QStringLiteral("legacy/public/custom.db"));
     settings.setValue(QStringLiteral("Paths/PrivateDatabase"), absolutePrivate);
+    settings.setValue(QStringLiteral("Paths/Actressimages"),
+                      QStringLiteral("legacy/public/actressimages"));
+    settings.setValue(QStringLiteral("Paths/Actorimages"),
+                      QStringLiteral("legacy/public/actorimages"));
     settings.setValue(QStringLiteral("Crawler/CoverFetchApiUrl"),
                       QStringLiteral("http://127.0.0.1:61234/custom/image"));
     settings.setValue(QStringLiteral("Crawler/WorkApiBaseUrl"),
@@ -161,7 +152,13 @@ void AppPathsTest::honorsLegacyRelativeAndAbsoluteDatabasePaths()
             QDir(temporaryDirectory.path()).filePath(QStringLiteral("legacy/public/custom.db"))));
     QCOMPARE(QDir::fromNativeSeparators(paths.privateDatabase()),
              QDir::fromNativeSeparators(absolutePrivate));
-    const darkeye::CrawlerSettings crawler = darkeye::Settings(paths.settingsFile()).crawler();
+    QCOMPARE(QDir::fromNativeSeparators(paths.actressImageDirectory()),
+             QDir::fromNativeSeparators(QDir(temporaryDirectory.path()).filePath(
+                 QStringLiteral("legacy/public/actressimages"))));
+    QCOMPARE(QDir::fromNativeSeparators(paths.actorImageDirectory()),
+             QDir::fromNativeSeparators(QDir(temporaryDirectory.path()).filePath(
+                 QStringLiteral("legacy/public/actorimages"))));
+    const darkeye::CrawlerSettings crawler = darkeye::settings::crawler(paths.settingsFile());
     QCOMPARE(crawler.coverFetchApiUrl, QUrl(QStringLiteral("http://127.0.0.1:61234/custom/image")));
     QCOMPARE(crawler.workApiBaseUrl, QUrl(QStringLiteral("http://127.0.0.1:61234/custom/work")));
     QCOMPARE(crawler.actressApiBaseUrl,
@@ -176,41 +173,53 @@ void AppPathsTest::readsAndWritesTypedSettings()
 
     const QString settingsFile =
         QDir(temporaryDirectory.path()).filePath(QStringLiteral("settings.ini"));
-    darkeye::Settings service(settingsFile);
 
-    darkeye::AppSettings app = service.app();
+    darkeye::AppSettings app = darkeye::settings::app(settingsFile);
     QCOMPARE(app.themeId, QStringLiteral("LIGHT"));
     QVERIFY(app.firstLaunch);
+    QCOMPARE(app.windowSize, QSize(800, 600));
     app.themeId = QStringLiteral("DARK");
     app.customPrimary = QStringLiteral("#123456");
     app.firstLaunch = false;
     app.windowSize = QSize(1440, 900);
     app.videoPaths = {QStringLiteral(" C:/Videos "), QStringLiteral("."), QString()};
-    service.saveApp(app);
+    darkeye::settings::saveApp(app, settingsFile);
 
-    const darkeye::AppSettings loadedApp = service.app();
+    const darkeye::AppSettings loadedApp = darkeye::settings::app(settingsFile);
     QCOMPARE(loadedApp.themeId, QStringLiteral("DARK"));
     QCOMPARE(loadedApp.customPrimary, QStringLiteral("#123456"));
     QVERIFY(!loadedApp.firstLaunch);
     QCOMPARE(loadedApp.windowSize, QSize(1440, 900));
     QCOMPARE(loadedApp.videoPaths, QStringList{QStringLiteral("C:/Videos")});
 
-    darkeye::CrawlerSettings crawler = service.crawler();
+    darkeye::CrawlerSettings crawler = darkeye::settings::crawler(settingsFile);
     crawler.workApiBaseUrl = QUrl(QStringLiteral("http://127.0.0.1:61234/work"));
     crawler.autoStartCollector = true;
-    service.saveCrawler(crawler);
-    const darkeye::CrawlerSettings loadedCrawler = service.crawler();
+    crawler.webDav.remoteRoot = QStringLiteral("/darkeye/backups/");
+    darkeye::settings::saveCrawler(crawler, settingsFile);
+    const darkeye::CrawlerSettings loadedCrawler = darkeye::settings::crawler(settingsFile);
     QCOMPARE(loadedCrawler.workApiBaseUrl,
              QUrl(QStringLiteral("http://127.0.0.1:61234/work")));
     QVERIFY(loadedCrawler.autoStartCollector);
+    QCOMPARE(loadedCrawler.webDav.remoteRoot, QStringLiteral("/darkeye/backups"));
 
-    darkeye::TranslationSettings translation = service.translation();
+    darkeye::TranslationSettings translation = darkeye::settings::translation(settingsFile);
+    QCOMPARE(translation.engine, QStringLiteral("google"));
+    QCOMPARE(translation.timeoutSeconds, 12);
+    QCOMPARE(translation.retries, 2);
+    QCOMPARE(translation.llama.mode, QStringLiteral("cpu"));
+    QCOMPARE(translation.llama.gpuLayers, 99);
+    QVERIFY(translation.llama.mlock);
     translation.timeoutSeconds = 90;
     translation.llama.contextSize = 4096;
-    service.saveTranslation(translation);
-    const darkeye::TranslationSettings loadedTranslation = service.translation();
+    translation.llama.port = 0;
+    translation.llama.mode = QStringLiteral("unsupported");
+    darkeye::settings::saveTranslation(translation, settingsFile);
+    const darkeye::TranslationSettings loadedTranslation = darkeye::settings::translation(settingsFile);
     QCOMPARE(loadedTranslation.timeoutSeconds, 90);
     QCOMPARE(loadedTranslation.llama.contextSize, 4096);
+    QCOMPARE(loadedTranslation.llama.port, 1);
+    QCOMPARE(loadedTranslation.llama.mode, QStringLiteral("cpu"));
 }
 
 QTEST_MAIN(AppPathsTest)

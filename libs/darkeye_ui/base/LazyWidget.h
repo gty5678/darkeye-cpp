@@ -19,6 +19,7 @@ protected:
 
 private:
     bool m_initialized = false;
+    bool m_initializing = false;
 };
 
 } // namespace darkeye

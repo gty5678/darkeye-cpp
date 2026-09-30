@@ -1,4 +1,4 @@
-set(_darkeye_qt_components Core Gui GuiPrivate Network ShaderTools Sql Svg Widgets)
+set(_darkeye_qt_components Core Gui GuiPrivate HttpServer Network Qml Quick Quick3D QuickWidgets ShaderTools Sql Svg Widgets)
 if(DARKEYE_BUILD_TESTS)
     list(APPEND _darkeye_qt_components Test)
 endif()

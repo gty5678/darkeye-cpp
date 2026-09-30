@@ -18,6 +18,7 @@ public:
                                QWidget *parent = nullptr);
 
     bool state() const;
+    bool getState() const { return state(); }
     void setState(bool state);
 
 signals:

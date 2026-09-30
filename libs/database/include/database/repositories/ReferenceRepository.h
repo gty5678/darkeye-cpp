@@ -76,6 +76,8 @@ public:
                                     const QString &color, const QString &detail,
                                     QString *errorMessage = nullptr);
     bool updateTag(const TagRecord &record, QString *errorMessage = nullptr);
+    bool updateTagColors(const QList<qint64> &tagIds, const QString &color,
+                         QString *errorMessage = nullptr);
     bool removeTag(qint64 tagId, QString *errorMessage = nullptr);
     bool redirectTag(qint64 sourceId, qint64 targetId, QString *errorMessage = nullptr);
     std::optional<qint64> createTagType(const QString &name, int order,

@@ -6,6 +6,7 @@
 #include "darkeye_ui/components/LoadingFeedback.h"
 
 #include <QColor>
+#include <QDir>
 #include <QEasingCurve>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -95,7 +96,13 @@ void SidebarMenuButton::mousePressEvent(QMouseEvent *event)
 
 Sidebar::Sidebar(const QList<SidebarMenuDefinition> &menus,
                  ThemeService *themes, QWidget *parent)
-    : QWidget(parent), m_themes(themes)
+    : Sidebar(menus, {}, themes, parent)
+{
+}
+
+Sidebar::Sidebar(const QList<SidebarMenuDefinition> &menus,
+                 const QString &iconsBasePath, ThemeService *themes, QWidget *parent)
+    : QWidget(parent), m_iconsBasePath(iconsBasePath), m_themes(themes)
 {
     setObjectName(QStringLiteral("DesignSidebar"));
     setMinimumWidth(m_collapsedWidth);
@@ -178,8 +185,15 @@ void Sidebar::toggleMenu()
 
 SidebarMenuButton *Sidebar::createButton(const QString &text, const QString &icon)
 {
-    return new SidebarMenuButton(text, icon, m_expandedWidth, m_collapsedWidth,
-                                 m_themes, this);
+    auto *button = new SidebarMenuButton(text, icon, m_expandedWidth, m_collapsedWidth,
+                                         m_themes, this);
+    if (!IconProvider::contains(icon) && !m_iconsBasePath.isEmpty()) {
+        const auto iconButtons = button->findChildren<IconButton *>();
+        if (!iconButtons.isEmpty()) {
+            iconButtons.first()->setIconPath(QDir(m_iconsBasePath).filePath(icon));
+        }
+    }
+    return button;
 }
 
 void Sidebar::handleMenuClick(const QString &menuId)

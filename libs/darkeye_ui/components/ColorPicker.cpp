@@ -2,6 +2,7 @@
 #include "darkeye_ui/components/ColorWheel.h"
 
 #include <QGuiApplication>
+#include <QEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScreen>
@@ -60,6 +61,7 @@ void ColorPicker::mousePressEvent(QMouseEvent *event)
                                          Qt::WindowStaysOnTopHint | Qt::Popup);
             connect(m_colorWheel, &ColorWheelSimple::colorChanged, this,
                     [this](const QColor &color) { setColor(color.name()); });
+            m_colorWheel->installEventFilter(this);
         }
         m_colorWheel->setInitialColor(m_color.name(QColor::HexRgb));
         m_colorWheel->adjustSize();
@@ -83,13 +85,26 @@ void ColorPicker::mousePressEvent(QMouseEvent *event)
     QLabel::mousePressEvent(event);
 }
 
+bool ColorPicker::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_colorWheel && event->type() == QEvent::Hide) {
+        emit colorConfirmed(m_color.name());
+    }
+    return QLabel::eventFilter(watched, event);
+}
+
 void ColorPicker::updateDisplay()
 {
     if (m_shape == Shape::Circle) {
         setFixedSize(32, 32);
         setText({});
         setStyleSheet({});
+        // The circle is painted directly.  Keep the corners transparent so the
+        // stylesheet border/background for DesignColorPicker cannot show as a
+        // square grey halo around it.
+        setAttribute(Qt::WA_TranslucentBackground, true);
     } else {
+        setAttribute(Qt::WA_TranslucentBackground, false);
         setMinimumSize(0, 0);
         setMaximumSize(32, 32);
         setText(m_showText ? m_color.name() : QString());

@@ -28,6 +28,7 @@ public:
     [[nodiscard]] std::optional<PersonDetails> findDetails(PersonKind kind, qint64 personId,
                                                            QString *errorMessage = nullptr) const;
     bool updateDetails(const PersonDetails &details, QString *errorMessage = nullptr);
+    bool deletePerson(PersonKind kind, qint64 personId, QString *errorMessage = nullptr);
 
 private:
     QSqlDatabase m_database;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "app/AppPaths.h"
+#include "settings/Paths.h"
 #include "database/SqliteConnection.h"
 
 #include <QString>
@@ -12,7 +12,8 @@ enum class DatabaseKind;
 class DatabaseManager final
 {
 public:
-    bool initialize(const AppPaths &paths, QString *errorMessage = nullptr);
+    bool initialize(const settings::Paths &paths, QString *errorMessage = nullptr);
+    bool initialize(QString *errorMessage = nullptr);
 
     [[nodiscard]] SqliteConnection &publicConnection() noexcept;
     [[nodiscard]] SqliteConnection &privateConnection() noexcept;

@@ -2,6 +2,7 @@
 
 #include <QList>
 #include <QString>
+#include <QStringList>
 #include <optional>
 
 namespace darkeye
@@ -48,6 +49,9 @@ struct WorkStateRecord final
     QString japaneseTitle;
     QString releaseDate;
     QString imageUrl;
+    // Raw work-table fields, in database column order.  The soft-delete page
+    // deliberately presents the same complete record set as Python's SELECT * view.
+    QStringList tableValues;
 };
 
 struct TagOption final
@@ -58,12 +62,16 @@ struct TagOption final
     QString color;
     QString detail;
     QString mutexGroup;
+    QStringList aliases;
 };
 
 struct NamedIdOption final
 {
     qint64 id = 0;
     QString name;
+    QString chineseName;
+    QString japaneseName;
+    QStringList aliases;
 };
 
 struct WorkPersonReference final

@@ -42,7 +42,8 @@ Python 中 `color_slider.py` 的 `AlphaSliderCustom` 和 `TestWindow` 被原组�
 
 `ui/widgets/PersonCard` 复用 `OctImage` 与令牌标签，统一承载女演员/男演员的
 150px 八边形头像卡片，并通过左键、右键分别发出详情与编辑请求。
-`PersonInfoPanel` 组合头像、爱心、令牌表格和资料字段，`PersonEditorDialog` 则统一
+`PersonInfoPanel` 组合头像、爱心、令牌表格和资料字段，`ModifyActressPage` 与
+`ModifyActorPage` 则统一
 女演员/男演员的字段编辑、姓名增删和顺序调整。它们属于页面级业务组件，不加入
 Python `darkeye_ui.components.__all__` 对应的公共聚合头。
 
@@ -85,7 +86,7 @@ Python `darkeye_ui.components.__all__` 对应的公共聚合头。
 计数摘要；封面操作同时校验受管目录边界，并在数据库失败时逆序恢复全部文件移动。
 依赖采集器或翻译器的按钮保留原名称和说明，但在对应服务迁移前保持禁用。
 
-`WorkEditorWidget` 封装新增与修改作品共用的基础资料表单、封面导入和参考资料选择器。
+`pages/management/AddWorkTabPage3` 封装新增与修改作品共用的基础资料表单、封面导入和参考资料选择器。
 创建模式允许填写番号并调用完整插入事务，编辑模式载入已有记录并锁定番号；保存后
 通过 `workSaved` 统一通知作品页、管理页和状态列表。人物、男优和标签关系复用
 `IdCheckList`，由单一事务和基础字段一起保存。新封面按番号原子写入受管理目录，

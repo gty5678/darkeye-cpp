@@ -10,10 +10,10 @@
 #include "darkeye_ui/theme/ThemeService.h"
 
 #include <QApplication>
-#include <QComboBox>
 #include <QDateTime>
 #include <QDir>
 #include <QListWidget>
+#include <QPushButton>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -164,7 +164,9 @@ void StatisticsRepositoryTest::rendersPersonalDataPage()
     QApplication::processEvents();
     QVERIFY(page.findChild<QWidget *>(QStringLiteral("StatsOverviewCards")));
     QVERIFY(page.findChild<QWidget *>(QStringLiteral("PersonalRecordHeatmap")));
-    QCOMPARE(page.findChild<QComboBox *>(QStringLiteral("RecordKindSelector"))->count(), 3);
+    QVERIFY(page.findChild<QPushButton *>(QStringLiteral("RecordKindPrevious")));
+    QVERIFY(page.findChild<QPushButton *>(QStringLiteral("RecordKindNext")));
+    QVERIFY(page.findChild<QWidget *>(QStringLiteral("RecordYearButtonList")));
     const QPixmap snapshot = page.grab();
     QVERIFY(!snapshot.isNull());
     QCOMPARE(snapshot.size(), page.size());

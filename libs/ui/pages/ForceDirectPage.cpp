@@ -1,0 +1,336 @@
+#include "ui/pages/ForceDirectPage.h"
+
+#include "darkeye_ui/theme/ThemeService.h"
+#include "darkeye_ui/components/StateToggleButton.h"
+#include "darkeye_ui/components/TokenControls.h"
+#include "graph/GraphManager.h"
+#include "graph_view/ForceViewRhiWidget.h"
+#include "graph_view/GraphViewWidget.h"
+#include "ui/pages/ForceViewSettingsPanel.h"
+
+#include <QColor>
+#include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFormLayout>
+#include <QInputDialog>
+#include <QLineEdit>
+#include <QShowEvent>
+#include <QResizeEvent>
+#include <QMessageBox>
+#include <QVBoxLayout>
+
+namespace darkeye {
+
+ForceDirectPage::ForceDirectPage(ThemeService &themeService, graph::GraphManager &graphManager,
+                                 QWidget *parent)
+    : LazyWidget(parent), m_themeService(themeService), m_graphManager(graphManager)
+{
+    // QRhiWidget must already belong to the top-level widget tree when that
+    // window is shown for the first time.  Keep only the database work lazy;
+    // creating the renderer later leaves QRhiWidget without a QRhi forever.
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+
+    m_graphView = new graph_view::GraphViewWidget(m_graphManager, this);
+    layout->addWidget(m_graphView, 1);
+
+    m_favoriteOnly = new TokenCheckBox(QStringLiteral("仅显示收藏作品图"), this);
+    m_favoriteOnly->setChecked(false);
+    m_favoriteOnly->setMinimumWidth(160);
+
+    m_settingsButton = new StateToggleButton(QStringLiteral("settings"), QStringLiteral("x"),
+                                              24, 32, &m_themeService, this);
+    m_settingsButton->setToolTip(QStringLiteral("关系图设置"));
+    m_settingsPanel = new ForceViewSettingsPanel(m_themeService, this);
+    m_settingsPanel->hide();
+
+    connect(m_favoriteOnly, &TokenCheckBox::toggled, m_graphView,
+            &graph_view::GraphViewWidget::setFavoriteOnly);
+    connect(m_settingsButton, &StateToggleButton::stateChanged, this, [this](bool visible) {
+        m_settingsPanel->setVisible(visible);
+        updateOverlayGeometry();
+    });
+    connect(m_settingsPanel, &ForceViewSettingsPanel::contentSizeChanged, this,
+            &ForceDirectPage::updateOverlayGeometry);
+    auto *view = m_graphView->view();
+    connect(m_settingsPanel, &ForceViewSettingsPanel::manyBodyStrengthChanged,
+            view, &ForceViewRhiWidget::setManyBodyStrength);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::centerStrengthChanged,
+            view, &ForceViewRhiWidget::setCenterStrength);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::linkStrengthChanged,
+            view, &ForceViewRhiWidget::setLinkStrength);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::linkDistanceChanged,
+            view, &ForceViewRhiWidget::setLinkDistance);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::radiusFactorChanged,
+            view, &ForceViewRhiWidget::setRadiusFactor);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::textThresholdFactorChanged,
+            view, &ForceViewRhiWidget::setTextThresholdFactor);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::linkWidthFactorChanged,
+            view, &ForceViewRhiWidget::setSideWidthFactor);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::neighborDepthChanged,
+            view, &ForceViewRhiWidget::setNeighborDepth);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::graphNeighborDepthChanged,
+            m_graphView, &graph_view::GraphViewWidget::setEgoRadius);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::arrowEnabledChanged,
+            view, &ForceViewRhiWidget::setArrowEnabled);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::arrowScaleChanged,
+            view, &ForceViewRhiWidget::setArrowScale);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::nodeColorChanged,
+            m_graphView, &graph_view::GraphViewWidget::setNodeColor);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::fitInViewRequested,
+            view, &ForceViewRhiWidget::fitViewToContent);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::restartRequested,
+            view, &ForceViewRhiWidget::restartSimulation);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::pauseRequested,
+            view, &ForceViewRhiWidget::pauseSimulation);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::resumeRequested,
+            view, &ForceViewRhiWidget::resumeSimulation);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::addNodeRequested,
+            this, &ForceDirectPage::addRuntimeNode);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::editNodeRequested,
+            this, &ForceDirectPage::editRuntimeNode);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::removeNodeRequested,
+            this, &ForceDirectPage::removeRuntimeNode);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::addEdgeRequested,
+            this, &ForceDirectPage::addRuntimeEdge);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::removeEdgeRequested,
+            this, &ForceDirectPage::removeRuntimeEdge);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::graphModeChanged, this,
+            [this](const QString &mode) {
+                if (mode == QStringLiteral("all")) m_graphView->showAll();
+                else if (mode == QStringLiteral("ego")) m_graphView->showEgoGraph(2);
+                else if (mode == QStringLiteral("test")) m_graphView->showTestGraph();
+            });
+    connect(view, &ForceViewRhiWidget::fpsUpdated, m_settingsPanel, &ForceViewSettingsPanel::setFps);
+    connect(view, &ForceViewRhiWidget::tickTimeUpdated, m_settingsPanel, &ForceViewSettingsPanel::setTickTime);
+    connect(view, &ForceViewRhiWidget::paintTimeUpdated, m_settingsPanel, &ForceViewSettingsPanel::setPaintTime);
+    connect(view, &ForceViewRhiWidget::scaleChanged, m_settingsPanel, &ForceViewSettingsPanel::setScale);
+    connect(view, &ForceViewRhiWidget::alphaUpdated, m_settingsPanel, &ForceViewSettingsPanel::setAlpha);
+    connect(m_graphView, &graph_view::GraphViewWidget::nodeLeftClicked, this,
+            [this](const QString &nodeId) {
+                bool ok = false;
+                const qint64 id = nodeId.mid(1).toLongLong(&ok);
+                if (!ok || id <= 0) return;
+                if (nodeId.startsWith(QLatin1Char('w'))) emit workRequested(id);
+                if (nodeId.startsWith(QLatin1Char('a'))) emit actressRequested(id);
+            });
+    connect(&m_themeService, &ThemeService::themeChanged, this,
+            [this](ThemeId) { applyTheme(); });
+
+    applyTheme();
+}
+
+void ForceDirectPage::lazyLoad()
+{
+    m_graphManager.scheduleInitialize();
+    m_graphView->showAll();
+    m_needsRefresh = false;
+}
+
+void ForceDirectPage::showEvent(QShowEvent *event)
+{
+    const bool initialized = isInitialized();
+    LazyWidget::showEvent(event);
+    if (initialized && m_needsRefresh) refreshGraph();
+    updateOverlayGeometry();
+}
+
+void ForceDirectPage::resizeEvent(QResizeEvent *event)
+{
+    LazyWidget::resizeEvent(event);
+    updateOverlayGeometry();
+}
+
+void ForceDirectPage::updateOverlayGeometry()
+{
+    constexpr int margin = 10;
+    if (width() <= 0 || height() <= 0 || m_settingsButton == nullptr) return;
+    const QSize buttonSize = m_settingsButton->size();
+    m_settingsButton->move(width() - buttonSize.width() - margin, margin);
+    m_settingsButton->raise();
+    if (m_settingsPanel != nullptr && m_settingsPanel->isVisible()) {
+        const int panelWidth = qMin(250, width() - margin * 2);
+        // Start compact while all sections are folded.  On expansion, grow to
+        // the content height, bounded only by the available graph viewport.
+        const int panelHeight = qMin(m_settingsPanel->preferredHeight(),
+                                     height() - margin * 2);
+        m_settingsPanel->resize(panelWidth, panelHeight);
+        m_settingsPanel->move(width() - panelWidth - margin, margin);
+        m_settingsPanel->raise();
+        m_settingsButton->raise();
+    }
+    if (m_favoriteOnly != nullptr && m_favoriteOnly->isVisible()) {
+        const QSize toggleSize = m_favoriteOnly->sizeHint();
+        m_favoriteOnly->resize(toggleSize);
+        m_favoriteOnly->move(qMax(margin, width() - toggleSize.width() - margin),
+                             qMax(margin, height() - toggleSize.height() - margin));
+        m_favoriteOnly->raise();
+    }
+}
+
+void ForceDirectPage::refreshGraph()
+{
+    m_needsRefresh = true;
+    if (isInitialized() && isVisible() && m_graphView != nullptr) {
+        m_graphView->refreshGraph();
+        m_needsRefresh = false;
+    }
+}
+
+void ForceDirectPage::setEgoGraph(const QString &centerId, int radius)
+{
+    initialize();
+    if (m_graphView != nullptr) m_graphView->setEgoGraph(centerId, radius);
+}
+
+void ForceDirectPage::showEmptyGraph()
+{
+    initialize();
+    if (m_graphView != nullptr) m_graphView->showEmpty();
+}
+
+void ForceDirectPage::setFavoriteFilterToggleVisible(bool visible)
+{
+    if (m_favoriteOnly == nullptr) return;
+    if (!visible && m_favoriteOnly->isChecked()) m_favoriteOnly->setChecked(false);
+    m_favoriteOnly->setVisible(visible);
+    updateOverlayGeometry();
+}
+
+void ForceDirectPage::applyTheme()
+{
+    if (m_graphView == nullptr) return;
+    auto *view = m_graphView->view();
+    const ThemeTokens tokens = m_themeService.currentTokens();
+    const auto color = [](const QString &value, const QColor &fallback) {
+        const QColor parsed(value);
+        return parsed.isValid() ? parsed : fallback;
+    };
+    view->setBackgroundColor(color(tokens.background, Qt::white));
+    view->setEdgeColor(color(tokens.border, QColor(QStringLiteral("#808080"))));
+    view->setEdgeDimColor(color(tokens.pageBackground, QColor(QStringLiteral("#eeeeee"))));
+    view->setBaseColor(color(tokens.text, QColor(QStringLiteral("#5c5c5c"))));
+    view->setDimColor(color(tokens.pageBackground, QColor(QStringLiteral("#eeeeee"))));
+    view->setHoverColor(color(tokens.primary, QColor(QStringLiteral("#257845"))));
+    view->setTextColor(color(tokens.text, Qt::black));
+    view->setTextDimColor(color(tokens.pageBackground, QColor(QStringLiteral("#eeeeee"))));
+}
+
+QStringList ForceDirectPage::graphNodeIds() const
+{
+    QStringList ids;
+    const QVector<graph::GraphNode> nodes = m_graphManager.store().nodes();
+    ids.reserve(nodes.size());
+    for (const graph::GraphNode &node : nodes) ids.append(node.id);
+    ids.sort();
+    return ids;
+}
+
+void ForceDirectPage::addRuntimeNode()
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("添加关系图节点"));
+    auto *form = new QFormLayout(&dialog);
+    auto *id = new QLineEdit(&dialog);
+    auto *label = new QLineEdit(&dialog);
+    auto *group = new QComboBox(&dialog);
+    group->addItems({QStringLiteral("work"), QStringLiteral("actress"),
+                     QStringLiteral("custom")});
+    form->addRow(QStringLiteral("节点 ID"), id);
+    form->addRow(QStringLiteral("显示名称"), label);
+    form->addRow(QStringLiteral("类型"), group);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+                                         &dialog);
+    form->addRow(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    if (dialog.exec() != QDialog::Accepted) return;
+    const QString nodeId = id->text().trimmed();
+    if (nodeId.isEmpty() || m_graphManager.store().containsNode(nodeId)) {
+        QMessageBox::warning(this, QStringLiteral("无法添加节点"),
+                             QStringLiteral("节点 ID 不能为空，且必须与现有节点不同。"));
+        return;
+    }
+    if (!m_graphManager.upsertRuntimeNode(
+            {nodeId, label->text().trimmed(), group->currentText()})) {
+        QMessageBox::warning(this, QStringLiteral("无法添加节点"), QStringLiteral("添加节点失败。"));
+    }
+}
+
+void ForceDirectPage::editRuntimeNode()
+{
+    const QStringList ids = graphNodeIds();
+    if (ids.isEmpty()) return;
+    bool accepted = false;
+    const QString nodeId = QInputDialog::getItem(this, QStringLiteral("编辑关系图节点"),
+                                                  QStringLiteral("节点"), ids, 0, false,
+                                                  &accepted);
+    if (!accepted) return;
+    const auto index = m_graphManager.store().indexOf(nodeId);
+    const graph::GraphNode *node = index ? m_graphManager.store().nodeAt(*index) : nullptr;
+    if (node == nullptr) return;
+    QString label = QInputDialog::getText(this, QStringLiteral("编辑关系图节点"),
+                                          QStringLiteral("显示名称"), QLineEdit::Normal,
+                                          node->label, &accepted);
+    if (!accepted) return;
+    (void)m_graphManager.upsertRuntimeNode({node->id, label.trimmed(), node->group});
+}
+
+void ForceDirectPage::removeRuntimeNode()
+{
+    const QStringList ids = graphNodeIds();
+    if (ids.isEmpty()) return;
+    bool accepted = false;
+    const QString nodeId = QInputDialog::getItem(this, QStringLiteral("删除关系图节点"),
+                                                  QStringLiteral("节点"), ids, 0, false,
+                                                  &accepted);
+    if (accepted && !m_graphManager.removeRuntimeNode(nodeId)) {
+        QMessageBox::warning(this, QStringLiteral("无法删除节点"), QStringLiteral("该节点不存在。"));
+    }
+}
+
+void ForceDirectPage::addRuntimeEdge()
+{
+    const QStringList ids = graphNodeIds();
+    if (ids.size() < 2) return;
+    bool accepted = false;
+    const QString source = QInputDialog::getItem(this, QStringLiteral("添加关系图边"),
+                                                  QStringLiteral("起点"), ids, 0, false,
+                                                  &accepted);
+    if (!accepted) return;
+    const QString target = QInputDialog::getItem(this, QStringLiteral("添加关系图边"),
+                                                  QStringLiteral("终点"), ids, 0, false,
+                                                  &accepted);
+    if (!accepted) return;
+    const QString type = QInputDialog::getText(this, QStringLiteral("添加关系图边"),
+                                               QStringLiteral("关系类型"), QLineEdit::Normal,
+                                               QStringLiteral("custom"), &accepted);
+    if (!accepted) return;
+    if (!m_graphManager.upsertRuntimeEdge({source, target, type.trimmed()})) {
+        QMessageBox::warning(this, QStringLiteral("无法添加边"),
+                             QStringLiteral("起点与终点必须不同。"));
+    }
+}
+
+void ForceDirectPage::removeRuntimeEdge()
+{
+    const QVector<graph::GraphEdge> edges = m_graphManager.store().edges();
+    if (edges.isEmpty()) return;
+    QStringList choices;
+    choices.reserve(edges.size());
+    for (const graph::GraphEdge &edge : edges)
+        choices.append(QStringLiteral("%1 — %2").arg(edge.sourceId, edge.targetId));
+    bool accepted = false;
+    const QString selected = QInputDialog::getItem(this, QStringLiteral("删除关系图边"),
+                                                    QStringLiteral("边"), choices, 0, false,
+                                                    &accepted);
+    if (!accepted) return;
+    const int choice = choices.indexOf(selected);
+    if (choice < 0 || !m_graphManager.removeRuntimeEdge(edges[choice].sourceId,
+                                                         edges[choice].targetId)) {
+        QMessageBox::warning(this, QStringLiteral("无法删除边"), QStringLiteral("该边不存在。"));
+    }
+}
+
+} // namespace darkeye

@@ -9,13 +9,17 @@
 #include <QEvent>
 #include <QFontMetrics>
 #include <QFrame>
+#include <QGraphicsObject>
+#include <QGraphicsScene>
+#include <QGraphicsSceneHoverEvent>
+#include <QGraphicsSceneMouseEvent>
+#include <QGraphicsView>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QMessageBox>
-#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
-#include <QScrollArea>
+#include <QResizeEvent>
 #include <QTabWidget>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -27,7 +31,7 @@ namespace darkeye
 {
 namespace
 {
-constexpr int cardWidth = 27, gap = 5, margin = 5, leftWidth = 108, viewWidth = 84, panelWidth = 255;
+constexpr int cardWidth = 27, gap = 5, margin = 5, defaultViewWidth = 130, toolWidth = 24, panelWidth = 255;
 bool cjk(QChar c)
 {
     const ushort u = c.unicode();
@@ -55,83 +59,28 @@ class VerticalTabs final : public QTabWidget
 };
 } // namespace
 
-class TagCard final : public QWidget
+class TagCard final : public QGraphicsObject
 {
   public:
     TagCard(qint64 id, const QString &t, const QString &color, ThemeService *themes, std::function<void()> click,
-            bool title = false, QWidget *p = nullptr)
-        : QWidget(p), m_id(id), m_text(t), m_color(color), m_themes(themes), m_click(std::move(click)), m_title(title)
+            bool title = false)
+        : m_id(id), m_text(t), m_color(color), m_themes(themes), m_click(std::move(click)), m_title(title),
+          m_size(calculateSize())
     {
         setObjectName(title ? QStringLiteral("WorkTagTitle") : QStringLiteral("WorkTag_%1").arg(id));
-        setAttribute(Qt::WA_Hover);
+        setAcceptHoverEvents(true);
+        setAcceptedMouseButtons(title ? Qt::NoButton : Qt::LeftButton);
         setCursor(title ? Qt::ArrowCursor : Qt::PointingHandCursor);
-        setFixedSize(sizeHint());
-        m_timer = new QTimer(this);
-        connect(m_timer, &QTimer::timeout, this, [this] {
-            if (QDateTime::currentMSecsSinceEpoch() >= m_end)
-            {
-                m_timer->stop();
-                m_invert = false;
-            }
-            else
-                m_invert = !m_invert;
-            update();
-        });
-        if (themes)
-            connect(themes, &ThemeService::themeChanged, this, [this] { update(); });
     }
     qint64 id() const
     {
         return m_id;
     }
-    QSize sizeHint() const override
+    QRectF boundingRect() const override
     {
-        if (m_text.isEmpty())
-            return {cardWidth, cardWidth * 2};
-        int h = 0;
-        for (QChar c : m_text)
-        {
-            if (c == '\n')
-                continue;
-            QFontMetrics fm(cardFont(c));
-            h += cjk(c) ? fm.height() : fm.ascent() + qRound(fm.descent() * .3);
-        }
-        QChar c = m_text.front();
-        QFontMetrics fm(cardFont(c));
-        qreal adjust = fm.horizontalAdvance(c) * (cjk(c) ? .1 : .4);
-        return {cardWidth, qMax(cardWidth * 2, qRound(h + cardWidth * .8 - fm.descent() * .3 - adjust))};
+        return QRectF(QPointF(), QSizeF(m_size));
     }
-    void flash()
-    {
-        m_end = QDateTime::currentMSecsSinceEpoch() + 3000;
-        m_invert = true;
-        m_timer->start(150);
-        update();
-    }
-
-  protected:
-    bool event(QEvent *e) override
-    {
-        if (e->type() == QEvent::Enter)
-            m_hover = true;
-        else if (e->type() == QEvent::Leave)
-            m_hover = false;
-        if (e->type() == QEvent::Enter || e->type() == QEvent::Leave)
-            update();
-        return QWidget::event(e);
-    }
-    void mousePressEvent(QMouseEvent *e) override
-    {
-        if (!m_title && e->button() == Qt::LeftButton)
-        {
-            e->accept();
-            if (m_click)
-                m_click();
-            return;
-        }
-        QWidget::mousePressEvent(e);
-    }
-    void paintEvent(QPaintEvent *) override
+    void paint(QPainter *p, const QStyleOptionGraphicsItem *, QWidget *) override
     {
         ThemeTokens t = themeTokens(m_themes);
         QColor bg = m_title ? QColor(t.text) : m_color;
@@ -147,7 +96,7 @@ class TagCard final : public QWidget
             fg = readable(bg);
             border = Qt::red;
         }
-        QRectF r = rect();
+        QRectF r = boundingRect();
         qreal cut = r.width() * .2, rad = r.width() * .1;
         QPainterPath out;
         out.moveTo(cut, 0);
@@ -161,12 +110,11 @@ class TagCard final : public QWidget
         out.closeSubpath();
         QPainterPath hole;
         hole.addEllipse(QPointF(r.width() / 2, cut + rad), rad, rad);
-        QPainter p(this);
-        p.setRenderHint(QPainter::Antialiasing);
-        p.fillPath(out.subtracted(hole), bg);
-        p.setPen(border);
-        p.drawPath(out);
-        p.drawPath(hole);
+        p->setRenderHint(QPainter::Antialiasing);
+        p->fillPath(out.subtracted(hole), bg);
+        p->setPen(border);
+        p->drawPath(out);
+        p->drawPath(hole);
         qreal adjust = 0;
         if (!m_text.isEmpty())
         {
@@ -182,15 +130,81 @@ class TagCard final : public QWidget
                 continue;
             QFont f = cardFont(c);
             QFontMetrics fm(f);
-            int w = fm.horizontalAdvance(c), h = cjk(c) ? fm.height() : fm.ascent() + qRound(fm.descent() * .3);
-            p.setFont(f);
-            p.setPen(fg);
-            p.drawText(QPointF((r.width() - maxw) / 2 + (maxw - w) / 2, y + fm.ascent()), QString(c));
+            int w = fm.horizontalAdvance(c);
+            qreal h = cjk(c) ? fm.height() : fm.ascent() + fm.descent() * .3;
+            p->setFont(f);
+            p->setPen(fg);
+            p->drawText(QPointF((r.width() - maxw) / 2 + (maxw - w) / 2, y + fm.ascent()), QString(c));
             y += h;
         }
     }
+    void flash()
+    {
+        if (m_timer == nullptr)
+        {
+            m_timer = new QTimer(this);
+            connect(m_timer, &QTimer::timeout, this,
+                    [this]
+                    {
+                        if (QDateTime::currentMSecsSinceEpoch() >= m_end)
+                        {
+                            m_timer->stop();
+                            m_invert = false;
+                        }
+                        else
+                            m_invert = !m_invert;
+                        update();
+                    });
+        }
+        m_end = QDateTime::currentMSecsSinceEpoch() + 3000;
+        m_invert = true;
+        m_timer->start(150);
+        update();
+    }
+
+  protected:
+    void hoverEnterEvent(QGraphicsSceneHoverEvent *e) override
+    {
+        m_hover = true;
+        update();
+        QGraphicsObject::hoverEnterEvent(e);
+    }
+    void hoverLeaveEvent(QGraphicsSceneHoverEvent *e) override
+    {
+        m_hover = false;
+        update();
+        QGraphicsObject::hoverLeaveEvent(e);
+    }
+    void mousePressEvent(QGraphicsSceneMouseEvent *e) override
+    {
+        if (!m_title && e->button() == Qt::LeftButton)
+        {
+            e->accept();
+            if (m_click)
+                m_click();
+            return;
+        }
+        QGraphicsObject::mousePressEvent(e);
+    }
 
   private:
+    QSizeF calculateSize() const
+    {
+        if (m_text.isEmpty())
+            return {cardWidth, cardWidth * 2};
+        qreal h = 0;
+        for (QChar c : m_text)
+        {
+            if (c == '\n')
+                continue;
+            QFontMetrics fm(cardFont(c));
+            h += cjk(c) ? fm.height() : fm.ascent() + fm.descent() * .3;
+        }
+        QChar c = m_text.front();
+        QFontMetrics fm(cardFont(c));
+        qreal adjust = fm.horizontalAdvance(c) * (cjk(c) ? .1 : .4);
+        return {cardWidth, qMax<qreal>(cardWidth * 2, h + cardWidth * .8 - fm.descent() * .3 - adjust)};
+    }
     qint64 m_id;
     QString m_text;
     QColor m_color;
@@ -199,25 +213,27 @@ class TagCard final : public QWidget
     QTimer *m_timer = nullptr;
     qint64 m_end = 0;
     bool m_title = false, m_hover = false, m_invert = false;
+    QSizeF m_size;
 };
 
-class TagFlowWidget final : public QWidget
+class TagFlowScene final : public QGraphicsScene
 {
   public:
-    explicit TagFlowWidget(QWidget *p = nullptr) : QWidget(p)
+    explicit TagFlowScene(int fallbackWidth, QObject *p = nullptr) : QGraphicsScene(p), m_fallbackWidth(fallbackWidth) {}
+    void addCard(TagCard *c, bool updateLayout = true)
     {
-        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::MinimumExpanding);
-    }
-    void addCard(TagCard *c)
-    {
-        c->setParent(this);
+        addItem(c);
         m_cards.append(c);
-        c->show();
-        relayout();
+        if (updateLayout)
+        {
+            c->setVisible(true);
+            relayout();
+        }
     }
     void removeCard(TagCard *c)
     {
         m_cards.removeOne(c);
+        removeItem(c);
         c->deleteLater();
         relayout();
     }
@@ -227,38 +243,94 @@ class TagFlowWidget final : public QWidget
             m_cards.append(c);
         relayout();
     }
-    void relayout()
+    void updateCards()
     {
-        int aw = qMax(1, width() - margin * 2), cols = qMax(1, aw / (cardWidth + gap)),
+        for (TagCard *card : std::as_const(m_cards))
+            card->update();
+    }
+    void relayout(int requestedWidth = -1)
+    {
+        int width = requestedWidth;
+        if (width <= margin * 2 && !views().isEmpty())
+            width = views().constFirst()->viewport()->width();
+        if (width <= margin * 2)
+            width = m_fallbackWidth;
+        int aw = qMax(1, width - margin * 2), cols = qMax(1, aw / (cardWidth + gap)),
             total = cols * cardWidth + (cols - 1) * gap, ox = margin + (aw - total) / 2;
-        QVector<int> hs(cols, margin);
+        QVector<qreal> hs(cols, margin);
         bool any = false;
         for (TagCard *c : std::as_const(m_cards))
         {
-        if (c->isHidden())
-            continue;
+            if (!c->isVisible())
+                continue;
             any = true;
             int col = 0;
             for (int i = 1; i < cols; ++i)
                 if (hs[i] < hs[col])
                     col = i;
-            c->move(ox + col * (cardWidth + gap), hs[col]);
-            hs[col] += c->height() + gap;
+            c->setPos(ox + col * (cardWidth + gap), hs[col]);
+            hs[col] += c->boundingRect().height() + gap;
         }
-        setMinimumHeight((any ? *std::max_element(hs.cbegin(), hs.cend()) : margin) + margin);
-        updateGeometry();
+        setSceneRect(0, 0, width, (any ? *std::max_element(hs.cbegin(), hs.cend()) : margin) + margin);
+    }
+
+  private:
+    QList<TagCard *> m_cards;
+    int m_fallbackWidth;
+};
+
+class TagGraphicsView final : public QGraphicsView
+{
+  public:
+    explicit TagGraphicsView(QWidget *parent = nullptr) : QGraphicsView(parent)
+    {
+        setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        setFrameShape(QFrame::NoFrame);
+        setAlignment(Qt::AlignLeft | Qt::AlignTop);
+        setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
     }
 
   protected:
     void resizeEvent(QResizeEvent *e) override
     {
-        QWidget::resizeEvent(e);
-        relayout();
+        QGraphicsView::resizeEvent(e);
+        if (auto *flow = dynamic_cast<TagFlowScene *>(scene()))
+            flow->relayout(viewport()->width());
     }
-
-  private:
-    QList<TagCard *> m_cards;
 };
+
+TagDisplayPreview::TagDisplayPreview(ThemeService *themes, QWidget *parent)
+    : QWidget(parent), m_themes(themes)
+{
+    setAttribute(Qt::WA_StyledBackground);
+    setObjectName(QStringLiteral("TagDisplayPreview"));
+    setFixedWidth(60);
+    setMinimumHeight(100);
+    setStyleSheet(QStringLiteral(
+        "#TagDisplayPreview { border-radius: 12px; border: 3px dashed #cccccc; }"
+        "#TagDisplayPreview QGraphicsView { background: transparent; border: none; }"));
+
+    auto *layout = new QHBoxLayout(this);
+    m_view = new TagGraphicsView(this);
+    m_view->setAlignment(Qt::AlignCenter);
+    m_view->setBackgroundBrush(Qt::NoBrush);
+    m_scene = new QGraphicsScene(this);
+    m_view->setScene(m_scene);
+    layout->addWidget(m_view);
+}
+
+void TagDisplayPreview::setTag(const QString &name, const QString &color, const QString &detail)
+{
+    if (m_card != nullptr)
+    {
+        m_scene->removeItem(m_card);
+        delete m_card;
+    }
+    m_card = new TagCard(-1, name, color, m_themes, {});
+    m_card->setToolTip(detail);
+    m_scene->addItem(m_card);
+    m_scene->setSceneRect(m_card->boundingRect());
+}
 
 WorkTagSelector::WorkTagSelector(const QList<TagOption> &tags, ThemeService *themes, QWidget *parent)
     : QWidget(parent), m_tags(tags), m_themes(themes)
@@ -268,20 +340,17 @@ WorkTagSelector::WorkTagSelector(const QList<TagOption> &tags, ThemeService *the
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
     auto *left = new QWidget(this);
-    left->setFixedWidth(leftWidth);
+    left->setFixedWidth(defaultViewWidth + toolWidth);
     auto *ll = new QHBoxLayout(left);
     ll->setContentsMargins(0, 0, 0, 0);
     ll->setSpacing(0);
-    m_selectedView = new QScrollArea(left);
+    m_selectedView = new TagGraphicsView(left);
     m_selectedView->setObjectName(QStringLiteral("WorkTagList"));
-    m_selectedView->setFixedWidth(viewWidth);
-    m_selectedView->setWidgetResizable(true);
-    m_selectedView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_selectedView->setFrameShape(QFrame::NoFrame);
+    m_selectedView->setFixedWidth(defaultViewWidth);
     m_selectedView->setToolTip(QStringLiteral("点击已选标签可移除"));
-    m_selectedFlow = new TagFlowWidget;
+    m_selectedFlow = new TagFlowScene(defaultViewWidth, m_selectedView);
     m_selectedFlow->setObjectName(QStringLiteral("WorkSelectedTagFlow"));
-    m_selectedView->setWidget(m_selectedFlow);
+    m_selectedView->setScene(m_selectedFlow);
     applyViewStyle(m_selectedView);
     m_selectedFlow->addCard(new TagCard(-1, QStringLiteral("作品标签"), {}, themes, {}, true));
     auto *tools = new QWidget(left);
@@ -350,13 +419,18 @@ WorkTagSelector::WorkTagSelector(const QList<TagOption> &tags, ThemeService *the
     pl->addWidget(bar);
     pl->addWidget(m_tabs, 1);
     root->addWidget(m_panel);
-    setFixedWidth(leftWidth);
+    // Keep the selected-tags column anchored to the selector's left edge while
+    // the available-tags panel changes width.  This matches TagSelector5's
+    // trailing stretch and prevents any spare layout space from being placed
+    // before the left column.
+    root->addStretch(1);
+    setFixedWidth(defaultViewWidth + toolWidth);
     m_panelAnimation = new QVariantAnimation(this);
     m_panelAnimation->setDuration(300);
     m_panelAnimation->setEasingCurve(QEasingCurve::InOutQuad);
     connect(m_panelAnimation, &QVariantAnimation::valueChanged, this, [this](const QVariant &v) {
         m_panel->setFixedWidth(v.toInt());
-        setFixedWidth(leftWidth + v.toInt());
+        setFixedWidth(m_selectedColumnWidth + toolWidth + v.toInt());
     });
     connect(clear, &QPushButton::clicked, this, &WorkTagSelector::clearSelection);
     connect(reload, &QPushButton::clicked, this, &WorkTagSelector::reloadTags);
@@ -369,6 +443,9 @@ WorkTagSelector::WorkTagSelector(const QList<TagOption> &tags, ThemeService *the
             applyViewStyle(m_selectedView);
             for (auto *v : std::as_const(m_views))
                 applyViewStyle(v);
+            m_selectedFlow->updateCards();
+            for (auto *flow : std::as_const(m_flows))
+                flow->updateCards();
             applyTabStyle();
         });
     setTags(tags);
@@ -399,21 +476,69 @@ void WorkTagSelector::reloadTags()
 }
 QList<qint64> WorkTagSelector::selectedIds() const
 {
-    QList<qint64> ids = m_selectedIds.values();
-    std::sort(ids.begin(), ids.end());
-    return ids;
+    return m_selectedOrder;
+}
+void WorkTagSelector::setSelectedIds(const QList<qint64> &ids)
+{
+    QSet<qint64> requested;
+    QList<qint64> order;
+    for (qint64 id : ids)
+    {
+        if (!tagById(id) || requested.contains(id)) continue;
+        requested.insert(id);
+        order.append(id);
+    }
+    for (qint64 id : QList<qint64>(m_selectedOrder))
+        if (!requested.contains(id)) setTagSelected(id, false, false);
+    // 数据库回填与 Python load_with_ids 相同：不弹互斥提示，忠实恢复已有关联。
+    for (qint64 id : order)
+    {
+        if (m_selectedIds.contains(id)) continue;
+        const TagOption *tag = tagById(id);
+        if (!tag) continue;
+        m_selectedIds.insert(id);
+        m_selectedOrder.append(id);
+        auto *card = new TagCard(id, tag->name, tag->color, m_themes,
+                                 [this, id] { QTimer::singleShot(0, this, [this, id] { setTagSelected(id, false); }); });
+        m_selectedItems.insert(id, card);
+        m_selectedFlow->addCard(card);
+    }
+    updateAvailableVisibility();
+    emit selectionChanged();
 }
 void WorkTagSelector::clearSelection()
 {
     for (qint64 id : QList<qint64>(m_selectedOrder))
         setTagSelected(id, false, false);
 }
-void WorkTagSelector::setPanelExpanded(bool on)
+void WorkTagSelector::setSelectedColumnWidth(int width)
+{
+    if (width <= 0 || width == m_selectedColumnWidth)
+        return;
+    m_selectedColumnWidth = width;
+    m_selectedView->setFixedWidth(width);
+    if (QWidget *left = m_selectedView->parentWidget())
+        left->setFixedWidth(width + toolWidth);
+    setFixedWidth(width + toolWidth + (m_panelExpanded ? panelWidth : 0));
+    m_selectedFlow->relayout(width);
+}
+void WorkTagSelector::setAvailablePanelExpanded(bool expanded)
+{
+    setPanelExpanded(expanded, false);
+}
+void WorkTagSelector::setPanelExpanded(bool on, bool animate)
 {
     m_panelExpanded = on;
     m_expandButton->setIconName(on ? QStringLiteral("arrow_left") : QStringLiteral("arrow_right"));
     m_expandButton->setToolTip(on ? QStringLiteral("收起标签库") : QStringLiteral("展开标签库"));
     m_panelAnimation->stop();
+    if (!animate)
+    {
+        const int width = on ? panelWidth : 0;
+        m_panel->setFixedWidth(width);
+        setFixedWidth(m_selectedColumnWidth + toolWidth + width);
+        return;
+    }
     m_panelAnimation->setStartValue(m_panel->width());
     m_panelAnimation->setEndValue(on ? panelWidth : 0);
     m_panelAnimation->start();
@@ -460,7 +585,7 @@ void WorkTagSelector::setTagSelected(qint64 id, bool selected, bool switchTab)
             m_selectedFlow->removeCard(c);
         if (auto *c = m_items.value(id))
         {
-            c->show();
+            c->setVisible(true);
             if (auto *f = m_flows.value(t->typeName))
             {
                 f->moveToEnd(c);
@@ -484,7 +609,13 @@ void WorkTagSelector::rebuildSearch(const QString &s)
     QString n = s.trimmed();
     if (!n.isEmpty())
         for (const auto &t : std::as_const(m_tags))
-            if (QStringLiteral("%1 %2 %3").arg(t.name, t.typeName, t.detail).contains(n, Qt::CaseInsensitive))
+            // Mirror TagSelector5.get_tagid_by_keyword(): search canonical names
+            // and redirect aliases, but not type names or descriptive text.
+            if (t.name.contains(n, Qt::CaseInsensitive)
+                || std::any_of(t.aliases.cbegin(), t.aliases.cend(),
+                               [&n](const QString &alias) {
+                                   return alias.contains(n, Qt::CaseInsensitive);
+                               }))
                 m_searchMatches.append(t.id);
     bool ok = !m_searchMatches.isEmpty();
     m_searchPrevious->setEnabled(ok);
@@ -510,7 +641,7 @@ void WorkTagSelector::showSearchResult()
     m_searchResult->setText(QStringLiteral("结果 %1/%2").arg(m_searchIndex + 1).arg(m_searchMatches.size()));
     if (auto *c = m_selectedItems.value(id))
     {
-        m_selectedView->ensureWidgetVisible(c);
+        m_selectedView->ensureVisible(c);
         c->flash();
         return;
     }
@@ -525,7 +656,7 @@ void WorkTagSelector::showSearchResult()
             break;
         }
     if (auto *v = m_views.value(t->typeName))
-        v->ensureWidgetVisible(c);
+        v->ensureVisible(c);
     c->flash();
 }
 void WorkTagSelector::updateAvailableVisibility()
@@ -551,17 +682,14 @@ void WorkTagSelector::setTags(const QList<TagOption> &tags)
     }
     for (const auto &t : m_tags)
     {
-        TagFlowWidget *f = m_flows.value(t.typeName);
+        TagFlowScene *f = m_flows.value(t.typeName);
         if (!f)
         {
-            auto *v = new QScrollArea(m_tabs);
+            auto *v = new TagGraphicsView(m_tabs);
             v->setObjectName(QStringLiteral("WorkAvailableTagList"));
-            v->setWidgetResizable(true);
-            v->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-            v->setFrameShape(QFrame::NoFrame);
-            f = new TagFlowWidget;
+            f = new TagFlowScene(panelWidth - 25, v);
             f->setObjectName(QStringLiteral("WorkAvailableTagFlow"));
-            v->setWidget(f);
+            v->setScene(f);
             applyViewStyle(v);
             m_flows.insert(t.typeName, f);
             m_views.insert(t.typeName, v);
@@ -572,7 +700,10 @@ void WorkTagSelector::setTags(const QList<TagOption> &tags)
                 setTagSelected(id, true);
         });
         c->setToolTip(t.detail);
-        f->addCard(c);
+        // Match Python's TagSelector5 construction path: populate the whole
+        // scene first, then perform one layout pass per tag group. Relayout on
+        // every insertion turns initial loading into quadratic work.
+        f->addCard(c, false);
         m_items.insert(t.id, c);
     }
     QSet<qint64> available;
@@ -615,9 +746,8 @@ const TagOption *WorkTagSelector::tagById(qint64 id) const
 void WorkTagSelector::applyViewStyle(QWidget *w) const
 {
     ThemeTokens t = themeTokens(m_themes);
-    w->setStyleSheet(QStringLiteral("QScrollArea{border:%1 dashed "
-                                    "%2;border-radius:%3;background:%4}QScrollArea>QWidget>"
-                                    "QWidget{background:%4}")
+    w->setStyleSheet(QStringLiteral("QGraphicsView{border:%1 dashed "
+                                    "%2;border-radius:%3;background:%4}")
                          .arg(t.borderWidth, t.border, t.radiusMd, t.pageBackground));
 }
 void WorkTagSelector::applyTabStyle() const

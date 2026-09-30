@@ -4,12 +4,14 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSet>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QSqlRecord>
 #include <QVariantList>
 
 namespace
@@ -142,12 +144,22 @@ QList<darkeye::NamedIdOption> queryNamedOptions(const QSqlDatabase &database,
 {
     QSqlQuery query(database);
     query.prepare(QStringLiteral(
-        "SELECT %1,COALESCE(NULLIF(cn_name,''),jp_name,'') FROM %2 ORDER BY 2 COLLATE NOCASE")
+        "SELECT %1,COALESCE(NULLIF(cn_name,''),jp_name,''),COALESCE(cn_name,''),"
+        "COALESCE(jp_name,''),COALESCE(aliases,'') FROM %2 ORDER BY 2 COLLATE NOCASE")
                       .arg(idColumn, table));
     QList<darkeye::NamedIdOption> options;
     if (!query.exec()) return options;
     while (query.next())
-        options.append({query.value(0).toLongLong(), query.value(1).toString()});
+    {
+        darkeye::NamedIdOption option;
+        option.id = query.value(0).toLongLong();
+        option.name = query.value(1).toString();
+        option.chineseName = query.value(2).toString();
+        option.japaneseName = query.value(3).toString();
+        option.aliases = query.value(4).toString().split(',', Qt::SkipEmptyParts);
+        for (QString &alias : option.aliases) alias = alias.trimmed();
+        options.append(std::move(option));
+    }
     return options;
 }
 
@@ -392,7 +404,9 @@ QList<WorkSummary> WorkRepository::search(const WorkSearch &search, QString *err
         "AND wtr.tag_id IN (1,2,3)");
     sql += clause.sql;
     if (!search.tagIds.isEmpty()) sql += QStringLiteral(" GROUP BY work.work_id");
-    sql += QStringLiteral(" ORDER BY %1 LIMIT ? OFFSET ?").arg(orderBy);
+    sql += QStringLiteral(" ORDER BY %1").arg(orderBy);
+    if (search.limit > 0)
+        sql += QStringLiteral(" LIMIT ? OFFSET ?");
 
     QSqlQuery query(m_database);
     query.prepare(sql);
@@ -405,10 +419,15 @@ QList<WorkSummary> WorkRepository::search(const WorkSearch &search, QString *err
         query.addBindValue(search.randomSeed);
         query.addBindValue(search.randomSeed2);
     }
-    query.addBindValue(qBound(1, search.limit, 1000));
-    query.addBindValue(qMax(0, search.offset));
+    if (search.limit > 0)
+    {
+        query.addBindValue(qBound(1, search.limit, 1000));
+        query.addBindValue(qMax(0, search.offset));
+    }
     if (!query.exec())
     {
+        qWarning() << "WorkRepository search failed:" << query.lastError().text()
+                   << "SQL:" << query.lastQuery();
         if (errorMessage != nullptr)
         {
             *errorMessage = query.lastError().text();
@@ -446,8 +465,20 @@ std::optional<int> WorkRepository::count(const WorkSearch &search, QString *erro
     {
         query.addBindValue(value);
     }
-    if (!query.exec() || !query.next())
+    if (!query.exec())
     {
+        qWarning() << "WorkRepository count failed:" << query.lastError().text()
+                   << "SQL:" << query.lastQuery();
+        if (errorMessage != nullptr)
+        {
+            *errorMessage = query.lastError().text();
+        }
+        return std::nullopt;
+    }
+    if (!query.next())
+    {
+        qWarning() << "WorkRepository count returned no row:" << query.lastError().text()
+                   << "SQL:" << query.lastQuery();
         if (errorMessage != nullptr)
         {
             *errorMessage = query.lastError().text();
@@ -586,7 +617,24 @@ QList<TagOption> WorkRepository::tagOptions() const
     {
         options.append({query.value(0).toLongLong(), query.value(1).toString(),
                         query.value(2).toString(), query.value(3).toString(),
-                        query.value(4).toString(), query.value(5).toString()});
+                        query.value(4).toString(), query.value(5).toString(), {}});
+    }
+
+    QHash<qint64, QStringList> aliasesByTagId;
+    QSqlQuery aliasQuery(m_database);
+    if (aliasQuery.exec(QStringLiteral(
+            "SELECT redirect_tag_id, tag_name FROM tag "
+            "WHERE redirect_tag_id IS NOT NULL ORDER BY tag_name COLLATE NOCASE")))
+    {
+        while (aliasQuery.next())
+        {
+            aliasesByTagId[aliasQuery.value(0).toLongLong()].append(
+                aliasQuery.value(1).toString());
+        }
+    }
+    for (TagOption &option : options)
+    {
+        option.aliases = aliasesByTagId.value(option.id);
     }
     return options;
 }
@@ -747,25 +795,12 @@ QList<WorkStateRecord> WorkRepository::listByDeletedState(bool deleted, const QS
                                                           QString *errorMessage) const
 {
     QSqlQuery query(m_database);
-    const QString normalized = keyword.trimmed();
-    QString sql = QStringLiteral(
-        "SELECT work_id, serial_number, COALESCE(cn_title, ''), COALESCE(jp_title, ''), "
-        "COALESCE(release_date, ''), COALESCE(image_url, '') FROM work WHERE is_deleted=?");
-    if (!normalized.isEmpty())
-    {
-        sql += QStringLiteral(" AND (instr(lower(COALESCE(serial_number, '')), lower(?))>0 "
-                              "OR instr(lower(COALESCE(cn_title, '')), lower(?))>0 "
-                              "OR instr(lower(COALESCE(jp_title, '')), lower(?))>0)");
-    }
-    sql += QStringLiteral(" ORDER BY work_id DESC");
+    Q_UNUSED(keyword);
+    // Keep the same active/deleted predicate and natural table order as Python's
+    // WorkSoftDeletePage (SELECT * FROM work WHERE IFNULL(is_deleted, 0) = 0).
+    const QString sql = QStringLiteral("SELECT * FROM work WHERE IFNULL(is_deleted, 0)=?");
     query.prepare(sql);
     query.addBindValue(deleted ? 1 : 0);
-    if (!normalized.isEmpty())
-    {
-        query.addBindValue(normalized);
-        query.addBindValue(normalized);
-        query.addBindValue(normalized);
-    }
     if (!query.exec())
     {
         if (errorMessage != nullptr)
@@ -773,11 +808,20 @@ QList<WorkStateRecord> WorkRepository::listByDeletedState(bool deleted, const QS
         return {};
     }
     QList<WorkStateRecord> records;
+    const QSqlRecord record = query.record();
     while (query.next())
     {
-        records.append({query.value(0).toLongLong(), query.value(1).toString(),
-                        query.value(2).toString(), query.value(3).toString(),
-                        query.value(4).toString(), query.value(5).toString()});
+        WorkStateRecord stateRecord;
+        stateRecord.id = query.value(record.indexOf(QStringLiteral("work_id"))).toLongLong();
+        stateRecord.serialNumber = query.value(record.indexOf(QStringLiteral("serial_number"))).toString();
+        stateRecord.chineseTitle = query.value(record.indexOf(QStringLiteral("cn_title"))).toString();
+        stateRecord.japaneseTitle = query.value(record.indexOf(QStringLiteral("jp_title"))).toString();
+        stateRecord.releaseDate = query.value(record.indexOf(QStringLiteral("release_date"))).toString();
+        stateRecord.imageUrl = query.value(record.indexOf(QStringLiteral("image_url"))).toString();
+        stateRecord.tableValues.reserve(record.count());
+        for (int column = 0; column < record.count(); ++column)
+            stateRecord.tableValues.append(query.value(column).toString());
+        records.append(std::move(stateRecord));
     }
     return records;
 }

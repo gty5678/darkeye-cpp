@@ -90,6 +90,7 @@ void ModernScrollMenu::addSection(const QString &title, QWidget *content)
     label->setObjectName(QStringLiteral("DesignScrollMenuTitle"));
     label->setFixedWidth(100);
     content->setParent(row);
+    content->setProperty("designScrollMenuContent", true);
     content->setFixedWidth(800);
     rowLayout->addWidget(label);
     rowLayout->addWidget(content);

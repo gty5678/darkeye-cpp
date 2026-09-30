@@ -3,6 +3,7 @@
 #include "darkeye_ui/theme/ThemeService.h"
 #include "darkeye_ui/theme/IconProvider.h"
 
+#include <QFileInfo>
 #include <QPainter>
 #include <QPainterPath>
 
@@ -32,9 +33,38 @@ void ChamferButton::setChamferRatio(qreal ratio)
     update();
 }
 qreal ChamferButton::chamferRatio() const { return m_chamferRatio; }
-void ChamferButton::setSelected(bool selected) { m_selected = selected; update(); }
+void ChamferButton::setSelected(bool selected)
+{
+    m_selected = selected;
+    update();
+}
 bool ChamferButton::isSelected() const { return m_selected; }
-void ChamferButton::setIconName(const QString &name) { m_iconName = name; update(); }
+void ChamferButton::setIconName(const QString &name)
+{
+    m_iconName = name;
+    setProperty("ChamferIconPath", {});
+    update();
+}
+void ChamferButton::setIconPath(const QString &path)
+{
+    setProperty("ChamferIconPath", path);
+    update();
+}
+void ChamferButton::setHoverable(bool hoverable)
+{
+    m_hoverable = hoverable;
+    if (!m_hoverable && m_hovered) m_hovered = false;
+    update();
+}
+bool ChamferButton::isHoverable() const { return m_hoverable; }
+void ChamferButton::setMenuId(const QString &menuId) { m_menuId = menuId; }
+QString ChamferButton::menuId() const { return m_menuId; }
+void ChamferButton::setUseNativeTooltip(bool enabled)
+{
+    m_useNativeTooltip = enabled;
+    setToolTip(enabled ? text() : QString());
+}
+bool ChamferButton::usesNativeTooltip() const { return m_useNativeTooltip; }
 
 void ChamferButton::paintEvent(QPaintEvent *)
 {
@@ -52,21 +82,33 @@ void ChamferButton::paintEvent(QPaintEvent *)
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setPen(Qt::NoPen);
     painter.setBrush(QColor(m_selected ? tokens.primary
-                                      : m_hovered ? tokens.inputBackground
+                                      : m_hovered && m_hoverable ? tokens.inputBackground
                                                   : tokens.background));
     painter.drawPath(path);
-    if (!m_iconName.isEmpty()) {
+    const QString iconPath = property("ChamferIconPath").toString();
+    if (!m_iconName.isEmpty() || !iconPath.isEmpty()) {
         const QColor color(m_selected ? tokens.textInverse : tokens.icon);
-        const QPixmap pixmap = IconProvider::builtIn(
-            m_iconName, QSize(m_iconSize, m_iconSize), color).pixmap(m_iconSize, m_iconSize);
-        painter.drawPixmap((width() - m_iconSize) / 2,
-                           (height() - m_iconSize) / 2, pixmap);
+        const QSize size(m_iconSize, m_iconSize);
+        QIcon icon;
+        if (iconPath.isEmpty()) {
+            icon = IconProvider::builtIn(m_iconName, size, color);
+        } else if (QFileInfo(iconPath).suffix().compare(
+                       QStringLiteral("svg"), Qt::CaseInsensitive) == 0) {
+            icon = IconProvider::fromSvg(iconPath, size, color);
+        } else {
+            icon = QIcon(iconPath);
+        }
+        const QPixmap pixmap = icon.pixmap(size);
+        if (!pixmap.isNull()) {
+            painter.drawPixmap((width() - m_iconSize) / 2,
+                               (height() - m_iconSize) / 2, pixmap);
+        }
     }
 }
 
 void ChamferButton::enterEvent(QEnterEvent *event)
 {
-    m_hovered = true;
+    m_hovered = m_hoverable;
     update();
     QAbstractButton::enterEvent(event);
 }
@@ -78,5 +120,3 @@ void ChamferButton::leaveEvent(QEvent *event)
 }
 
 } // namespace darkeye
-
-

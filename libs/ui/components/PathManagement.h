@@ -11,6 +11,7 @@ namespace darkeye
 {
 
 class PathBrowseDelegate;
+class TokenTableWidget;
 
 class SinglePathManagement final : public QWidget
 {
@@ -49,7 +50,7 @@ private slots:
     void clearBrowseButtons();
 
 private:
-    QTableWidget *m_table = nullptr;
+    TokenTableWidget *m_table = nullptr;
     PathBrowseDelegate *m_delegate = nullptr;
 };
 

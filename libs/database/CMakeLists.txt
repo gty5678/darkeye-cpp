@@ -9,5 +9,8 @@ add_library(darkeye::database ALIAS darkeye_database)
 target_include_directories(darkeye_database PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
 )
-target_link_libraries(darkeye_database PUBLIC darkeye::core Qt6::Sql)
+target_link_libraries(darkeye_database PUBLIC darkeye::core darkeye::settings Qt6::Network Qt6::Sql)
+if(WIN32)
+    target_link_libraries(darkeye_database PRIVATE Advapi32)
+endif()
 darkeye_apply_compiler_options(darkeye_database)

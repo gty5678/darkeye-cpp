@@ -6,6 +6,7 @@
 
 class QWidget;
 class QVBoxLayout;
+class QResizeEvent;
 
 namespace darkeye {
 
@@ -35,10 +36,15 @@ public:
     void setColumnWidth(int columnWidth);
     void setPrefetchDistance(int distance);
 
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
 private:
     void handleScroll(int value);
     void scheduleScrollableCheck();
     void checkScrollableAndLoad(quint64 generation);
+    void ensureContentLayout();
+    void updateContentGeometry();
 
     QWidget *m_contentWidget = nullptr;
     QWidget *m_waterfallWidget = nullptr;

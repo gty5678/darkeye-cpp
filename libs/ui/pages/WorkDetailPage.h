@@ -1,10 +1,10 @@
 #pragma once
 
+#include "darkeye_ui/base/LazyWidget.h"
 #include "darkeye_ui/theme/ThemeService.h"
 #include "database/repositories/PrivateRepository.h"
 #include "database/repositories/WorkRepository.h"
 
-#include <QWidget>
 #include <optional>
 
 class QHBoxLayout;
@@ -16,7 +16,7 @@ class HeartLabel;
 class TokenVLabel;
 class VerticalTextLabel;
 
-class WorkDetailPage final : public QWidget
+class WorkDetailPage final : public LazyWidget
 {
     Q_OBJECT
 
@@ -33,11 +33,14 @@ public:
 signals:
     void editRequested(qint64 workId);
     void workDeleted(qint64 workId);
+    void favoriteChanged(qint64 workId);
+    void fanartRequested(qint64 workId);
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
+    void lazyLoad() override;
     void buildUi();
     void applyDetails(const WorkDetails &details);
     void rebuildPeople(const WorkDetails &details);
@@ -66,5 +69,3 @@ private:
 };
 
 } // namespace darkeye
-
-

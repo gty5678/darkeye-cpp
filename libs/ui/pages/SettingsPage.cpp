@@ -12,23 +12,46 @@
 #include "ui/components/PathManagement.h"
 #include "darkeye_ui/components/TokenViews.h"
 #include "services/VideoLibraryService.h"
+#include "services/LlmTranslationService.h"
+#include "services/UpdateService.h"
+#include "database/DatabaseMaintenanceService.h"
+#include "database/WebDavBackupService.h"
+#include "database/WebDavCredentialStore.h"
+#include "database/repositories/PersonRepository.h"
+#include "database/repositories/ReferenceRepository.h"
+#include "database/repositories/WorkRepository.h"
 
 #include <QAction>
+#include <QApplication>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDesktopServices>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileDialog>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QInputDialog>
 #include <QKeySequence>
+#include <QLabel>
+#include <QLineEdit>
 #include <QMessageBox>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QPlainTextEdit>
 #include <QSaveFile>
 #include <QSpinBox>
 #include <QTableWidget>
 #include <QVBoxLayout>
 #include <QUrl>
+#include <QProgressDialog>
+#include <QProcess>
+#include <QSettings>
+#include <QTimer>
+#include <QXmlStreamReader>
 
 #include <tuple>
 #include <utility>
@@ -38,69 +61,373 @@ namespace darkeye
 namespace
 {
 
+QString latestManifestUrl()
+{
+    const QString configPath = QDir(QCoreApplication::applicationDirPath())
+                                   .filePath(QStringLiteral("resources/config/update.ini"));
+    QSettings config(configPath, QSettings::IniFormat);
+    const QString configured = config.value(QStringLiteral("Update/LatestJsonUrl")).toString().trimmed();
+    return configured.isEmpty() ? QStringLiteral("https://darkeye.win/latest.json") : configured;
+}
+
+QString updaterExecutablePath()
+{
+    return QDir(QCoreApplication::applicationDirPath())
+        .filePath(QStringLiteral("DarkEyeUpdater.exe"));
+}
+
+QString collectorBridgeUrl(const QUrl &workApi)
+{
+    QUrl result = workApi;
+    QString path = result.path();
+    const QString suffix = QStringLiteral("/api/v1/work");
+    if (path.endsWith(suffix)) path.chop(suffix.size());
+    else path.clear();
+    result.setPath(path);
+    result.setQuery({});
+    result.setFragment({});
+    QString url = result.toString();
+    while (url.endsWith(u'/')) url.chop(1);
+    return url;
+}
+
+QStringList updaterArguments()
+{
+    return {QStringLiteral("--install-dir"), QCoreApplication::applicationDirPath(),
+            QStringLiteral("--current-version"), QStringLiteral(DARKEYE_VERSION),
+            QStringLiteral("--main-exe"), QStringLiteral("DarkEye.exe"),
+            QStringLiteral("--latest-json-url"), latestManifestUrl(),
+            QStringLiteral("--keep"), QStringLiteral("data"),
+            QStringLiteral("--pid"), QString::number(QCoreApplication::applicationPid())};
+}
+
+bool startUpdater(QWidget *parent, const QStringList &additionalArguments)
+{
+    const QString updater = updaterExecutablePath();
+    if (!QFileInfo::exists(updater)) {
+        QMessageBox::critical(parent, QStringLiteral("更新失败"),
+                              QStringLiteral("未找到更新程序：%1").arg(updater));
+        return false;
+    }
+    QStringList arguments = updaterArguments();
+    arguments.append(additionalArguments);
+    if (!QProcess::startDetached(updater, arguments, QCoreApplication::applicationDirPath())) {
+        QMessageBox::critical(parent, QStringLiteral("更新失败"), QStringLiteral("无法启动更新程序。"));
+        return false;
+    }
+    return true;
+}
+
+class PendingSettingsPage final : public darkeye::LazyWidget
+{
+public:
+    PendingSettingsPage(QString name, QWidget *parent)
+        : LazyWidget(parent), m_name(std::move(name))
+    {
+    }
+
+private:
+    void lazyLoad() override
+    {
+        auto *layout = new QVBoxLayout(this);
+        layout->setContentsMargins(0, 0, 0, 0);
+        auto *label = new darkeye::DesignLabel(QStringLiteral("该设置页正在逐项迁移"), this);
+        label->setTone(QStringLiteral("muted"));
+        layout->addWidget(label);
+        layout->addStretch();
+    }
+
+    QString m_name;
+};
+
 QWidget *pendingSettingsPage(const QString &name, QWidget *parent)
 {
-    auto *page = new QWidget(parent);
-    page->setObjectName(name + QStringLiteral("SettingsPage"));
-    auto *layout = new QVBoxLayout(page);
-    layout->setContentsMargins(0, 0, 0, 0);
-    auto *label = new DesignLabel(QStringLiteral("该设置页正在逐项迁移"), page);
-    label->setTone(QStringLiteral("muted"));
-    layout->addWidget(label);
-    layout->addStretch();
-    return page;
+    return new PendingSettingsPage(name, parent);
+}
+
+struct ParsedNfo final
+{
+    QString serial;
+    QString title;
+    QString plot;
+    QString director;
+    QString releaseDate;
+    QString notes;
+    QString studio;
+    std::optional<int> runtime;
+    QStringList genres;
+    QStringList tags;
+    QStringList actors;
+    QString series;
+};
+
+std::optional<ParsedNfo> parseNfo(const QString &path, bool mdcz, QString *error)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        *error = QStringLiteral("无法读取文件：%1").arg(file.errorString());
+        return std::nullopt;
+    }
+    QXmlStreamReader xml(&file);
+    ParsedNfo result;
+    QString currentActor;
+    while (!xml.atEnd()) {
+        xml.readNext();
+        if (!xml.isStartElement()) continue;
+        const QString name = xml.name().toString();
+        if (name == QStringLiteral("actor")) {
+            while (!(xml.isEndElement() && xml.name() == QStringLiteral("actor")) && !xml.atEnd()) {
+                xml.readNext();
+                if (xml.isStartElement() && xml.name() == QStringLiteral("name"))
+                    currentActor = xml.readElementText().trimmed();
+            }
+            if (!currentActor.isEmpty()) result.actors.append(currentActor);
+        } else if (name == QStringLiteral("id") || name == QStringLiteral("num")) {
+            if (result.serial.isEmpty()) result.serial = xml.readElementText().trimmed();
+        } else if (name == QStringLiteral("uniqueid") && result.serial.isEmpty()) {
+            result.serial = xml.readElementText().trimmed();
+        } else if (name == QStringLiteral("title")) result.title = xml.readElementText().trimmed();
+        else if (name == QStringLiteral("plot")) result.plot = xml.readElementText().trimmed();
+        else if (name == QStringLiteral("director")) result.director = xml.readElementText().trimmed();
+        else if (name == QStringLiteral("premiered") || name == QStringLiteral("releasedate") || name == QStringLiteral("release")) {
+            if (result.releaseDate.isEmpty()) result.releaseDate = xml.readElementText().trimmed();
+        } else if (name == QStringLiteral("runtime")) {
+            bool ok = false; const int value = xml.readElementText().trimmed().toInt(&ok);
+            if (ok) result.runtime = value;
+        } else if (name == QStringLiteral("source")) result.notes = xml.readElementText().trimmed();
+        else if (name == QStringLiteral("studio")) result.studio = xml.readElementText().trimmed();
+        else if (name == QStringLiteral("genre")) result.genres.append(xml.readElementText().trimmed());
+        else if (name == QStringLiteral("tag")) result.tags.append(xml.readElementText().trimmed());
+        else if (mdcz && name == QStringLiteral("set")) result.series = xml.readElementText().trimmed();
+    }
+    if (xml.hasError()) { *error = QStringLiteral("XML 解析失败：%1").arg(xml.errorString()); return std::nullopt; }
+    result.serial = result.serial.toUpper();
+    if (result.serial.isEmpty()) { *error = QStringLiteral("NFO 中缺少番号（<id>/<num>/<uniqueid>）"); return std::nullopt; }
+    return result;
+}
+
+bool importNfo(QSqlDatabase database, const QString &path, bool mdcz, QString *message)
+{
+    const auto parsed = parseNfo(path, mdcz, message);
+    if (!parsed) return false;
+    WorkRepository works(database);
+    if (works.findIdBySerial(parsed->serial).has_value()) { *message = QStringLiteral("番号「%1」已在库中，已跳过导入。").arg(parsed->serial); return false; }
+    ReferenceRepository references(database);
+    PersonRepository people(database);
+    const auto resolveReference = [&references](ReferenceKind kind, const QString &name) {
+        if (name.isEmpty()) return std::optional<qint64>{};
+        const auto existing = references.findByName(kind, name);
+        return existing.has_value() ? existing : references.create(kind, name);
+    };
+    Work work; work.serialNumber = parsed->serial; work.japaneseTitle = parsed->title;
+    work.japaneseStory = parsed->plot; work.director = parsed->director.isEmpty() ? QStringLiteral("----") : parsed->director;
+    work.releaseDate = parsed->releaseDate; work.notes = parsed->notes; work.runtime = parsed->runtime;
+    const QStringList studioParts = parsed->studio.split(u'/', Qt::SkipEmptyParts);
+    if (!studioParts.isEmpty()) work.makerId = resolveReference(ReferenceKind::Maker, studioParts.at(0).trimmed());
+    if (studioParts.size() > 1) work.labelId = resolveReference(ReferenceKind::Label, studioParts.at(1).trimmed());
+    const QString series = mdcz ? parsed->series : (parsed->tags.isEmpty() ? QString{} : parsed->tags.first());
+    work.seriesId = resolveReference(ReferenceKind::Series, series);
+    QList<qint64> actressIds, tagIds;
+    for (const QString &name : std::as_const(parsed->actors)) {
+        if (name.isEmpty()) continue;
+        auto id = people.findByName(PersonKind::Actress, name);
+        if (!id) id = people.create(PersonKind::Actress, name, name);
+        if (id && !actressIds.contains(*id)) actressIds.append(*id);
+    }
+    const QList<TagOption> existingTags = works.tagOptions();
+    QStringList tagNames = parsed->genres;
+    if (mdcz)
+        tagNames.append(parsed->tags);
+    for (const QString &name : std::as_const(tagNames)) {
+        if (name.isEmpty()) continue;
+        std::optional<qint64> tagId;
+        for (const TagOption &tag : existingTags) {
+            if (tag.name == name) { tagId = tag.id; break; }
+        }
+        if (!tagId) {
+            const auto id = references.createTag(name, 11, QStringLiteral("#cccccc"), {});
+            tagId = id;
+        }
+        if (tagId && !tagIds.contains(*tagId)) tagIds.append(*tagId);
+    }
+    QString error;
+    if (!works.insertComplete(work, actressIds, {}, tagIds, &error)) { *message = error.isEmpty() ? QStringLiteral("写入数据库失败") : error; return false; }
+    *message = QStringLiteral("已从 NFO 导入作品：%1").arg(parsed->serial); return true;
 }
 
 } // namespace
 
-AboutSettingsPage::AboutSettingsPage(ThemeService &themeService, QWidget *parent)
-    : QWidget(parent)
+NfoSettingsPage::NfoSettingsPage(QSqlDatabase publicDatabase, QWidget *parent)
+    : LazyWidget(parent), m_publicDatabase(std::move(publicDatabase)) {}
+
+void NfoSettingsPage::lazyLoad()
 {
-    setObjectName(QStringLiteral("AboutSettingsPage"));
+    auto *layout = new QVBoxLayout(this);
+    layout->addWidget(new DesignLabel(QStringLiteral("批量导入使用“视频”设置中配置的视频文件夹路径；请先在那里添加有效路径。"), this));
+    const auto addButton = [this, layout](const QString &text, const QString &tip, auto callback) {
+        auto *button = new DesignButton(text, this); button->setToolTip(tip);
+        connect(button, &QPushButton::clicked, this, callback); layout->addWidget(button);
+    };
+    addButton(QStringLiteral("从视频路径扫描并导入 Jvedio NFO"), QStringLiteral("递归查找 .nfo；已存在番号会跳过。"), [this] { importFolder(false, true); });
+    addButton(QStringLiteral("从文件夹导入 Jvedio NFO"), QStringLiteral("选择任意文件夹后递归导入其中的 .nfo。"), [this] { importFolder(false, false); });
+    addButton(QStringLiteral("从 Jvedio NFO 导入作品"), QStringLiteral("选择一个 Jvedio/Kodi 风格的 .nfo 文件。"), [this] { importFile(false); });
+    layout->addWidget(new DesignLabel(QStringLiteral("以下为 MDCZ 风格 NFO 独立导入入口。"), this));
+    addButton(QStringLiteral("从视频路径扫描并导入 MDCZ NFO"), QStringLiteral("递归查找 .nfo；已存在番号会跳过。"), [this] { importFolder(true, true); });
+    addButton(QStringLiteral("从文件夹导入 MDCZ NFO"), QStringLiteral("选择任意文件夹后递归导入其中的 .nfo。"), [this] { importFolder(true, false); });
+    addButton(QStringLiteral("从 MDCZ NFO 导入作品"), QStringLiteral("选择一个 MDCZ 风格的 .nfo 文件。"), [this] { importFile(true); });
+    layout->addStretch();
+}
+
+void NfoSettingsPage::importFile(bool mdcz)
+{
+    const QString path = QFileDialog::getOpenFileName(this, QStringLiteral("选择 NFO 文件"), {}, QStringLiteral("NFO 文件 (*.nfo);;所有文件 (*.*)"));
+    if (path.isEmpty()) return;
+    QString message;
+    if (importNfo(m_publicDatabase, path, mdcz, &message)) { emit worksChanged(); QMessageBox::information(this, QStringLiteral("导入成功"), message); }
+    else QMessageBox::warning(this, QStringLiteral("未导入"), message);
+}
+
+void NfoSettingsPage::importFolder(bool mdcz, bool useVideoPaths)
+{
+    QStringList roots;
+    if (useVideoPaths) roots = settings::app().videoPaths;
+    else {
+        const QString root = QFileDialog::getExistingDirectory(this, QStringLiteral("选择包含 NFO 的文件夹"));
+        if (!root.isEmpty()) roots.append(root);
+    }
+    if (roots.isEmpty()) { QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("请先配置至少一个有效的视频文件夹路径。")); return; }
+    QStringList files;
+    for (const QString &root : roots) {
+        QDirIterator it(root, {QStringLiteral("*.nfo"), QStringLiteral("*.NFO")}, QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) files.append(it.next());
+    }
+    files.removeDuplicates();
+    if (files.isEmpty()) { QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("未发现 .nfo 文件。")); return; }
+    QProgressDialog progress(QString{}, QStringLiteral("取消"), 0, files.size(), this);
+    progress.setWindowTitle(mdcz ? QStringLiteral("批量导入 MDCZ NFO") : QStringLiteral("批量导入 NFO")); progress.setWindowModality(Qt::WindowModal); progress.show();
+    int imported = 0, skipped = 0, failed = 0;
+    QStringList errors;
+    for (qsizetype i = 0; i < files.size(); ++i) {
+        progress.setValue(i); progress.setLabelText(QStringLiteral("正在导入 (%1/%2)：%3").arg(i + 1).arg(files.size()).arg(QFileInfo(files.at(i)).fileName()));
+        QCoreApplication::processEvents(); if (progress.wasCanceled()) break;
+        QString message;
+        if (importNfo(m_publicDatabase, files.at(i), mdcz, &message)) ++imported;
+        else if (message.contains(QStringLiteral("已在库中"))) ++skipped;
+        else { ++failed; if (errors.size() < 8) errors.append(QFileInfo(files.at(i)).fileName() + QStringLiteral(": ") + message); }
+    }
+    progress.setValue(files.size());
+    if (imported) emit worksChanged();
+    QString result = QStringLiteral("共扫描 %1 个 NFO。\n新导入：%2\n跳过（番号已存在）：%3\n失败：%4").arg(files.size()).arg(imported).arg(skipped).arg(failed);
+    if (!errors.isEmpty()) result += QStringLiteral("\n\n") + errors.join(QLatin1Char('\n'));
+    QMessageBox::information(this, QStringLiteral("批量导入完成"), result);
+}
+
+AboutSettingsPage::AboutSettingsPage(ThemeService &themeService, QWidget *parent)
+    : LazyWidget(parent), m_themeService(themeService)
+{
+}
+
+void AboutSettingsPage::lazyLoad()
+{
     auto *layout = new QVBoxLayout(this);
 
     auto *versionRow = new QHBoxLayout;
     auto *version = new DesignLabel(
         QStringLiteral("当前版本 %1").arg(QStringLiteral(DARKEYE_VERSION)), this);
-    version->setObjectName(QStringLiteral("AboutVersionLabel"));
     versionRow->addWidget(version);
 
     auto *checkUpdate = new DesignButton(QStringLiteral("检查更新"), this);
-    checkUpdate->setObjectName(QStringLiteral("CheckUpdateButton"));
-    checkUpdate->setEnabled(false);
-    checkUpdate->setToolTip(QStringLiteral("等待 C++ 更新服务迁移"));
+    checkUpdate->setToolTip(QStringLiteral("检查官方发布的最新版本。"));
+    connect(checkUpdate, &QPushButton::clicked, this, [this, checkUpdate] {
+        checkUpdate->setEnabled(false);
+        checkUpdate->setText(QStringLiteral("检查中…"));
+        auto *service = new UpdateService(this);
+        connect(service, &UpdateService::finished, this,
+                [this, checkUpdate, service](const utils::UpdateCheckResult &result) {
+            checkUpdate->setText(QStringLiteral("检查更新"));
+            checkUpdate->setEnabled(true);
+            service->deleteLater();
+            if (!result.success) {
+                QMessageBox::critical(this, result.title, result.message);
+                return;
+            }
+            if (!result.updateAvailable) {
+                QMessageBox::information(this, result.title, result.message);
+                return;
+            }
+            const QString prompt = result.message
+                + QStringLiteral("\n\n已检测到新版本。软件将退出以完成更新，是否立即更新？");
+            if (QMessageBox::question(this, result.title, prompt,
+                                      QMessageBox::Yes | QMessageBox::No,
+                                      QMessageBox::Yes) != QMessageBox::Yes) {
+                QMessageBox::information(this, QStringLiteral("已取消更新"),
+                                         QStringLiteral("你已取消更新。"));
+                return;
+            }
+            if (!startUpdater(this, {})) return;
+            QMessageBox::information(this, QStringLiteral("开始更新"),
+                                     result.message + QStringLiteral("\n\n已启动更新程序，软件即将退出完成更新。"));
+            QTimer::singleShot(200, qApp, &QCoreApplication::quit);
+        });
+        service->check(QUrl::fromUserInput(latestManifestUrl()),
+                       QStringLiteral(DARKEYE_VERSION));
+    });
     versionRow->addWidget(checkUpdate);
 
     auto *localUpdate = new DesignButton(QStringLiteral("使用本地安装包更新…"), this);
-    localUpdate->setObjectName(QStringLiteral("LocalPackageUpdateButton"));
-    localUpdate->setEnabled(false);
-    localUpdate->setToolTip(QStringLiteral("等待 C++ 更新程序迁移"));
+    localUpdate->setToolTip(
+        QStringLiteral("选择从 GitHub Release 下载的 zip 或 tar.zst，由更新程序离线安装。"));
+    connect(localUpdate, &QPushButton::clicked, this, [this] {
+        const QString explanation = QStringLiteral(
+            "本地安装将无视版本号，直接覆盖安装目录下的文件。只能升级不能降级。"
+            "跨最小版本可随意升降，中版本、大版本只能升级。\n\n"
+            "覆盖安装时仅保留目录下的 data 文件夹内数据；其余文件将被新版本覆盖。\n\n确定继续？");
+        if (QMessageBox::question(this, QStringLiteral("覆盖安装说明"), explanation,
+                                  QMessageBox::Yes | QMessageBox::No,
+                                  QMessageBox::No) != QMessageBox::Yes)
+            return;
+        const QString packagePath = QFileDialog::getOpenFileName(
+            this, QStringLiteral("选择本地安装包"), {},
+            QStringLiteral("安装包 (*.zip *.tar.zst);;ZIP 压缩包 (*.zip);;Zstandard (*.tar.zst);;所有文件 (*.*)"));
+        if (packagePath.isEmpty()) return;
+        if (!QFileInfo(packagePath).isFile()) {
+            QMessageBox::critical(this, QStringLiteral("更新失败"), QStringLiteral("所选文件无效。"));
+            return;
+        }
+        const QString prompt = QStringLiteral("将使用以下文件更新：\n%1\n\n软件将退出以完成更新，是否继续？")
+                                   .arg(QDir::toNativeSeparators(packagePath));
+        if (QMessageBox::question(this, QStringLiteral("使用本地安装包更新"), prompt,
+                                  QMessageBox::Yes | QMessageBox::No,
+                                  QMessageBox::No) != QMessageBox::Yes) {
+            QMessageBox::information(this, QStringLiteral("已取消更新"), QStringLiteral("你已取消更新。"));
+            return;
+        }
+        if (!startUpdater(this, {QStringLiteral("--local-package"), packagePath})) return;
+        QMessageBox::information(this, QStringLiteral("开始更新"),
+                                 QStringLiteral("已启动更新程序，软件即将退出完成更新。"));
+        QTimer::singleShot(200, qApp, &QCoreApplication::quit);
+    });
     versionRow->addWidget(localUpdate);
 
-    const auto addExternalButton = [this, versionRow](const QString &text,
-                                                       const QString &objectName,
-                                                       const QString &url)
+    const auto addExternalButton = [this, versionRow](const QString &text, const QString &url)
     {
         auto *button = new DesignButton(text, this);
-        button->setObjectName(objectName);
         connect(button, &QPushButton::clicked, this,
                 [url] { QDesktopServices::openUrl(QUrl(url)); });
         versionRow->addWidget(button);
     };
-    addExternalButton(QStringLiteral("意见反馈"), QStringLiteral("FeedbackButton"),
+    addExternalButton(QStringLiteral("意见反馈"),
                       QStringLiteral("https://github.com/de4321/darkeye/issues"));
-    addExternalButton(QStringLiteral("版本记录"), QStringLiteral("ChangelogButton"),
+    addExternalButton(QStringLiteral("版本记录"),
                       QStringLiteral("https://de4321.github.io/darkeye/CHANGELOG/"));
     versionRow->addStretch();
     layout->addLayout(versionRow);
 
     auto *updateOptions = new QHBoxLayout;
     auto *automaticUpdate = new TokenRadioButton(QStringLiteral("自动更新"), this);
-    automaticUpdate->setObjectName(QStringLiteral("AutomaticUpdateOption"));
     automaticUpdate->setEnabled(false);
     auto *updateNotification =
         new TokenRadioButton(QStringLiteral("有新版本时提醒我"), this);
-    updateNotification->setObjectName(QStringLiteral("UpdateNotificationOption"));
     updateNotification->setEnabled(false);
     updateOptions->addWidget(automaticUpdate);
     updateOptions->addWidget(updateNotification);
@@ -110,25 +437,21 @@ AboutSettingsPage::AboutSettingsPage(ThemeService &themeService, QWidget *parent
     auto *downloadRow = new QHBoxLayout;
     downloadRow->addWidget(new DesignLabel(QStringLiteral("下载移动客户端"), this));
     auto *android = new DesignButton(QStringLiteral("Android 版"), this);
-    android->setObjectName(QStringLiteral("AndroidDownloadButton"));
     android->setEnabled(false);
     downloadRow->addWidget(android);
     downloadRow->addSpacing(16);
     downloadRow->addWidget(new DesignLabel(QStringLiteral("下载浏览器插件"), this));
-    const auto addDownloadButton = [this, downloadRow](const QString &text,
-                                                        const QString &objectName)
+    const auto addDownloadButton = [this, downloadRow](const QString &text)
     {
         auto *button = new DesignButton(text, this);
-        button->setObjectName(objectName);
         connect(button, &QPushButton::clicked, this, [] {
             QDesktopServices::openUrl(
                 QUrl(QStringLiteral("https://github.com/de4321/darkeye/releases")));
         });
         downloadRow->addWidget(button);
     };
-    addDownloadButton(QStringLiteral("Firefox 插件"), QStringLiteral("FirefoxPluginButton"));
-    addDownloadButton(QStringLiteral("Chrome/Edge 插件"),
-                      QStringLiteral("ChromiumPluginButton"));
+    addDownloadButton(QStringLiteral("Firefox 插件"));
+    addDownloadButton(QStringLiteral("Chrome/Edge 插件"));
     downloadRow->addStretch();
     layout->addLayout(downloadRow);
 
@@ -147,7 +470,7 @@ AboutSettingsPage::AboutSettingsPage(ThemeService &themeService, QWidget *parent
     };
     for (const auto &[title, description, url] : projects)
     {
-        projectLinks->addWidget(new TokenLinkCard(title, description, url, &themeService, this));
+        projectLinks->addWidget(new TokenLinkCard(title, description, url, &m_themeService, this));
     }
 
     auto *referenceLinks = new QVBoxLayout;
@@ -164,7 +487,7 @@ AboutSettingsPage::AboutSettingsPage(ThemeService &themeService, QWidget *parent
     };
     for (const auto &[title, description, url] : references)
     {
-        referenceLinks->addWidget(new TokenLinkCard(title, description, url, &themeService, this));
+        referenceLinks->addWidget(new TokenLinkCard(title, description, url, &m_themeService, this));
     }
     links->addLayout(projectLinks);
     links->addLayout(referenceLinks);
@@ -173,42 +496,40 @@ AboutSettingsPage::AboutSettingsPage(ThemeService &themeService, QWidget *parent
     layout->addStretch();
 }
 
-VideoSettingsPage::VideoSettingsPage(Settings &settings, QSqlDatabase publicDatabase,
+VideoSettingsPage::VideoSettingsPage(QSqlDatabase publicDatabase,
                                      QWidget *parent)
-    : QWidget(parent), m_settings(settings), m_publicDatabase(std::move(publicDatabase))
+    : LazyWidget(parent), m_publicDatabase(std::move(publicDatabase))
 {
-    setObjectName(QStringLiteral("VideoSettingsPage"));
+}
+
+void VideoSettingsPage::lazyLoad()
+{
     auto *layout = new QVBoxLayout(this);
 
     auto *playerRow = new QHBoxLayout;
     playerRow->addWidget(new DesignLabel(QStringLiteral("本地播放器（可选）："), this));
     m_player = new DesignLineEdit(this);
-    m_player->setObjectName(QStringLiteral("LocalVideoPlayerEdit"));
     m_player->setPlaceholderText(
         QStringLiteral("留空则使用系统默认程序；书架/DVD 与作品页播放本地文件时生效"));
     m_player->setClearButtonEnabled(true);
-    const AppSettings appSettings = m_settings.app();
+    const AppSettings appSettings = settings::app();
     m_player->setText(appSettings.localVideoPlayer);
     playerRow->addWidget(m_player, 1);
     auto *browse = new DesignButton(QStringLiteral("浏览…"), this);
-    browse->setObjectName(QStringLiteral("BrowseLocalVideoPlayerButton"));
     browse->setToolTip(QStringLiteral("选择播放器可执行文件（如 VLC、MPC-HC 等）"));
     playerRow->addWidget(browse);
     layout->addLayout(playerRow);
 
     m_paths = new MultiplePathManagement(QStringLiteral("视频文件夹路径管理："), this);
-    m_paths->setObjectName(QStringLiteral("VideoPathManagement"));
     m_paths->setMinimumHeight(300);
     m_paths->loadPaths(appSettings.videoPaths);
     layout->addWidget(m_paths);
 
     auto *scan = new DesignButton(QStringLiteral("扫描本地视频提取番号并录入数据库"), this);
-    scan->setObjectName(QStringLiteral("ScanLocalVideosButton"));
     scan->setToolTip(
         QStringLiteral("扫描本地视频的路径下的所有视频，并提取视频番号，将没有的番号尝试去抓取信息"));
     layout->addWidget(scan);
     auto *match = new DesignButton(QStringLiteral("同步作品本地视频路径"), this);
-    match->setObjectName(QStringLiteral("MatchLocalVideosButton"));
     match->setToolTip(QStringLiteral(
         "扫描已配置文件夹中的视频，从文件名提取番号并与库中作品匹配，"
         "将匹配到的本地绝对路径写入作品表的 video_url（多条英文逗号分隔、去重）；"
@@ -229,9 +550,9 @@ VideoSettingsPage::VideoSettingsPage(Settings &settings, QSqlDatabase publicData
 
 void VideoSettingsPage::savePlayer()
 {
-    AppSettings settings = m_settings.app();
-    settings.localVideoPlayer = m_player->text().trimmed();
-    m_settings.saveApp(settings);
+    AppSettings appSettings = settings::app();
+    appSettings.localVideoPlayer = m_player->text().trimmed();
+    settings::saveApp(appSettings);
 }
 
 void VideoSettingsPage::savePaths()
@@ -245,9 +566,9 @@ void VideoSettingsPage::savePaths()
             paths.append(normalized);
         }
     }
-    AppSettings settings = m_settings.app();
-    settings.videoPaths = paths;
-    m_settings.saveApp(settings);
+    AppSettings appSettings = settings::app();
+    appSettings.videoPaths = paths;
+    settings::saveApp(appSettings);
 }
 
 void VideoSettingsPage::browsePlayer()
@@ -349,9 +670,12 @@ void VideoSettingsPage::synchronizeVideoUrls()
 }
 
 ShortcutSettingsPage::ShortcutSettingsPage(const QString &shortcutsFile, QWidget *parent)
-    : QWidget(parent), m_shortcutsFile(shortcutsFile)
+    : LazyWidget(parent), m_shortcutsFile(shortcutsFile)
 {
-    setObjectName(QStringLiteral("ShortcutSettingsPage"));
+}
+
+void ShortcutSettingsPage::lazyLoad()
+{
     QFile file(m_shortcutsFile);
     if (file.open(QIODevice::ReadOnly))
     {
@@ -387,17 +711,14 @@ ShortcutSettingsPage::ShortcutSettingsPage(const QString &shortcutsFile, QWidget
     for (const auto &definition : definitions)
     {
         auto *row = new QWidget(this);
-        row->setObjectName(QStringLiteral("ShortcutSettingRow_%1").arg(definition.id));
         auto *rowLayout = new QHBoxLayout(row);
         auto *label = new DesignLabel(definition.name, row);
         label->setFixedWidth(100);
         auto *editor = new TokenKeySequenceEdit(row);
-        editor->setObjectName(QStringLiteral("ShortcutEditor_%1").arg(definition.id));
         editor->setFixedWidth(150);
         editor->setKeySequence(QKeySequence(
             m_userShortcuts.value(definition.id).toString(definition.key)));
         auto *reset = new DesignButton(QStringLiteral("恢复"), row);
-        reset->setObjectName(QStringLiteral("ShortcutReset_%1").arg(definition.id));
         reset->setFixedWidth(50);
         rowLayout->addWidget(label);
         rowLayout->addWidget(editor);
@@ -452,15 +773,17 @@ void ShortcutSettingsPage::save() const
     file.commit();
 }
 
-CommonSettingsPage::CommonSettingsPage(ThemeService &themeService, Settings &settings,
+CommonSettingsPage::CommonSettingsPage(ThemeService &themeService,
                                        QWidget *parent)
-    : QWidget(parent), m_themeService(themeService), m_settings(settings)
+    : LazyWidget(parent), m_themeService(themeService)
 {
-    setObjectName(QStringLiteral("CommonSettingsPage"));
+}
+
+void CommonSettingsPage::lazyLoad()
+{
     auto *layout = new QFormLayout(this);
 
     m_primaryColorRow = new QWidget(this);
-    m_primaryColorRow->setObjectName(QStringLiteral("PrimaryColorRow"));
     auto *primaryLayout = new QHBoxLayout(m_primaryColorRow);
     primaryLayout->setContentsMargins(0, 0, 0, 0);
     const QString initialPrimary = m_themeService.customPrimary().isEmpty()
@@ -468,17 +791,14 @@ CommonSettingsPage::CommonSettingsPage(ThemeService &themeService, Settings &set
         : m_themeService.customPrimary();
     m_colorPicker = new ColorPicker(QColor(initialPrimary), false, ColorPicker::Shape::Circle,
                                     m_primaryColorRow);
-    m_colorPicker->setObjectName(QStringLiteral("primaryColorPicker"));
     primaryLayout->addWidget(m_colorPicker);
     primaryLayout->addStretch();
 
     m_themeSelector = new DesignComboBox(this);
-    m_themeSelector->setObjectName(QStringLiteral("themeSelector"));
     m_themeSelector->setAccessibleName(QStringLiteral("主题"));
 
     m_greenMode = new ToggleSwitch(48, 24, &m_themeService, this);
-    m_greenMode->setObjectName(QStringLiteral("greenModeSwitch"));
-    m_greenMode->setChecked(m_settings.app().greenMode);
+    m_greenMode->setChecked(settings::app().greenMode);
 
     layout->addRow(new DesignLabel(QStringLiteral("主色"), this), m_primaryColorRow);
     layout->addRow(new DesignLabel(QStringLiteral("主题"), this), m_themeSelector);
@@ -489,9 +809,9 @@ CommonSettingsPage::CommonSettingsPage(ThemeService &themeService, Settings &set
     connect(&m_themeService, &ThemeService::themeChanged, this,
             [this](ThemeId) { updatePrimaryPickerState(); });
     connect(m_greenMode, &ToggleSwitch::toggled, this, [this](bool enabled) {
-        AppSettings settings = m_settings.app();
-        settings.greenMode = enabled;
-        m_settings.saveApp(settings);
+        AppSettings appSettings = settings::app();
+        appSettings.greenMode = enabled;
+        settings::saveApp(appSettings);
         emit greenModeChanged(enabled);
     });
     updatePrimaryPickerState();
@@ -499,6 +819,7 @@ CommonSettingsPage::CommonSettingsPage(ThemeService &themeService, Settings &set
 
 QComboBox *CommonSettingsPage::themeSelector() const
 {
+    const_cast<CommonSettingsPage *>(this)->initialize();
     return m_themeSelector;
 }
 
@@ -509,9 +830,9 @@ void CommonSettingsPage::updatePrimaryPickerState()
     m_primaryColorRow->setEnabled(supportsCustomPrimary);
     if (!supportsCustomPrimary)
     {
-        AppSettings settings = m_settings.app();
-        settings.customPrimary.clear();
-        m_settings.saveApp(settings);
+        AppSettings appSettings = settings::app();
+        appSettings.customPrimary.clear();
+        settings::saveApp(appSettings);
         return;
     }
     const QString color = m_themeService.customPrimary().isEmpty()
@@ -527,79 +848,96 @@ void CommonSettingsPage::savePrimaryColor(const QString &color)
         return;
     }
     m_themeService.setTheme(m_themeService.current(), color);
-    AppSettings settings = m_settings.app();
-    settings.customPrimary = color;
-    m_settings.saveApp(settings);
+    AppSettings appSettings = settings::app();
+    appSettings.customPrimary = color;
+    settings::saveApp(appSettings);
 }
 
-CrawlerSettingsPage::CrawlerSettingsPage(Settings &settings, QWidget *parent)
-    : QWidget(parent), m_settings(settings)
+CrawlerSettingsPage::CrawlerSettingsPage(QWidget *parent)
+    : LazyWidget(parent)
 {
-    setObjectName(QStringLiteral("CrawlerSettingsPage"));
-    const CrawlerSettings values = m_settings.crawler();
+}
+
+void CrawlerSettingsPage::lazyLoad()
+{
+    const CrawlerSettings values = settings::crawler();
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(new DesignLabel(QStringLiteral("<h3>信息补充器相关设置</h3>"), this));
     auto *form = new QFormLayout;
 
-    const auto addUrlRow = [this, form](const QString &label, const QString &objectName,
-                                        const QUrl &value, QLineEdit **field) {
+    const auto addUrlRow = [this, form](const QString &label, const QUrl &value,
+                                        const QUrl &defaultValue, QLineEdit **field) {
         *field = new DesignLineEdit(this);
-        (*field)->setObjectName(objectName);
         (*field)->setText(value.toString());
         (*field)->setClearButtonEnabled(true);
-        form->addRow(new DesignLabel(label, this), *field);
+        auto *row = new QWidget(this);
+        auto *rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(0, 0, 0, 0);
+        auto *reset = new DesignButton(QStringLiteral("还原默认"), row);
+        rowLayout->addWidget(*field, 1);
+        rowLayout->addWidget(reset);
+        form->addRow(new DesignLabel(label, this), row);
         connect(*field, &QLineEdit::editingFinished, this, &CrawlerSettingsPage::save);
+        connect(reset, &QPushButton::clicked, this,
+                [this, field, defaultValue] { resetCrawlerUrl(*field, defaultValue); });
     };
-    addUrlRow(QStringLiteral("作品 API 前缀"), QStringLiteral("CrawlerWorkApiEdit"),
-              values.workApiBaseUrl, &m_workApi);
-    addUrlRow(QStringLiteral("女优 API 前缀"), QStringLiteral("CrawlerActressApiEdit"),
-              values.actressApiBaseUrl, &m_actressApi);
-    addUrlRow(QStringLiteral("图片下载 API"), QStringLiteral("CrawlerCoverApiEdit"),
-              values.coverFetchApiUrl, &m_coverApi);
-    addUrlRow(QStringLiteral("热门女优 API"), QStringLiteral("CrawlerTopActressesApiEdit"),
-              values.topActressesApiUrl, &m_topActressesApi);
+    const CrawlerSettings defaults;
+    addUrlRow(QStringLiteral("作品 API 前缀"), values.workApiBaseUrl, defaults.workApiBaseUrl, &m_workApi);
+    addUrlRow(QStringLiteral("女优 API 前缀"), values.actressApiBaseUrl, defaults.actressApiBaseUrl, &m_actressApi);
+    addUrlRow(QStringLiteral("图片下载 API"), values.coverFetchApiUrl, defaults.coverFetchApiUrl, &m_coverApi);
+    addUrlRow(QStringLiteral("热门女优 API"), values.topActressesApiUrl, defaults.topActressesApiUrl, &m_topActressesApi);
     form->addRow(new DesignLabel(QStringLiteral("说明"), this),
                  new DesignLabel(QStringLiteral("作品/女优为完整前缀，程序会追加 /{serial} 或 /{name}；"
                                                  "图片下载、热门女优请填写完整地址。"), this));
 
     m_collectorExecutable = new DesignLineEdit(this);
-    m_collectorExecutable->setObjectName(QStringLiteral("CollectorExecutableEdit"));
     m_collectorExecutable->setText(values.collectorExecutable);
     m_collectorExecutable->setPlaceholderText(QStringLiteral("可选：信息补充器的可执行文件"));
     m_collectorExecutable->setClearButtonEnabled(true);
     auto *collectorRow = new QHBoxLayout;
     collectorRow->addWidget(m_collectorExecutable, 1);
     auto *browse = new DesignButton(QStringLiteral("浏览…"), this);
-    browse->setObjectName(QStringLiteral("BrowseCollectorExecutableButton"));
     collectorRow->addWidget(browse);
     form->addRow(new DesignLabel(QStringLiteral("信息补充器可执行文件"), this), collectorRow);
     m_autoStartCollector = new ToggleSwitch(48, 24, nullptr, this);
-    m_autoStartCollector->setObjectName(QStringLiteral("CollectorAutoStartSwitch"));
     m_autoStartCollector->setChecked(values.autoStartCollector);
     form->addRow(new DesignLabel(QStringLiteral("打开软件自动启动信息补充器"), this),
                  m_autoStartCollector);
+    auto *controls = new QWidget(this);
+    auto *controlsLayout = new QHBoxLayout(controls);
+    controlsLayout->setContentsMargins(0, 0, 0, 0);
+    auto *start = new DesignButton(QStringLiteral("启动"), controls);
+    auto *test = new DesignButton(QStringLiteral("测试"), controls);
+    start->setToolTip(QStringLiteral("独立启动信息补充器；程序退出时不会结束该进程。"));
+    test->setToolTip(QStringLiteral("请求采集器的 /api/v1/exist 接口验证连通性。"));
+    controlsLayout->addWidget(start);
+    controlsLayout->addWidget(test);
+    controlsLayout->addStretch();
+    form->addRow(new DesignLabel(QStringLiteral("信息服务器控制"), this), controls);
+    m_collectorStatus = new DesignLabel(QStringLiteral("状态：未检测"), this);
+    form->addRow(new DesignLabel(QStringLiteral("运行状态"), this), m_collectorStatus);
     layout->addLayout(form);
-    layout->addWidget(new DesignLabel(
-        QStringLiteral("此处仅保存外部信息补充器的地址和启动选项，不会在应用内创建服务器。"),
-        this));
     layout->addStretch();
 
     connect(m_collectorExecutable, &QLineEdit::editingFinished, this, &CrawlerSettingsPage::save);
     connect(browse, &QPushButton::clicked, this, &CrawlerSettingsPage::browseCollector);
     connect(m_autoStartCollector, &ToggleSwitch::toggled, this,
             [this](bool) { save(); });
+    connect(start, &QPushButton::clicked, this, &CrawlerSettingsPage::startCollector);
+    connect(test, &QPushButton::clicked, this, &CrawlerSettingsPage::testCollector);
+    QTimer::singleShot(0, this, &CrawlerSettingsPage::testCollector);
 }
 
 void CrawlerSettingsPage::save()
 {
-    CrawlerSettings values = m_settings.crawler();
+    CrawlerSettings values = settings::crawler();
     values.workApiBaseUrl = QUrl::fromUserInput(m_workApi->text().trimmed());
     values.actressApiBaseUrl = QUrl::fromUserInput(m_actressApi->text().trimmed());
     values.coverFetchApiUrl = QUrl::fromUserInput(m_coverApi->text().trimmed());
     values.topActressesApiUrl = QUrl::fromUserInput(m_topActressesApi->text().trimmed());
     values.collectorExecutable = m_collectorExecutable->text().trimmed();
     values.autoStartCollector = m_autoStartCollector->isChecked();
-    m_settings.saveCrawler(values);
+    settings::saveCrawler(values);
 }
 
 void CrawlerSettingsPage::browseCollector()
@@ -614,16 +952,76 @@ void CrawlerSettingsPage::browseCollector()
     }
 }
 
-TranslationSettingsPage::TranslationSettingsPage(Settings &settings, QWidget *parent)
-    : QWidget(parent), m_settings(settings)
+void CrawlerSettingsPage::resetCrawlerUrl(QLineEdit *field, const QUrl &value)
 {
-    setObjectName(QStringLiteral("TranslationSettingsPage"));
-    const TranslationSettings values = m_settings.translation();
+    field->setText(value.toString());
+    save();
+}
+
+void CrawlerSettingsPage::setCollectorStatus(const QString &status)
+{
+    if (m_collectorStatus) m_collectorStatus->setText(QStringLiteral("状态：") + status);
+}
+
+void CrawlerSettingsPage::startCollector()
+{
+    save();
+    const QString executable = m_collectorExecutable->text().trimmed();
+    if (executable.isEmpty()) {
+        QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("请先选择信息补充器可执行文件。"));
+        return;
+    }
+    if (!QFileInfo::exists(executable) || !QProcess::startDetached(executable, {}, QFileInfo(executable).absolutePath())) {
+        setCollectorStatus(QStringLiteral("启动失败"));
+        QMessageBox::warning(this, QStringLiteral("无法启动"), QStringLiteral("无法启动信息补充器：%1").arg(executable));
+        return;
+    }
+    setCollectorStatus(QStringLiteral("已启动，等待服务就绪…"));
+    QTimer::singleShot(1000, this, &CrawlerSettingsPage::testCollector);
+}
+
+void CrawlerSettingsPage::testCollector()
+{
+    save();
+    const QUrl base(collectorBridgeUrl(QUrl::fromUserInput(m_workApi->text().trimmed())));
+    QUrl endpoint = base;
+    endpoint.setPath(endpoint.path() + QStringLiteral("/api/v1/exist"));
+    if (!endpoint.isValid() || endpoint.scheme().isEmpty()) {
+        setCollectorStatus(QStringLiteral("地址无效"));
+        return;
+    }
+    setCollectorStatus(QStringLiteral("检测服务…"));
+    auto *manager = new QNetworkAccessManager(this);
+    QNetworkReply *reply = manager->get(QNetworkRequest(endpoint));
+    auto *timeout = new QTimer(reply);
+    timeout->setSingleShot(true);
+    connect(timeout, &QTimer::timeout, reply, [reply] { reply->abort(); });
+    connect(reply, &QNetworkReply::finished, this, [this, reply, manager] {
+        const bool reachable = reply->error() == QNetworkReply::NoError || reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).isValid();
+        setCollectorStatus(reachable ? QStringLiteral("运行中（HTTP 已就绪）")
+                                     : QStringLiteral("未启动或不可达：") + reply->errorString());
+        reply->deleteLater(); manager->deleteLater();
+    });
+    timeout->start(5000);
+}
+
+TranslationSettingsPage::TranslationSettingsPage(QWidget *parent)
+    : LazyWidget(parent)
+{
+}
+
+TranslationSettingsPage::~TranslationSettingsPage()
+{
+    stopLlamaServer();
+}
+
+void TranslationSettingsPage::lazyLoad()
+{
+    const TranslationSettings values = settings::translation();
     auto *layout = new QVBoxLayout(this);
     auto *form = new QFormLayout;
-    const auto spin = [this](int minimum, int maximum, int value, const QString &name) {
+    const auto spin = [this](int minimum, int maximum, int value) {
         auto *control = new QSpinBox(this);
-        control->setObjectName(name);
         control->setRange(minimum, maximum);
         control->setValue(value);
         connect(control, &QSpinBox::valueChanged, this, [this](int) { save(); });
@@ -631,32 +1029,26 @@ TranslationSettingsPage::TranslationSettingsPage(Settings &settings, QWidget *pa
     };
 
     m_engine = new DesignComboBox(this);
-    m_engine->setObjectName(QStringLiteral("TranslationEngineCombo"));
-    m_engine->addItem(QStringLiteral("Google"), QStringLiteral("google"));
-    m_engine->addItem(QStringLiteral("LLM（OpenAI 兼容）"), QStringLiteral("llm"));
+    m_engine->addItem(QStringLiteral("LLM（llama.cpp / OpenAI 兼容）"), QStringLiteral("llm"));
     m_engine->setCurrentIndex(m_engine->findData(values.engine.trimmed().toLower()));
     if (m_engine->currentIndex() < 0) m_engine->setCurrentIndex(0);
     form->addRow(new DesignLabel(QStringLiteral("翻译引擎"), this), m_engine);
-    const auto line = [this](QFormLayout *target, const QString &label, const QString &name,
-                             const QString &value, QLineEdit **field) {
+    const auto line = [this](QFormLayout *target, const QString &label, const QString &value,
+                             QLineEdit **field) {
         *field = new DesignLineEdit(this);
-        (*field)->setObjectName(name);
         (*field)->setText(value);
         (*field)->setClearButtonEnabled(true);
         target->addRow(new DesignLabel(label, this), *field);
         connect(*field, &QLineEdit::editingFinished, this, &TranslationSettingsPage::save);
     };
-    line(form, QStringLiteral("模型"), QStringLiteral("TranslationModelEdit"), values.model, &m_model);
-    line(form, QStringLiteral("Base URL"), QStringLiteral("TranslationBaseUrlEdit"), values.baseUrl,
-         &m_baseUrl);
-    line(form, QStringLiteral("API Key"), QStringLiteral("TranslationApiKeyEdit"), values.apiKey,
-         &m_apiKey);
-    m_timeout = spin(1, 120, values.timeoutSeconds, QStringLiteral("TranslationTimeoutSpin"));
-    m_retries = spin(0, 10, values.retries, QStringLiteral("TranslationRetriesSpin"));
+    line(form, QStringLiteral("模型"), values.model, &m_model);
+    line(form, QStringLiteral("Base URL"), values.baseUrl, &m_baseUrl);
+    line(form, QStringLiteral("API Key"), values.apiKey, &m_apiKey);
+    m_timeout = spin(1, 120, values.timeoutSeconds);
+    m_retries = spin(0, 10, values.retries);
     form->addRow(new DesignLabel(QStringLiteral("超时（秒）"), this), m_timeout);
     form->addRow(new DesignLabel(QStringLiteral("重试次数"), this), m_retries);
     m_fallback = new DesignComboBox(this);
-    m_fallback->setObjectName(QStringLiteral("TranslationFallbackCombo"));
     m_fallback->addItem(QStringLiteral("失败返回空字符串"), QStringLiteral("empty"));
     m_fallback->addItem(QStringLiteral("失败返回原文"), QStringLiteral("source"));
     m_fallback->setCurrentIndex(m_fallback->findData(values.fallback.trimmed().toLower()));
@@ -666,10 +1058,9 @@ TranslationSettingsPage::TranslationSettingsPage(Settings &settings, QWidget *pa
 
     layout->addWidget(new DesignLabel(QStringLiteral("<h3>llama.cpp 辅助</h3>"), this));
     auto *llamaForm = new QFormLayout;
-    line(llamaForm, QStringLiteral("llama-server.exe"), QStringLiteral("LlamaServerExecutableEdit"),
-         values.llama.serverExecutable, &m_serverExecutable);
-    line(llamaForm, QStringLiteral("GGUF 模型"), QStringLiteral("LlamaModelPathEdit"), values.llama.modelPath,
-         &m_modelPath);
+    line(llamaForm, QStringLiteral("llama-server.exe"), values.llama.serverExecutable,
+         &m_serverExecutable);
+    line(llamaForm, QStringLiteral("GGUF 模型"), values.llama.modelPath, &m_modelPath);
     auto *serverBrowse = new DesignButton(QStringLiteral("浏览…"), this);
     auto *modelBrowse = new DesignButton(QStringLiteral("浏览…"), this);
     auto *serverRow = new QHBoxLayout;
@@ -681,10 +1072,9 @@ TranslationSettingsPage::TranslationSettingsPage(Settings &settings, QWidget *pa
     llamaForm->addRow(new DesignLabel(QStringLiteral("选择服务程序"), this), serverRow);
     llamaForm->addRow(new DesignLabel(QStringLiteral("选择模型文件"), this), modelRow);
     m_host = new DesignLineEdit(this);
-    m_host->setObjectName(QStringLiteral("LlamaHostEdit"));
     m_host->setText(values.llama.host);
     connect(m_host, &QLineEdit::editingFinished, this, &TranslationSettingsPage::save);
-    m_port = spin(1, 65535, values.llama.port, QStringLiteral("LlamaPortSpin"));
+    m_port = spin(1, 65535, values.llama.port);
     auto *hostRow = new QHBoxLayout;
     hostRow->addWidget(m_host, 1);
     hostRow->addWidget(m_port);
@@ -695,12 +1085,12 @@ TranslationSettingsPage::TranslationSettingsPage(Settings &settings, QWidget *pa
     m_mode->setCurrentIndex(m_mode->findData(values.llama.mode.trimmed().toLower()));
     if (m_mode->currentIndex() < 0) m_mode->setCurrentIndex(0);
     llamaForm->addRow(new DesignLabel(QStringLiteral("运行模式"), this), m_mode);
-    m_contextSize = spin(256, 32768, values.llama.contextSize, QStringLiteral("LlamaContextSpin"));
-    m_gpuLayers = spin(0, 200, values.llama.gpuLayers, QStringLiteral("LlamaGpuLayersSpin"));
-    m_threads = spin(1, 256, values.llama.threads, QStringLiteral("LlamaThreadsSpin"));
-    m_threadsBatch = spin(1, 512, values.llama.threadsBatch, QStringLiteral("LlamaThreadsBatchSpin"));
-    m_batchSize = spin(1, 8192, values.llama.batchSize, QStringLiteral("LlamaBatchSpin"));
-    m_microBatchSize = spin(1, 4096, values.llama.microBatchSize, QStringLiteral("LlamaMicroBatchSpin"));
+    m_contextSize = spin(256, 32768, values.llama.contextSize);
+    m_gpuLayers = spin(0, 200, values.llama.gpuLayers);
+    m_threads = spin(1, 256, values.llama.threads);
+    m_threadsBatch = spin(1, 512, values.llama.threadsBatch);
+    m_batchSize = spin(1, 8192, values.llama.batchSize);
+    m_microBatchSize = spin(1, 4096, values.llama.microBatchSize);
     llamaForm->addRow(new DesignLabel(QStringLiteral("上下文大小"), this), m_contextSize);
     llamaForm->addRow(new DesignLabel(QStringLiteral("GPU layers"), this), m_gpuLayers);
     llamaForm->addRow(new DesignLabel(QStringLiteral("threads"), this), m_threads);
@@ -716,16 +1106,38 @@ TranslationSettingsPage::TranslationSettingsPage(Settings &settings, QWidget *pa
     llamaForm->addRow(new DesignLabel(QStringLiteral("mlock"), this), m_mlock);
     llamaForm->addRow(new DesignLabel(QStringLiteral("自动回填翻译配置"), this), m_autoSync);
     llamaForm->addRow(new DesignLabel(QStringLiteral("打开软件自动启动"), this), m_autoStart);
+    m_commandPreview = new QPlainTextEdit(this);
+    m_commandPreview->setReadOnly(true);
+    m_commandPreview->setFixedHeight(72);
+    llamaForm->addRow(new DesignLabel(QStringLiteral("命令预览"), this), m_commandPreview);
+    auto *controls = new QWidget(this);
+    auto *controlsLayout = new QHBoxLayout(controls);
+    controlsLayout->setContentsMargins(0, 0, 0, 0);
+    auto *start = new DesignButton(QStringLiteral("启动 llama-server"), controls);
+    auto *stop = new DesignButton(QStringLiteral("停止"), controls);
+    auto *probe = new DesignButton(QStringLiteral("测试 /v1/models"), controls);
+    controlsLayout->addWidget(start); controlsLayout->addWidget(stop); controlsLayout->addWidget(probe); controlsLayout->addStretch();
+    llamaForm->addRow(new DesignLabel(QStringLiteral("控制"), this), controls);
+    m_llamaStatus = new DesignLabel(QStringLiteral("状态：未启动"), this);
+    llamaForm->addRow(new DesignLabel(QStringLiteral("运行状态"), this), m_llamaStatus);
     layout->addLayout(llamaForm);
-    layout->addWidget(new DesignLabel(
-        QStringLiteral("与 Python 版一致：这里配置外部 llama-server.exe；当前 C++ 版不负责启动或托管它。"),
-        this));
+    layout->addWidget(new DesignLabel(QStringLiteral("翻译测试"), this));
+    m_testInput = new QPlainTextEdit(this);
+    m_testInput->setPlaceholderText(QStringLiteral("输入需要翻译的日文文本"));
+    m_testInput->setFixedHeight(64);
+    m_testOutput = new QPlainTextEdit(this);
+    m_testOutput->setReadOnly(true);
+    m_testOutput->setFixedHeight(64);
+    auto *testTranslationButton = new DesignButton(QStringLiteral("测试翻译"), this);
+    layout->addWidget(m_testInput);
+    layout->addWidget(testTranslationButton);
+    layout->addWidget(m_testOutput);
     layout->addStretch();
 
-    connect(m_engine, qOverload<int>(&QComboBox::currentIndexChanged), this,
-            [this](int) { updateLlmFields(); save(); });
     connect(m_fallback, qOverload<int>(&QComboBox::currentIndexChanged), this,
             [this](int) { save(); });
+    connect(m_engine, qOverload<int>(&QComboBox::currentIndexChanged), this,
+            [this](int) { save(); updateLlmFields(); });
     connect(m_mode, qOverload<int>(&QComboBox::currentIndexChanged), this,
             [this](int) { updateModeFields(); save(); });
     connect(m_mlock, &ToggleSwitch::toggled, this, [this](bool) { save(); });
@@ -733,13 +1145,36 @@ TranslationSettingsPage::TranslationSettingsPage(Settings &settings, QWidget *pa
     connect(m_autoStart, &ToggleSwitch::toggled, this, [this](bool) { save(); });
     connect(serverBrowse, &QPushButton::clicked, this, &TranslationSettingsPage::browseServerExecutable);
     connect(modelBrowse, &QPushButton::clicked, this, &TranslationSettingsPage::browseModel);
+    connect(start, &QPushButton::clicked, this, &TranslationSettingsPage::startLlamaServer);
+    connect(stop, &QPushButton::clicked, this, &TranslationSettingsPage::stopLlamaServer);
+    connect(probe, &QPushButton::clicked, this, &TranslationSettingsPage::testLlamaServer);
+    connect(testTranslationButton, &QPushButton::clicked, this, &TranslationSettingsPage::testTranslation);
+    const auto refreshPreview = [this] { updateCommandPreview(); };
+    connect(m_serverExecutable, &QLineEdit::editingFinished, this, refreshPreview);
+    connect(m_modelPath, &QLineEdit::editingFinished, this, refreshPreview);
+    connect(m_host, &QLineEdit::editingFinished, this, refreshPreview);
+    connect(m_port, qOverload<int>(&QSpinBox::valueChanged), this, [refreshPreview](int) { refreshPreview(); });
+    connect(m_contextSize, qOverload<int>(&QSpinBox::valueChanged), this, [refreshPreview](int) { refreshPreview(); });
+    connect(m_gpuLayers, qOverload<int>(&QSpinBox::valueChanged), this, [refreshPreview](int) { refreshPreview(); });
+    connect(m_threads, qOverload<int>(&QSpinBox::valueChanged), this, [refreshPreview](int) { refreshPreview(); });
+    connect(m_threadsBatch, qOverload<int>(&QSpinBox::valueChanged), this, [refreshPreview](int) { refreshPreview(); });
+    connect(m_batchSize, qOverload<int>(&QSpinBox::valueChanged), this, [refreshPreview](int) { refreshPreview(); });
+    connect(m_microBatchSize, qOverload<int>(&QSpinBox::valueChanged), this, [refreshPreview](int) { refreshPreview(); });
+    connect(m_mlock, &ToggleSwitch::toggled, this, [refreshPreview](bool) { refreshPreview(); });
+    m_llamaProcess = new QProcess(this);
+    connect(qApp, &QCoreApplication::aboutToQuit, this, [this] { stopLlamaServer(); });
+    connect(m_llamaProcess, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
+            [this](int, QProcess::ExitStatus) { setLlamaStatus(QStringLiteral("已停止")); });
+    connect(m_llamaProcess, &QProcess::errorOccurred, this,
+            [this](QProcess::ProcessError) { setLlamaStatus(QStringLiteral("失败：") + m_llamaProcess->errorString()); });
     updateLlmFields();
     updateModeFields();
+    updateCommandPreview();
 }
 
 void TranslationSettingsPage::save()
 {
-    TranslationSettings values = m_settings.translation();
+    TranslationSettings values = settings::translation();
     values.engine = m_engine->currentData().toString();
     values.model = m_model->text().trimmed();
     values.baseUrl = m_baseUrl->text().trimmed();
@@ -761,20 +1196,123 @@ void TranslationSettingsPage::save()
     values.llama.mlock = m_mlock->isChecked();
     values.llama.autoSyncTranslation = m_autoSync->isChecked();
     values.llama.autoStart = m_autoStart->isChecked();
-    m_settings.saveTranslation(values);
+    settings::saveTranslation(values);
 }
 
 void TranslationSettingsPage::updateLlmFields()
 {
-    const bool isLlm = m_engine->currentData().toString() == QStringLiteral("llm");
-    m_model->setEnabled(isLlm);
-    m_baseUrl->setEnabled(isLlm);
-    m_apiKey->setEnabled(isLlm);
+    m_model->setEnabled(true);
+    m_baseUrl->setEnabled(true);
+    m_apiKey->setEnabled(true);
 }
 
 void TranslationSettingsPage::updateModeFields()
 {
     m_gpuLayers->setEnabled(m_mode->currentData().toString() == QStringLiteral("gpu"));
+}
+
+QStringList TranslationSettingsPage::llamaArguments() const
+{
+    QStringList arguments{QStringLiteral("-m"), m_modelPath->text().trimmed(),
+                          QStringLiteral("--host"), m_host->text().trimmed().isEmpty() ? QStringLiteral("127.0.0.1") : m_host->text().trimmed(),
+                          QStringLiteral("--port"), QString::number(m_port->value()),
+                          QStringLiteral("-c"), QString::number(m_contextSize->value()),
+                          QStringLiteral("-t"), QString::number(m_threads->value()),
+                          QStringLiteral("-tb"), QString::number(m_threadsBatch->value()),
+                          QStringLiteral("-b"), QString::number(m_batchSize->value()),
+                          QStringLiteral("-ub"), QString::number(m_microBatchSize->value())};
+    if (m_mode->currentData().toString() == QStringLiteral("gpu"))
+        arguments << QStringLiteral("-ngl") << QString::number(m_gpuLayers->value());
+    if (m_mlock->isChecked()) arguments << QStringLiteral("--mlock");
+    return arguments;
+}
+
+void TranslationSettingsPage::updateCommandPreview()
+{
+    if (!m_commandPreview) return;
+    const QString executable = m_serverExecutable->text().trimmed();
+    m_commandPreview->setPlainText(executable.isEmpty()
+        ? QStringLiteral("请先选择 llama-server.exe 路径。")
+        : QStringLiteral("\"") + executable + QStringLiteral("\" ") + llamaArguments().join(u' '));
+}
+
+void TranslationSettingsPage::setLlamaStatus(const QString &status)
+{
+    if (m_llamaStatus) m_llamaStatus->setText(QStringLiteral("状态：") + status);
+}
+
+void TranslationSettingsPage::startLlamaServer()
+{
+    save(); updateCommandPreview();
+    if (m_llamaProcess->state() != QProcess::NotRunning) { setLlamaStatus(QStringLiteral("已在运行")); return; }
+    const QString executable = m_serverExecutable->text().trimmed();
+    if (executable.isEmpty() || m_modelPath->text().trimmed().isEmpty()) {
+        QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("请先选择 llama-server.exe 和 GGUF 模型。"));
+        return;
+    }
+    m_llamaProcess->setProgram(executable);
+    m_llamaProcess->setArguments(llamaArguments());
+    m_llamaProcess->setWorkingDirectory(QFileInfo(executable).absolutePath());
+    m_llamaProcess->start();
+    if (!m_llamaProcess->waitForStarted(5000)) {
+        setLlamaStatus(QStringLiteral("启动失败：") + m_llamaProcess->errorString());
+        return;
+    }
+    setLlamaStatus(QStringLiteral("运行中（PID %1）").arg(m_llamaProcess->processId()));
+}
+
+void TranslationSettingsPage::stopLlamaServer()
+{
+    if (!m_llamaProcess || m_llamaProcess->state() == QProcess::NotRunning) {
+        if (m_llamaStatus) setLlamaStatus(QStringLiteral("未启动"));
+        return;
+    }
+    const qint64 processId = m_llamaProcess->processId();
+    m_llamaProcess->terminate();
+    if (!m_llamaProcess->waitForFinished(3000)) {
+#ifdef Q_OS_WIN
+        QProcess::execute(QStringLiteral("taskkill"),
+                          {QStringLiteral("/PID"), QString::number(processId),
+                           QStringLiteral("/T"), QStringLiteral("/F")});
+#else
+        m_llamaProcess->kill();
+#endif
+        m_llamaProcess->waitForFinished(1000);
+    }
+    if (m_llamaStatus) setLlamaStatus(QStringLiteral("已停止"));
+}
+
+void TranslationSettingsPage::testLlamaServer()
+{
+    QUrl endpoint(QStringLiteral("http://%1:%2/v1/models").arg(
+        m_host->text().trimmed().isEmpty() ? QStringLiteral("127.0.0.1") : m_host->text().trimmed()).arg(m_port->value()));
+    setLlamaStatus(QStringLiteral("检测 /v1/models…"));
+    auto *manager = new QNetworkAccessManager(this);
+    auto *reply = manager->get(QNetworkRequest(endpoint));
+    auto *timeout = new QTimer(reply); timeout->setSingleShot(true);
+    connect(timeout, &QTimer::timeout, reply, [reply] { reply->abort(); });
+    connect(reply, &QNetworkReply::finished, this, [this, reply, manager] {
+        const bool reachable = reply->error() == QNetworkReply::NoError;
+        setLlamaStatus(reachable ? QStringLiteral("/v1/models 可用") : QStringLiteral("不可达：") + reply->errorString());
+        reply->deleteLater(); manager->deleteLater();
+    });
+    timeout->start(5000);
+}
+
+void TranslationSettingsPage::testTranslation()
+{
+    const QString source = m_testInput->toPlainText().trimmed();
+    if (source.isEmpty()) { QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("请先输入测试文本。")); return; }
+    save();
+    auto *translator = new LlmTranslationService(settings::translation(), this);
+    m_testOutput->setPlainText(QStringLiteral("翻译中…"));
+    connect(translator, &LlmTranslationService::translationFinished, this,
+            [this, translator](quint64, const QString &translation, const QString &error) {
+                m_testOutput->setPlainText(error.isEmpty() ? translation : QStringLiteral("翻译失败：") + error);
+                translator->deleteLater();
+            });
+    const quint64 requestId = translator->translate(source);
+    Q_UNUSED(requestId);
 }
 
 void TranslationSettingsPage::browseServerExecutable()
@@ -793,32 +1331,280 @@ void TranslationSettingsPage::browseModel()
     if (!path.isEmpty()) { m_modelPath->setText(path); save(); }
 }
 
-SettingsPage::SettingsPage(ThemeService &themeService, Settings &settings,
-                           const QString &shortcutsFile,
-                           QSqlDatabase publicDatabase,
-                           QWidget *parent)
-    : QWidget(parent)
+DatabaseSettingsPage::DatabaseSettingsPage(QSqlDatabase publicDatabase,
+                                           QSqlDatabase privateDatabase,
+                                           settings::Paths paths, QWidget *parent)
+    : LazyWidget(parent), m_publicDatabase(std::move(publicDatabase)),
+      m_privateDatabase(std::move(privateDatabase)), m_paths(std::move(paths))
 {
-    setObjectName(QStringLiteral("SettingsPage"));
-    m_commonPage = new CommonSettingsPage(themeService, settings, this);
+}
+
+void DatabaseSettingsPage::lazyLoad()
+{
+    auto *layout = new QVBoxLayout(this);
+    layout->addWidget(new DesignLabel(QStringLiteral("<h3>本地数据库运维</h3>"), this));
+    layout->addWidget(new DesignLabel(QStringLiteral("备份、恢复与检查均仅在本机执行。"), this));
+    const auto addButton = [this, layout](const QString &text, const QString &toolTip, auto callback) {
+        auto *button = new DesignButton(text, this);
+        button->setToolTip(toolTip);
+        connect(button, &QPushButton::clicked, this, callback);
+        layout->addWidget(button);
+    };
+    addButton(QStringLiteral("数据库清理碎片"), QStringLiteral("先备份公共库与私库，再执行 VACUUM。"), &DatabaseSettingsPage::vacuumDatabases);
+    addButton(QStringLiteral("图片数据一致性检查"), QStringLiteral("检查数据库图片记录与本地文件夹；不会删除文件。"), &DatabaseSettingsPage::checkImages);
+    addButton(QStringLiteral("全量备份公共数据库"), QStringLiteral("备份公共数据库和封面、剧照、人物图片。"), &DatabaseSettingsPage::createPublicSnapshot);
+    addButton(QStringLiteral("全量还原公共数据库"), QStringLiteral("从 meta.json 恢复公共数据库及图片快照。"), &DatabaseSettingsPage::restorePublicSnapshot);
+    addButton(QStringLiteral("精简备份公共数据库"), QStringLiteral("仅备份公共数据库 .db 文件。"), [this] { createSimpleBackup(false); });
+    addButton(QStringLiteral("精简还原公共数据库"), QStringLiteral("从 .db 文件恢复公共数据库。"), [this] { restoreSimpleBackup(false); });
+    addButton(QStringLiteral("备份私有数据库"), QStringLiteral("备份私有数据库 .db 文件。"), [this] { createSimpleBackup(true); });
+    addButton(QStringLiteral("还原私有数据库"), QStringLiteral("从 .db 文件恢复私有数据库。"), [this] { restoreSimpleBackup(true); });
+    addButton(QStringLiteral("重建私有库与公共库的关联"), QStringLiteral("公共库替换后，按番号和日文名重新建立私库关联。"), &DatabaseSettingsPage::rebuildPrivateLinks);
+    layout->addWidget(new DesignLabel(QStringLiteral("<h3>WebDAV 云备份</h3>"), this));
+    const CrawlerSettings crawler = settings::crawler(m_paths.settingsFile());
+    auto *form = new QFormLayout;
+    m_webDavEnabled = new ToggleSwitch(48, 24, nullptr, this); m_webDavEnabled->setChecked(crawler.webDav.enabled);
+    m_webDavProfile = new QLineEdit(crawler.webDav.profileName, this);
+    m_webDavBaseUrl = new QLineEdit(crawler.webDav.baseUrl.toString(), this);
+    m_webDavRemoteRoot = new QLineEdit(crawler.webDav.remoteRoot, this);
+    m_webDavTimeout = new QSpinBox(this); m_webDavTimeout->setRange(3, 300); m_webDavTimeout->setValue(crawler.webDav.timeoutSeconds);
+    m_webDavAutoUpload = new ToggleSwitch(48, 24, nullptr, this); m_webDavAutoUpload->setChecked(crawler.webDav.autoUploadOnBackup);
+    m_webDavCredentialStatus = new QLabel(this);
+    form->addRow(QStringLiteral("启用 WebDAV"), m_webDavEnabled);
+    form->addRow(QStringLiteral("Profile"), m_webDavProfile);
+    form->addRow(QStringLiteral("Base URL"), m_webDavBaseUrl);
+    form->addRow(QStringLiteral("Remote Root"), m_webDavRemoteRoot);
+    form->addRow(QStringLiteral("超时(秒)"), m_webDavTimeout);
+    form->addRow(QStringLiteral("备份后自动上传"), m_webDavAutoUpload);
+    form->addRow(QStringLiteral("凭据状态"), m_webDavCredentialStatus);
+    auto *credentials = new QWidget(this); auto *credentialsLayout = new QHBoxLayout(credentials);
+    credentialsLayout->setContentsMargins(0, 0, 0, 0);
+    auto *saveCredentials = new DesignButton(QStringLiteral("保存/更新凭据"), credentials);
+    auto *clearCredentials = new DesignButton(QStringLiteral("清除凭据"), credentials);
+    credentialsLayout->addWidget(saveCredentials); credentialsLayout->addWidget(clearCredentials); credentialsLayout->addStretch();
+    form->addRow(QStringLiteral("凭据管理"), credentials);
+    auto *operations = new QWidget(this); auto *operationsLayout = new QHBoxLayout(operations);
+    operationsLayout->setContentsMargins(0, 0, 0, 0);
+    auto *test = new DesignButton(QStringLiteral("测试连接"), operations);
+    auto *upload = new DesignButton(QStringLiteral("上传最近一次本地备份"), operations);
+    auto *list = new DesignButton(QStringLiteral("浏览云端备份"), operations);
+    auto *restore = new DesignButton(QStringLiteral("从云端下载并恢复"), operations);
+    operationsLayout->addWidget(test); operationsLayout->addWidget(upload); operationsLayout->addWidget(list); operationsLayout->addWidget(restore); operationsLayout->addStretch();
+    form->addRow(QStringLiteral("云端操作"), operations);
+    layout->addLayout(form);
+    const auto persist = [this] { saveWebDavSettings(); };
+    connect(m_webDavEnabled, &ToggleSwitch::toggled, this, persist);
+    connect(m_webDavProfile, &QLineEdit::editingFinished, this, persist);
+    connect(m_webDavBaseUrl, &QLineEdit::editingFinished, this, persist);
+    connect(m_webDavRemoteRoot, &QLineEdit::editingFinished, this, persist);
+    connect(m_webDavTimeout, qOverload<int>(&QSpinBox::valueChanged), this, [persist](int) { persist(); });
+    connect(m_webDavAutoUpload, &ToggleSwitch::toggled, this, persist);
+    connect(saveCredentials, &QPushButton::clicked, this, &DatabaseSettingsPage::saveWebDavCredentials);
+    connect(clearCredentials, &QPushButton::clicked, this, &DatabaseSettingsPage::clearWebDavCredentials);
+    connect(test, &QPushButton::clicked, this, &DatabaseSettingsPage::testWebDavConnection);
+    connect(upload, &QPushButton::clicked, this, &DatabaseSettingsPage::uploadLatestBackup);
+    connect(list, &QPushButton::clicked, this, &DatabaseSettingsPage::listWebDavBackups);
+    connect(restore, &QPushButton::clicked, this, &DatabaseSettingsPage::restoreWebDavBackup);
+    refreshWebDavCredentialStatus();
+    layout->addStretch();
+}
+
+void DatabaseSettingsPage::showResult(const QString &title, const DatabaseMaintenanceResult &result) const
+{
+    const QString message = result.outputPath.isEmpty() ? result.message : result.message + QStringLiteral("\n\n位置：%1").arg(result.outputPath);
+    if (result.succeeded) QMessageBox::information(const_cast<DatabaseSettingsPage *>(this), title, message);
+    else QMessageBox::critical(const_cast<DatabaseSettingsPage *>(this), title, message);
+}
+
+void DatabaseSettingsPage::createPublicSnapshot()
+{
+    const QString directory = QFileDialog::getExistingDirectory(this, QStringLiteral("选择完整快照保存位置"), m_paths.publicBackupDirectory());
+    if (directory.isEmpty()) return;
+    showResult(QStringLiteral("完整备份"), DatabaseMaintenanceService::createPublicSnapshot(m_publicDatabase, directory, m_paths.workCoverDirectory(), m_paths.fanartDirectory(), m_paths.actressImageDirectory(), m_paths.actorImageDirectory()));
+}
+
+void DatabaseSettingsPage::restorePublicSnapshot()
+{
+    const QString metaPath = QFileDialog::getOpenFileName(this, QStringLiteral("选择快照 meta.json"), m_paths.publicBackupDirectory(), QStringLiteral("JSON 文件 (meta.json)"));
+    if (metaPath.isEmpty()) return;
+    if (QMessageBox::warning(this, QStringLiteral("确认恢复"), QStringLiteral("这会覆盖公共数据库中的数据，并合并恢复快照图片。是否继续？"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
+    showResult(QStringLiteral("完整恢复"), DatabaseMaintenanceService::restorePublicSnapshot(m_publicDatabase, metaPath, m_paths.workCoverDirectory(), m_paths.fanartDirectory(), m_paths.actressImageDirectory(), m_paths.actorImageDirectory()));
+}
+
+void DatabaseSettingsPage::createSimpleBackup(bool privateDatabase)
+{
+    const QString initialDirectory = privateDatabase ? m_paths.privateBackupDirectory() : m_paths.publicBackupDirectory();
+    const QString directory = QFileDialog::getExistingDirectory(this, QStringLiteral("选择备份保存位置"), initialDirectory);
+    if (directory.isEmpty()) return;
+    const auto result = WebDavBackupService::uploadDatabaseBackup(
+        privateDatabase ? m_privateDatabase : m_publicDatabase, directory,
+        privateDatabase ? QStringLiteral("darkeye-private") : QStringLiteral("darkeye-public"),
+        settings::crawler(m_paths.settingsFile()).webDav);
+    if (result.succeeded) QMessageBox::information(this, QStringLiteral("数据库备份"), result.message);
+    else QMessageBox::critical(this, QStringLiteral("数据库备份失败"), result.message);
+}
+
+void DatabaseSettingsPage::restoreSimpleBackup(bool privateDatabase)
+{
+    const QString initialDirectory = privateDatabase ? m_paths.privateBackupDirectory() : m_paths.publicBackupDirectory();
+    const QString backupPath = QFileDialog::getOpenFileName(this, QStringLiteral("选择数据库备份"), initialDirectory, QStringLiteral("SQLite 数据库 (*.db)"));
+    if (backupPath.isEmpty()) return;
+    if (QMessageBox::warning(this, QStringLiteral("确认恢复"), QStringLiteral("这会覆盖当前数据库中的数据。是否继续？"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
+    showResult(QStringLiteral("数据库恢复"), DatabaseMaintenanceService::restoreBackup(privateDatabase ? m_privateDatabase : m_publicDatabase, backupPath));
+}
+
+void DatabaseSettingsPage::vacuumDatabases()
+{
+    if (QMessageBox::question(this, QStringLiteral("确认清理"), QStringLiteral("将先创建本地备份，再整理公共库和私库碎片。是否继续？")) != QMessageBox::Yes) return;
+    showResult(QStringLiteral("数据库清理"), DatabaseMaintenanceService::backupAndVacuum(m_publicDatabase, m_privateDatabase, m_paths.publicBackupDirectory(), m_paths.privateBackupDirectory()));
+}
+
+void DatabaseSettingsPage::checkImages()
+{
+    const QList<DatabaseMaintenanceResult> results = {
+        DatabaseMaintenanceService::checkImageConsistency(m_publicDatabase, m_paths.workCoverDirectory(), QStringLiteral("work"), QStringLiteral("image_url")),
+        DatabaseMaintenanceService::checkImageConsistency(m_publicDatabase, m_paths.actressImageDirectory(), QStringLiteral("actress"), QStringLiteral("image_urlA")),
+        DatabaseMaintenanceService::checkImageConsistency(m_publicDatabase, m_paths.actorImageDirectory(), QStringLiteral("actor"), QStringLiteral("image_url")),
+    };
+    QStringList messages;
+    bool succeeded = true;
+    for (const auto &result : results) { messages.append(result.message); succeeded = succeeded && result.succeeded; }
+    showResult(QStringLiteral("图片一致性检查"), {.succeeded = succeeded, .message = messages.join(QLatin1Char('\n'))});
+}
+
+void DatabaseSettingsPage::rebuildPrivateLinks()
+{
+    if (QMessageBox::warning(this, QStringLiteral("确认重建"), QStringLiteral("公共库变更后才需要此操作；它可能会为缺失的番号或女优创建空记录。是否继续？"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
+    auto result = DatabaseMaintenanceService::rebuildPrivateLinks(m_publicDatabase, m_privateDatabase.databaseName());
+    if (result.succeeded) result.message += QStringLiteral(" 新增作品 %1 条，新增女优 %2 条。").arg(result.createdWorks).arg(result.createdActresses);
+    showResult(QStringLiteral("重建私库关联"), result);
+}
+
+void DatabaseSettingsPage::saveWebDavSettings()
+{
+    CrawlerSettings crawler = settings::crawler(m_paths.settingsFile());
+    crawler.webDav.enabled = m_webDavEnabled->isChecked();
+    crawler.webDav.profileName = m_webDavProfile->text().trimmed();
+    if (crawler.webDav.profileName.isEmpty()) crawler.webDav.profileName = QStringLiteral("default");
+    crawler.webDav.baseUrl = QUrl(m_webDavBaseUrl->text().trimmed());
+    crawler.webDav.remoteRoot = m_webDavRemoteRoot->text().trimmed();
+    crawler.webDav.timeoutSeconds = m_webDavTimeout->value();
+    crawler.webDav.autoUploadOnBackup = m_webDavAutoUpload->isChecked();
+    settings::saveCrawler(crawler, m_paths.settingsFile());
+    refreshWebDavCredentialStatus();
+}
+
+void DatabaseSettingsPage::refreshWebDavCredentialStatus()
+{
+    const QString profile = m_webDavProfile->text().trimmed().isEmpty() ? QStringLiteral("default") : m_webDavProfile->text().trimmed();
+    m_webDavCredentialStatus->setText(WebDavCredentialStore::has(profile) ? QStringLiteral("已保存") : QStringLiteral("未保存"));
+}
+
+void DatabaseSettingsPage::saveWebDavCredentials()
+{
+    const QString profile = m_webDavProfile->text().trimmed().isEmpty() ? QStringLiteral("default") : m_webDavProfile->text().trimmed();
+    bool accepted = false;
+    const QString username = QInputDialog::getText(this, QStringLiteral("保存 WebDAV 凭据"), QStringLiteral("请输入用户名："), QLineEdit::Normal, {}, &accepted).trimmed();
+    if (!accepted) return;
+    const QString password = QInputDialog::getText(this, QStringLiteral("保存 WebDAV 凭据"), QStringLiteral("请输入密码："), QLineEdit::Password, {}, &accepted);
+    if (!accepted) return;
+    QString error;
+    if (!WebDavCredentialStore::save(profile, {username, password}, &error)) { QMessageBox::warning(this, QStringLiteral("保存失败"), error); return; }
+    refreshWebDavCredentialStatus();
+    QMessageBox::information(this, QStringLiteral("保存成功"), QStringLiteral("WebDAV 凭据已写入系统凭据管理器。"));
+}
+
+void DatabaseSettingsPage::clearWebDavCredentials()
+{
+    const QString profile = m_webDavProfile->text().trimmed().isEmpty() ? QStringLiteral("default") : m_webDavProfile->text().trimmed();
+    QString error;
+    if (!WebDavCredentialStore::clear(profile, &error)) { QMessageBox::warning(this, QStringLiteral("清除失败"), error); return; }
+    refreshWebDavCredentialStatus();
+    QMessageBox::information(this, QStringLiteral("清除成功"), QStringLiteral("WebDAV 凭据已清除。"));
+}
+
+void DatabaseSettingsPage::testWebDavConnection()
+{
+    saveWebDavSettings();
+    const auto result = WebDavBackupService::testConnection(settings::crawler(m_paths.settingsFile()).webDav);
+    if (result.succeeded) QMessageBox::information(this, QStringLiteral("连接成功"), result.message);
+    else QMessageBox::warning(this, QStringLiteral("连接失败"), result.message);
+}
+
+void DatabaseSettingsPage::uploadLatestBackup()
+{
+    saveWebDavSettings();
+    bool accepted = false;
+    const auto scope = QInputDialog::getItem(this, QStringLiteral("选择上传对象"), QStringLiteral("请选择要上传的备份："), {QStringLiteral("public"), QStringLiteral("private")}, 0, false, &accepted);
+    if (!accepted || scope.isEmpty()) return;
+    const bool privateDatabase = scope == QStringLiteral("private");
+    const auto backup = DatabaseMaintenanceService::createBackup(privateDatabase ? m_privateDatabase : m_publicDatabase,
+                                                                   privateDatabase ? m_paths.privateBackupDirectory() : m_paths.publicBackupDirectory(),
+                                                                   privateDatabase ? QStringLiteral("darkeye-private") : QStringLiteral("darkeye-public"));
+    if (!backup.succeeded) { showResult(QStringLiteral("上传失败"), backup); return; }
+    const auto result = WebDavBackupService::uploadFile(backup.outputPath, settings::crawler(m_paths.settingsFile()).webDav);
+    if (result.succeeded) QMessageBox::information(this, QStringLiteral("上传成功"), result.message);
+    else QMessageBox::warning(this, QStringLiteral("上传失败"), result.message);
+}
+
+void DatabaseSettingsPage::listWebDavBackups()
+{
+    saveWebDavSettings(); QStringList files;
+    const auto result = WebDavBackupService::listBackups(settings::crawler(m_paths.settingsFile()).webDav, &files);
+    if (!result.succeeded) { QMessageBox::warning(this, QStringLiteral("列举失败"), result.message); return; }
+    QMessageBox::information(this, QStringLiteral("云端备份列表"), files.isEmpty() ? QStringLiteral("云端暂无备份文件。") : result.message + QStringLiteral("\n\n") + files.join(QLatin1Char('\n')));
+}
+
+void DatabaseSettingsPage::restoreWebDavBackup()
+{
+    saveWebDavSettings(); QStringList files;
+    const auto settings = darkeye::settings::crawler(m_paths.settingsFile()).webDav;
+    const auto listed = WebDavBackupService::listBackups(settings, &files);
+    if (!listed.succeeded) { QMessageBox::warning(this, QStringLiteral("获取列表失败"), listed.message); return; }
+    bool accepted = false;
+    const QString remotePath = QInputDialog::getItem(this, QStringLiteral("选择云端备份"), QStringLiteral("请选择要恢复的备份："), files, 0, false, &accepted);
+    if (!accepted || remotePath.isEmpty()) return;
+    if (QMessageBox::warning(this, QStringLiteral("确认恢复"), QStringLiteral("是否从云端下载并覆盖现有公共数据库？操作不可撤销！"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
+    const auto result = WebDavBackupService::restoreDatabaseBackup(m_publicDatabase, remotePath, QDir(m_paths.dataDirectory()).filePath(QStringLiteral("temp/webdav_restore")), settings);
+    if (result.succeeded) QMessageBox::information(this, QStringLiteral("恢复成功"), result.message);
+    else QMessageBox::critical(this, QStringLiteral("恢复失败"), result.message);
+}
+
+SettingsPage::SettingsPage(ThemeService &themeService, const QString &shortcutsFile,
+                           QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
+                           settings::Paths paths,
+                           QWidget *parent)
+    : LazyWidget(parent), m_themeService(themeService), m_shortcutsFile(shortcutsFile),
+      m_publicDatabase(std::move(publicDatabase)), m_privateDatabase(std::move(privateDatabase)),
+      m_paths(std::move(paths))
+{
+}
+
+void SettingsPage::lazyLoad()
+{
+    m_commonPage = new CommonSettingsPage(m_themeService, this);
     const QList<ModernScrollMenu::Section> sections = {
         {QStringLiteral("常规"), m_commonPage},
-        {QStringLiteral("视频"), new VideoSettingsPage(settings, publicDatabase, this)},
-        {QStringLiteral("NFO"), pendingSettingsPage(QStringLiteral("Nfo"), this)},
-        {QStringLiteral("信息补充器"), new CrawlerSettingsPage(settings, this)},
-        {QStringLiteral("翻译"), new TranslationSettingsPage(settings, this)},
-        {QStringLiteral("数据库"), pendingSettingsPage(QStringLiteral("Database"), this)},
-        {QStringLiteral("快捷键"), new ShortcutSettingsPage(shortcutsFile, this)},
-        {QStringLiteral("关于软件"), new AboutSettingsPage(themeService, this)},
+        {QStringLiteral("视频"), new VideoSettingsPage(m_publicDatabase, this)},
+        {QStringLiteral("NFO"), new NfoSettingsPage(m_publicDatabase, this)},
+        {QStringLiteral("信息补充器"), new CrawlerSettingsPage(this)},
+        {QStringLiteral("翻译"), new TranslationSettingsPage(this)},
+        {QStringLiteral("数据库"), new DatabaseSettingsPage(m_publicDatabase, m_privateDatabase, m_paths, this)},
+        {QStringLiteral("快捷键"), new ShortcutSettingsPage(m_shortcutsFile, this)},
+        {QStringLiteral("关于软件"), new AboutSettingsPage(m_themeService, this)},
     };
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(new ModernScrollMenu(sections, this));
     if (auto *videoPage = findChild<VideoSettingsPage *>())
         connect(videoPage, &VideoSettingsPage::worksChanged, this, &SettingsPage::worksChanged);
+    if (auto *nfoPage = findChild<NfoSettingsPage *>())
+        connect(nfoPage, &NfoSettingsPage::worksChanged, this, &SettingsPage::worksChanged);
+    connect(m_commonPage, &CommonSettingsPage::greenModeChanged,
+            this, &SettingsPage::greenModeChanged);
 }
 
 QComboBox *SettingsPage::themeSelector() const
 {
+    const_cast<SettingsPage *>(this)->initialize();
     return m_commonPage->themeSelector();
 }
 

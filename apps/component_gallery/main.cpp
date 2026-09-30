@@ -8,6 +8,7 @@
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QComboBox>
+#include <QDate>
 #include <QDateTime>
 #include <QDir>
 #include <QFormLayout>
@@ -282,7 +283,8 @@ QWidget *buildNumericInputs(ThemeService &themes)
     ui.left->addWidget(new Label(QStringLiteral("令牌驱动 DateTimeEdit（随主题变色）")));
     auto *dateTime = new TokenDateTimeEdit;
     dateTime->setDisplayFormat(QStringLiteral("yy-MM-dd HH:mm"));
-    dateTime->setDateTime(QDateTime::currentDateTime());
+    // Keep gallery captures reproducible; this page is a visual fixture, not a clock demo.
+    dateTime->setDateTime(QDateTime(QDate(2025, 1, 2), QTime(12, 34)));
     dateTime->setCalendarPopup(true);
     dateTime->setMinimumTime(QTime(0, 0));
     dateTime->setMaximumTime(QTime(23, 59));
@@ -729,6 +731,90 @@ QWidget *buildVisuals(ThemeService &themes)
     return ui.page;
 }
 
+QWidget *buildAdvanced(ThemeService &themes)
+{
+    auto *page = new QWidget;
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(16, 16, 16, 16);
+    layout->setSpacing(10);
+
+    layout->addWidget(new Label(QStringLiteral("高级组件（图表、导航与容器）")));
+    QHash<QDate, int> activity;
+    for (int day = 1; day <= 31; day += 3) {
+        activity.insert(QDate(2025, 1, day), (day / 3) % 4 + 1);
+    }
+    auto *heatmap = new CalendarHeatmap(2025, activity, &themes, page);
+    heatmap->setMaximumHeight(155);
+    layout->addWidget(heatmap, 0, Qt::AlignHCenter);
+
+    auto *columns = new QHBoxLayout;
+    columns->setSpacing(12);
+    auto *left = new QVBoxLayout;
+    auto *middle = new QVBoxLayout;
+    auto *right = new QVBoxLayout;
+
+    left->addWidget(new Label(QStringLiteral("RadarChartWidget")));
+    auto *radar = new RadarChartWidget(
+        {QStringLiteral("速度"), QStringLiteral("质量"), QStringLiteral("覆盖"),
+         QStringLiteral("稳定性"), QStringLiteral("体验")},
+        {0.72, 0.86, 1.0, 0.78, 0.68}, {}, 5, &themes);
+    radar->setMinimumSize(260, 220);
+    left->addWidget(radar);
+
+    left->addWidget(new Label(QStringLiteral("TokenCollapsibleSection")));
+    auto *collapsible = new TokenCollapsibleSection(QStringLiteral("展开的示例"), &themes);
+    collapsible->addWidget(new Label(QStringLiteral("内容随主题令牌切换"), collapsible));
+    collapsible->expand();
+    left->addWidget(collapsible);
+
+    middle->addWidget(new Label(QStringLiteral("LazyScrollArea / TokenListWidget")));
+    auto *lazy = new LazyScrollArea(120);
+    lazy->setMinimumHeight(130);
+    lazy->setLoader([](int pageIndex, int) {
+        if (pageIndex > 0) return QList<QWidget *>{};
+        return QList<QWidget *>{new Label(QStringLiteral("懒加载项目 A")),
+                                new Label(QStringLiteral("懒加载项目 B"))};
+    });
+    middle->addWidget(lazy);
+    auto *listWidget = new TokenListWidget;
+    listWidget->addItems({QStringLiteral("列表项目 A"), QStringLiteral("列表项目 B"),
+                          QStringLiteral("列表项目 C")});
+    listWidget->setMaximumHeight(100);
+    middle->addWidget(listWidget);
+
+    middle->addWidget(new Label(QStringLiteral("MakerSelector")));
+    auto *makers = new MakerSelector(
+        {{qint64(1), QStringLiteral("东京热"), QStringLiteral("東京熱"),
+          {QStringLiteral("Tokyo Hot")}},
+         {qint64(2), QStringLiteral("S1"), {}, {QStringLiteral("S1 NO.1")}}});
+    makers->setMaker(qint64(1));
+    middle->addWidget(makers);
+
+    right->addWidget(new Label(QStringLiteral("TokenVLabel / TokenVerticalTabBar")));
+    auto *verticalRow = new QWidget;
+    auto *verticalLayout = new QHBoxLayout(verticalRow);
+    verticalLayout->setContentsMargins(0, 0, 0, 0);
+    verticalLayout->addWidget(new TokenVLabel(QStringLiteral("令牌标签"), &themes));
+    auto *verticalTabs = new TokenVerticalTabBar(&themes);
+    verticalTabs->addTab(QStringLiteral("概览"));
+    verticalTabs->addTab(QStringLiteral("高级"));
+    verticalLayout->addWidget(verticalTabs);
+    right->addWidget(verticalRow);
+
+    right->addWidget(new Label(QStringLiteral("ModernScrollMenu")));
+    auto *menu = new ModernScrollMenu(
+        {{QStringLiteral("第一节"), new Label(QStringLiteral("滚动菜单内容 A"))},
+         {QStringLiteral("第二节"), new Label(QStringLiteral("滚动菜单内容 B"))}});
+    menu->setMinimumHeight(180);
+    right->addWidget(menu);
+
+    columns->addLayout(left, 1);
+    columns->addLayout(middle, 1);
+    columns->addLayout(right, 1);
+    layout->addLayout(columns, 1);
+    return page;
+}
+
 QWidget *buildColorIcons(ThemeService &themes)
 {
     const TwoColumnPage ui = makeTwoColumnPage();
@@ -874,10 +960,14 @@ int main(int argc, char *argv[])
         QStringLiteral("将每个分组保存为 PNG"), QStringLiteral("directory"));
     QCommandLineOption allThemesOption(QStringLiteral("all-themes"),
         QStringLiteral("与 --snapshot-dir 一起使用，输出全部七套主题"));
+    QCommandLineOption customPrimaryOption(QStringLiteral("custom-primary"),
+        QStringLiteral("与 --snapshot-dir 一起使用，额外输出 Light 自定义主色快照"),
+        QStringLiteral("#RRGGBB"));
     QCommandLineOption smokeOption(QStringLiteral("smoke-test"),
         QStringLiteral("构建全部组件页并在短暂事件循环后退出"));
     parser.addOption(snapshotOption);
     parser.addOption(allThemesOption);
+    parser.addOption(customPrimaryOption);
     parser.addOption(smokeOption);
     parser.process(application);
 
@@ -904,6 +994,7 @@ int main(int argc, char *argv[])
         {QStringLiteral("p2_experience"), QStringLiteral("P2 Experience"),
          QStringLiteral("circle_plus")},
         {QStringLiteral("more"), QStringLiteral("更多组件"), QStringLiteral("circle_plus")},
+        {QStringLiteral("advanced"), QStringLiteral("高级组件"), QStringLiteral("chart_line")},
         {QStringLiteral("color_icons"), QStringLiteral("颜色图标"), QStringLiteral("copy")},
         {QStringLiteral("theme"), QStringLiteral("主题"), QStringLiteral("refresh_cw")},
     };
@@ -915,7 +1006,8 @@ int main(int argc, char *argv[])
         QStringLiteral("toggles"),       QStringLiteral("inputs"),
         QStringLiteral("containers"),    QStringLiteral("data-nav"),
         QStringLiteral("p2-experience"), QStringLiteral("more"),
-        QStringLiteral("color-icons"),   QStringLiteral("theme"),
+        QStringLiteral("advanced"),      QStringLiteral("color-icons"),
+        QStringLiteral("theme"),
         QStringLiteral("setting"),
     };
     stack->addWidget(buildButtons(themes));
@@ -926,6 +1018,7 @@ int main(int argc, char *argv[])
     stack->addWidget(buildDataViews(themes));
     stack->addWidget(buildFeedback(themes, &window));
     stack->addWidget(buildVisuals(themes));
+    stack->addWidget(buildAdvanced(themes));
     stack->addWidget(buildColorIcons(themes));
     stack->addWidget(buildThemePage(themes));
     auto *settingsPage = new QWidget;
@@ -961,9 +1054,10 @@ int main(int argc, char *argv[])
     {
         QDir().mkpath(snapshotDirectory);
         const bool captureAllThemes = parser.isSet(allThemesOption);
+        const QString customPrimary = parser.value(customPrimaryOption);
         QTimer::singleShot(300, &application,
                           [&application, &window, stack, &themes, pageIds,
-                           snapshotDirectory, captureAllThemes]
+                           snapshotDirectory, captureAllThemes, customPrimary]
                           {
             const QVector<darkeye::ThemeId> themesToCapture = captureAllThemes
                 ? darkeye::ThemeService::availableThemes()
@@ -976,6 +1070,20 @@ int main(int argc, char *argv[])
                 const QString targetDirectory = captureAllThemes
                     ? QDir(snapshotDirectory).filePath(themeName)
                     : snapshotDirectory;
+                QDir().mkpath(targetDirectory);
+                for (int index = 0; index < stack->count(); ++index)
+                {
+                    stack->setCurrentIndex(index);
+                    QApplication::processEvents();
+                    window.grab().save(QDir(targetDirectory).filePath(
+                        QStringLiteral("component-gallery-%1.png").arg(pageIds.at(index))));
+                }
+            }
+            if (!customPrimary.isEmpty())
+            {
+                themes.setTheme(darkeye::ThemeId::Light, customPrimary);
+                const QString targetDirectory = QDir(snapshotDirectory).filePath(
+                    QStringLiteral("light-custom-primary"));
                 QDir().mkpath(targetDirectory);
                 for (int index = 0; index < stack->count(); ++index)
                 {

@@ -1,0 +1,6 @@
+qt_add_executable(darkeye_graph_view_demo WIN32
+    main.cpp
+)
+target_link_libraries(darkeye_graph_view_demo PRIVATE darkeye::graph_view)
+darkeye_apply_compiler_options(darkeye_graph_view_demo)
+darkeye_configure_packaging(darkeye_graph_view_demo)

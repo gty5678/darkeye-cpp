@@ -21,10 +21,19 @@ target_include_directories(darkeye_business_ui PUBLIC
 )
 target_link_libraries(darkeye_business_ui PUBLIC
     darkeye::core
+    darkeye::settings
     darkeye::database
     darkeye::services
+    darkeye::graph_view
     darkeye::darkeye_ui
     darkeye::docking
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::Quick3D
+    Qt6::QuickWidgets
     Qt6::Widgets
+)
+target_compile_definitions(darkeye_business_ui PRIVATE
+    DARKEYE_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
 )
 darkeye_apply_compiler_options(darkeye_business_ui)

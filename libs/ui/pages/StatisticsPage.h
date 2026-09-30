@@ -8,6 +8,7 @@ namespace darkeye
 {
 
 class PersonalDataPage;
+class PlotTabPage;
 class ThemeService;
 
 class StatisticsPage final : public LazyWidget
@@ -29,6 +30,7 @@ private:
     ThemeService &m_themeService;
     QString m_actressImageDirectory;
     PersonalDataPage *m_personalData = nullptr;
+    PlotTabPage *m_plots = nullptr;
 };
 
 } // namespace darkeye

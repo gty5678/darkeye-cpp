@@ -258,7 +258,10 @@ bool PaneWidget::removeContent(const QString &contentId)
 {
     PaneContent content = takeContent(contentId);
     if (!content.widget) return false;
-    content.widget->deleteLater();
+    // Keep the detached page alive, matching the Python PaneWidget behavior.
+    // Destroying a populated WorkPage here synchronously tears down all of its
+    // cards and cover pixmaps on the GUI thread, which makes closing its tab
+    // noticeably stall the UI.
     if (m_tabBar->count() == 0) emit paneEmpty(this);
     return true;
 }
@@ -333,5 +336,4 @@ void PaneWidget::dragLeaveEvent(QDragLeaveEvent *event)
 }
 
 } // namespace darkeye::myads
-
 

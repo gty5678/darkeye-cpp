@@ -3,10 +3,13 @@
 #include "darkeye_ui/components/DesignButton.h"
 #include "darkeye_ui/components/DesignInput.h"
 #include "darkeye_ui/components/DesignComboBox.h"
+#include "darkeye_ui/components/ColorPicker.h"
+#include "darkeye_ui/components/ColorWheel.h"
 #include "darkeye_ui/components/Pagination.h"
 #include "darkeye_ui/components/RatingSelector.h"
 
 #include <QApplication>
+#include <QSignalSpy>
 #include <QtTest>
 
 class ThemeServiceTest final : public QObject
@@ -14,12 +17,32 @@ class ThemeServiceTest final : public QObject
     Q_OBJECT
 
 private slots:
+    void stateOnlyMethodsDoNotApplyStyleSheet();
     void mapsAllPersistedThemeIds();
     void derivesCustomLightAndDarkTokens();
     void appliesThemeWithoutUnresolvedTokens();
     void initializesCommonComponents();
+    void confirmsColorWhenPickerPopupCloses();
     void exposesCompletePythonTokenMapAndLoader();
 };
+
+void ThemeServiceTest::stateOnlyMethodsDoNotApplyStyleSheet()
+{
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    QVERIFY(application != nullptr);
+    application->setStyleSheet(QStringLiteral("QWidget { padding: 3px; }"));
+
+    darkeye::ThemeService service(*application);
+    QSignalSpy changed(&service, &darkeye::ThemeService::themeChanged);
+    service.setCustomPrimary(QStringLiteral("#336699"));
+    service.setCurrent(darkeye::ThemeId::Dark);
+
+    QCOMPARE(application->styleSheet(), QStringLiteral("QWidget { padding: 3px; }"));
+    QCOMPARE(service.current(), darkeye::ThemeId::Dark);
+    QCOMPARE(service.customPrimary(), QStringLiteral("#336699"));
+    QCOMPARE(service.currentTokens().primary, QStringLiteral("#336699"));
+    QCOMPARE(changed.count(), 1);
+}
 
 void ThemeServiceTest::exposesCompletePythonTokenMapAndLoader()
 {
@@ -98,6 +121,19 @@ void ThemeServiceTest::initializesCommonComponents()
                 ->isEnabled() == false);
 }
 
+void ThemeServiceTest::confirmsColorWhenPickerPopupCloses()
+{
+    darkeye::ColorPicker picker;
+    QSignalSpy confirmed(&picker, &darkeye::ColorPicker::colorConfirmed);
+
+    QTest::mouseClick(&picker, Qt::LeftButton);
+    auto *wheel = picker.findChild<darkeye::ColorWheelSimple *>();
+    QVERIFY(wheel != nullptr);
+    wheel->hide();
+
+    QCOMPARE(confirmed.count(), 1);
+    QCOMPARE(confirmed.at(0).at(0).toString(), picker.color());
+}
+
 QTEST_MAIN(ThemeServiceTest)
 #include "ThemeServiceTest.moc"
-

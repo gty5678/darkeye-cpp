@@ -167,6 +167,19 @@ void PublicRepositoryTest::updatesPersonDetailsAndNameChains()
     QCOMPARE(saved->names.last().japanese, QStringLiteral("旧名"));
     QCOMPARE(saved->notes, QStringLiteral("人物备注"));
 
+    // Editing an existing name must preserve its primary key, just as the
+    // Python ModifyActressPage sends actress_name_id back on submit.  This is
+    // essential when another table holds a reference to the name row.
+    const qint64 primaryNameId = saved->names.first().id;
+    darkeye::PersonDetails renamed = *saved;
+    renamed.names.first().chinese = QStringLiteral("现用名（已修改）");
+    QVERIFY2(people.updateDetails(renamed, &errorMessage), qPrintable(errorMessage));
+    const auto renamedSaved =
+        people.findDetails(darkeye::PersonKind::Actress, *actressId, &errorMessage);
+    QVERIFY2(renamedSaved.has_value(), qPrintable(errorMessage));
+    QCOMPARE(renamedSaved->names.first().id, primaryNameId);
+    QCOMPARE(renamedSaved->names.first().chinese, QStringLiteral("现用名（已修改）"));
+
     QSqlQuery chain(connection.database());
     chain.prepare(
         QStringLiteral("SELECT redirect_actress_name_id FROM actress_name WHERE actress_id=? "
@@ -174,16 +187,16 @@ void PublicRepositoryTest::updatesPersonDetailsAndNameChains()
     chain.addBindValue(*actressId);
     QVERIFY(chain.exec());
     QVERIFY(chain.next());
-    const qint64 headId = saved->names.first().id;
+    const qint64 headId = renamedSaved->names.first().id;
     QVERIFY(chain.value(0).isNull());
     QVERIFY(chain.next());
     QCOMPARE(chain.value(0).toLongLong(), headId);
 
-    darkeye::PersonDetails invalid = *saved;
+    darkeye::PersonDetails invalid = *renamedSaved;
     invalid.names = {{0, {}, {}, {}, {}}};
     QVERIFY(!people.updateDetails(invalid, &errorMessage));
     QCOMPARE(people.findDetails(darkeye::PersonKind::Actress, *actressId)->names.first().chinese,
-             QStringLiteral("现用名"));
+             QStringLiteral("现用名（已修改）"));
 
     const auto actorId = people.create(darkeye::PersonKind::Actor, QStringLiteral("男演员"),
                                        QStringLiteral("男優"), &errorMessage);
@@ -305,6 +318,13 @@ void PublicRepositoryTest::managesTagTypesAliasesAndRedirectsAtomically()
     QCOMPARE(references.listTagTypes().first().id, *poseType);
     QVERIFY2(references.moveTagType(*storyType, -1, &errorMessage), qPrintable(errorMessage));
     QCOMPARE(references.listTagTypes().first().id, *storyType);
+    const auto performerType = references.createTagType(QStringLiteral("演员"), 3, &errorMessage);
+    QVERIFY2(performerType.has_value(), qPrintable(errorMessage));
+    QVERIFY2(references.moveTagType(*storyType, 2, &errorMessage), qPrintable(errorMessage));
+    const QList<darkeye::TagTypeRecord> reorderedTypes = references.listTagTypes();
+    QCOMPARE(reorderedTypes.at(0).id, *poseType);
+    QCOMPARE(reorderedTypes.at(1).id, *performerType);
+    QCOMPARE(reorderedTypes.at(2).id, *storyType);
 
     darkeye::TagRecord source;
     source.name = QStringLiteral("旧标签");

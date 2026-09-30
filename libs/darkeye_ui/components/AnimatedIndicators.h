@@ -59,6 +59,8 @@ public:
     explicit CircularLoading(int size = 32, int strokeWidth = 0,
                              ThemeService *themes = nullptr,
                              QWidget *parent = nullptr);
+    void start();
+    void stop();
     bool isAnimating() const;
 
 protected:

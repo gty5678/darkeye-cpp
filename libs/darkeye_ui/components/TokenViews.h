@@ -8,6 +8,12 @@
 #include <QTableWidget>
 #include <QTreeView>
 
+class QDropEvent;
+class QDragEnterEvent;
+class QDragLeaveEvent;
+class QKeyEvent;
+class QMouseEvent;
+
 namespace darkeye {
 
 class TokenTableView final : public QTableView
@@ -16,11 +22,42 @@ public:
     explicit TokenTableView(QWidget *parent = nullptr);
 };
 
-class TokenTableWidget final : public QTableWidget
+class TokenTableWidget : public QTableWidget
 {
+    Q_OBJECT
+
 public:
     explicit TokenTableWidget(QWidget *parent = nullptr);
     TokenTableWidget(int rows, int columns, QWidget *parent = nullptr);
+
+signals:
+    void addRequested();
+    void deleteRequested();
+    void submitRequested();
+
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
+};
+
+class ReorderableTokenTableWidget final : public TokenTableWidget
+{
+    Q_OBJECT
+
+public:
+    explicit ReorderableTokenTableWidget(QWidget *parent = nullptr);
+
+signals:
+    // Destination is the final row index after the source row is removed.
+    void rowsReordered(int sourceRow, int destinationRow);
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragLeaveEvent(QDragLeaveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
+
+private:
+    int m_draggedRow = -1;
 };
 
 class TreeView : public QTreeView

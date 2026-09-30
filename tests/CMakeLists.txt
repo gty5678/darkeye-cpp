@@ -63,6 +63,15 @@ set_tests_properties(darkeye_myads_demo_smoke PROPERTIES
     ENVIRONMENT_MODIFICATION
         "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}"
 )
+add_test(NAME darkeye_graph_view_demo_smoke
+    COMMAND $<TARGET_FILE:darkeye_graph_view_demo> --smoke-test)
+set_tests_properties(darkeye_graph_view_demo_smoke PROPERTIES
+    ENVIRONMENT
+        "QT_QPA_PLATFORM=windows;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
+    ENVIRONMENT_MODIFICATION
+        "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}"
+    TIMEOUT 10
+)
 add_test(NAME darkeye_component_gallery_smoke
     COMMAND $<TARGET_FILE:darkeye_component_gallery> --smoke-test)
 set_tests_properties(darkeye_component_gallery_smoke PROPERTIES
@@ -82,18 +91,41 @@ darkeye_add_qt_test(darkeye_work_maintenance_tests integration/WorkMaintenanceSe
 darkeye_add_qt_test(darkeye_image_fetch_tests integration/ImageFetchServiceTest.cpp)
 darkeye_add_qt_test(darkeye_collector_client_tests integration/CollectorClientTest.cpp)
 darkeye_add_qt_test(darkeye_work_page_tests integration/WorkPageTest.cpp)
+darkeye_add_qt_test(darkeye_shelf_page_tests integration/ShelfPageTest.cpp)
+darkeye_add_qt_test(darkeye_av_page_tests integration/AvPageTest.cpp)
 darkeye_add_qt_test(darkeye_person_page_tests integration/PersonPageTest.cpp)
 darkeye_add_qt_test(darkeye_private_repository_tests integration/PrivateRepositoryTest.cpp)
 darkeye_add_qt_test(darkeye_personal_record_dialog_tests integration/PersonalRecordDialogTest.cpp)
 darkeye_add_qt_test(darkeye_statistics_repository_tests integration/StatisticsRepositoryTest.cpp)
 darkeye_add_qt_test(darkeye_public_repository_tests integration/PublicRepositoryTest.cpp)
 
-qt_add_executable(darkeye_forceview_physics_tests
-    ../libs/graph/tests/physics_tests.cpp
+qt_add_executable(darkeye_graph_tests
+    ../libs/graph/tests/GraphViewSessionTest.cpp
 )
-target_link_libraries(darkeye_forceview_physics_tests PRIVATE darkeye::graph)
-darkeye_apply_compiler_options(darkeye_forceview_physics_tests)
-add_test(NAME darkeye_forceview_physics_tests COMMAND darkeye_forceview_physics_tests)
+target_link_libraries(darkeye_graph_tests PRIVATE darkeye::graph)
+darkeye_apply_compiler_options(darkeye_graph_tests)
+add_test(NAME darkeye_graph_tests COMMAND darkeye_graph_tests)
+
+qt_add_executable(darkeye_graph_view_physics_tests
+    ../libs/graph_view/tests/physics_tests.cpp
+)
+target_link_libraries(darkeye_graph_view_physics_tests PRIVATE darkeye::graph_view)
+darkeye_apply_compiler_options(darkeye_graph_view_physics_tests)
+add_test(NAME darkeye_graph_view_physics_tests COMMAND darkeye_graph_view_physics_tests)
+
+qt_add_executable(darkeye_graph_page_rendering_tests
+    ../libs/graph_view/tests/GraphPageRenderingTest.cpp
+)
+target_link_libraries(darkeye_graph_page_rendering_tests PRIVATE darkeye::ui Qt6::Test)
+darkeye_apply_compiler_options(darkeye_graph_page_rendering_tests)
+add_test(NAME darkeye_graph_page_rendering_tests COMMAND darkeye_graph_page_rendering_tests)
+set_tests_properties(darkeye_graph_page_rendering_tests PROPERTIES
+    ENVIRONMENT
+        "QT_QPA_PLATFORM=windows;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
+    ENVIRONMENT_MODIFICATION
+        "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}"
+    TIMEOUT 10
+)
 
 target_compile_definitions(darkeye_schema_snapshot_tests PRIVATE
     DARKEYE_SOURCE_DIR="${PROJECT_SOURCE_DIR}"

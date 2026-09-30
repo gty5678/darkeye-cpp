@@ -8,6 +8,7 @@ class DesignLabel : public QLabel
 {
 public:
     explicit DesignLabel(const QString &text = {}, QWidget *parent = nullptr);
+    DesignLabel(const QString &text, const QString &tone, QWidget *parent = nullptr);
 
     void setTone(const QString &tone);
     QString tone() const;

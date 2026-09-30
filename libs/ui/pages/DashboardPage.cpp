@@ -17,7 +17,6 @@ DashboardPage::DashboardPage(QSqlDatabase publicDatabase, QSqlDatabase privateDa
     : LazyWidget(parent), m_publicDatabase(std::move(publicDatabase)),
       m_privateDatabase(std::move(privateDatabase))
 {
-    setObjectName(QStringLiteral("DashboardPage"));
 }
 
 void DashboardPage::lazyLoad()
@@ -30,7 +29,6 @@ void DashboardPage::lazyLoad()
     root->addWidget(m_overview);
 
     auto *recentContainer = new QWidget(this);
-    recentContainer->setObjectName(QStringLiteral("DashboardRecentSection"));
     auto *recentLayout = new QVBoxLayout(recentContainer);
     recentLayout->setContentsMargins(0, 0, 0, 0);
     recentLayout->setSpacing(8);
@@ -40,8 +38,7 @@ void DashboardPage::lazyLoad()
     auto *recentColumns = new QHBoxLayout;
     recentColumns->setSpacing(16);
     const auto addRecentColumn = [recentContainer, recentColumns](const QString &title,
-                                                                  const QStringList &items,
-                                                                  const QString &objectName)
+                                                                  const QStringList &items)
     {
         auto *column = new QWidget(recentContainer);
         auto *layout = new QVBoxLayout(column);
@@ -49,7 +46,6 @@ void DashboardPage::lazyLoad()
         layout->setSpacing(4);
         layout->addWidget(new DesignLabel(title, column));
         auto *list = new QListWidget(column);
-        list->setObjectName(objectName);
         list->setMaximumHeight(200);
         list->addItems(items);
         layout->addWidget(list);
@@ -57,17 +53,14 @@ void DashboardPage::lazyLoad()
     };
     addRecentColumn(QStringLiteral("最近观看 / 最近标记"),
                     {QStringLiteral("（占位）最近看过的一部作品"),
-                     QStringLiteral("（占位）最近看过的另一部作品")},
-                    QStringLiteral("DashboardRecentViewList"));
+                     QStringLiteral("（占位）最近看过的另一部作品")});
     addRecentColumn(QStringLiteral("最近新增"),
                     {QStringLiteral("（占位）最近新增作品"),
-                     QStringLiteral("（占位）最近新增女优")},
-                    QStringLiteral("DashboardRecentAddedList"));
+                     QStringLiteral("（占位）最近新增女优")});
     recentLayout->addLayout(recentColumns);
     root->addWidget(recentContainer);
 
     auto *pendingContainer = new QWidget(this);
-    pendingContainer->setObjectName(QStringLiteral("DashboardPendingSection"));
     auto *pendingLayout = new QVBoxLayout(pendingContainer);
     pendingLayout->setContentsMargins(0, 0, 0, 0);
     pendingLayout->setSpacing(8);
@@ -75,7 +68,6 @@ void DashboardPage::lazyLoad()
     pendingHeading->setObjectName(QStringLiteral("dashboard_section_title"));
     pendingLayout->addWidget(pendingHeading);
     auto *pending = new QListWidget(pendingContainer);
-    pending->setObjectName(QStringLiteral("DashboardPendingList"));
     pending->setMaximumHeight(140);
     pending->addItems({QStringLiteral("（占位）12 部作品没有封面"),
                        QStringLiteral("（占位）8 部作品未绑定女优")});

@@ -6,6 +6,7 @@
 #include <QEvent>
 #include <QFont>
 #include <QMouseEvent>
+#include <QTimer>
 #include <QVBoxLayout>
 
 namespace darkeye
@@ -19,8 +20,6 @@ PersonCard::PersonCard(qint64 personId, const QString &name, const QString &imag
 {
     setObjectName(QStringLiteral("PersonCard"));
     setFixedWidth(150);
-    setCursor(Qt::PointingHandCursor);
-    setFocusPolicy(Qt::StrongFocus);
     setAccessibleName(name);
 
     m_avatar->setObjectName(QStringLiteral("PersonCardAvatar"));
@@ -38,7 +37,6 @@ PersonCard::PersonCard(qint64 personId, const QString &name, const QString &imag
     layout->addWidget(m_avatar);
     layout->addWidget(m_nameLabel, 0, Qt::AlignCenter);
 
-    installEventFilter(this);
     m_avatar->installEventFilter(this);
 }
 
@@ -67,8 +65,18 @@ void PersonCard::updateData(qint64 personId, const QString &name, const QString 
 
 bool PersonCard::eventFilter(QObject *watched, QEvent *event)
 {
-    if ((watched == this || watched == m_avatar) &&
-        event->type() == QEvent::MouseButtonRelease)
+    if (watched == m_avatar
+        && (event->type() == QEvent::ContextMenu
+            || (event->type() == QEvent::MouseButtonPress
+                && static_cast<QMouseEvent *>(event)->button() == Qt::RightButton)))
+    {
+        // The edit action is handled on release below.  Consume the matching
+        // press and context-menu event so it cannot bubble into a widget behind
+        // the avatar and open an unrelated menu.
+        event->accept();
+        return true;
+    }
+    if (watched == m_avatar && event->type() == QEvent::MouseButtonRelease)
     {
         const auto *mouseEvent = static_cast<QMouseEvent *>(event);
         if (mouseEvent->button() == Qt::LeftButton)
@@ -78,7 +86,11 @@ bool PersonCard::eventFilter(QObject *watched, QEvent *event)
         }
         if (mouseEvent->button() == Qt::RightButton)
         {
-            emit editRequested(m_personId);
+            // Windows sends QContextMenuEvent after the right-button release.
+            // Match the Python implementation and navigate on the next event
+            // turn, so that event is consumed by the avatar first.
+            const qint64 personId = m_personId;
+            QTimer::singleShot(0, this, [this, personId] { emit editRequested(personId); });
             return true;
         }
     }
@@ -86,4 +98,3 @@ bool PersonCard::eventFilter(QObject *watched, QEvent *event)
 }
 
 } // namespace darkeye
-

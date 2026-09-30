@@ -16,12 +16,15 @@ bool LazyWidget::isInitialized() const noexcept
 
 void LazyWidget::initialize()
 {
-    if (m_initialized)
+    if (m_initialized || m_initializing)
     {
         return;
     }
+
+    m_initializing = true;
     lazyLoad();
     m_initialized = true;
+    m_initializing = false;
 }
 
 void LazyWidget::showEvent(QShowEvent *event)

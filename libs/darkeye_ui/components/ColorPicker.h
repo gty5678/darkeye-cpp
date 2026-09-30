@@ -18,6 +18,7 @@ public:
                          bool showText = true, Shape shape = Shape::Rectangle,
                          QWidget *parent = nullptr);
     QString color() const;
+    QString getColor() const { return color(); }
     void setColor(const QString &color);
     void setShowText(bool show);
     void setShape(Shape shape);
@@ -29,6 +30,7 @@ signals:
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     void updateDisplay();

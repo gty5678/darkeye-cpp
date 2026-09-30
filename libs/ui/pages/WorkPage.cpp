@@ -10,44 +10,60 @@
 #include "darkeye_ui/components/LazyScrollArea.h"
 #include "darkeye_ui/components/ToastNotification.h"
 #include "darkeye_ui/components/TokenControls.h"
-#include "darkeye_ui/components/TokenViews.h"
+#include "database/SqliteConnection.h"
+#include "database/repositories/PersonRepository.h"
 #include "ui/components/WorkCard.h"
-#include "ui/components/WorkEditorWidget.h"
 #include "ui/components/WorkTagSelector.h"
 
 #include <QAbstractItemView>
 #include <QComboBox>
-#include <QDialog>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMetaObject>
+#include <QPointer>
 #include <QRandomGenerator>
 #include <QScrollArea>
 #include <QSignalBlocker>
-#include <QTableWidget>
-#include <QTableWidgetItem>
+#include <QThreadPool>
 #include <QTimer>
+#include <QVector>
 #include <QVBoxLayout>
+#include <algorithm>
+#include <functional>
+#include <memory>
 
 namespace darkeye
 {
-WorkPage::WorkPage(QSqlDatabase database, ThemeService &themeService, Settings &settings,
+namespace
+{
+const QString initialDefaultTagName = QStringLiteral("绿色封面");
+
+struct CoverBatchState final
+{
+    int pendingVisible = 0;
+    bool deferredReleased = false;
+    QList<QPointer<WorkCard>> deferredCards;
+};
+}
+
+WorkPage::WorkPage(QSqlDatabase database, ThemeService &themeService,
                    QString coverDirectory, QSqlDatabase privateDatabase, QString fanartDirectory,
                    QUrl imageFetchEndpoint, QWidget *parent)
-    : LazyWidget(parent), m_themeService(themeService), m_settings(settings), m_database(database),
-      m_repository(std::move(database)), m_privateRepository(std::move(privateDatabase)),
+    : LazyWidget(parent), m_themeService(themeService), m_database(database),
+      m_privateDatabase(privateDatabase), m_repository(std::move(database)),
+      m_privateRepository(std::move(privateDatabase)),
       m_coverDirectory(std::move(coverDirectory)), m_fanartDirectory(std::move(fanartDirectory)),
       m_imageFetchEndpoint(std::move(imageFetchEndpoint))
 {
-    setObjectName(QStringLiteral("WorkPage"));
 }
 
 void WorkPage::lazyLoad()
 {
     m_randomSeed = QRandomGenerator::global()->bounded(1, 1'000'001);
     m_randomSeed2 = QRandomGenerator::global()->bounded(1, 1'000'001);
-    const AppSettings appSettings = m_settings.app();
+    const AppSettings appSettings = settings::app();
     m_largeCoverView = appSettings.workLargeCoverView;
     m_tagPanelVisible = appSettings.workTagSelectorVisible;
     buildUi();
@@ -58,6 +74,7 @@ void WorkPage::lazyLoad()
 
 void WorkPage::buildUi()
 {
+    setObjectName(QStringLiteral("WorkPage"));
     auto *root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
     // Python WorkPage keeps Qt's six-pixel spacing between the 44px filter bar
@@ -65,7 +82,7 @@ void WorkPage::buildUi()
     root->setSpacing(6);
 
     auto *filterBar = new QWidget(this);
-
+    filterBar->setObjectName(QStringLiteral("WorkFilterBar"));
     filterBar->setFixedHeight(44);
     auto *filterBarLayout = new QHBoxLayout(filterBar);
     filterBarLayout->setContentsMargins(10, 0, 10, 0);
@@ -74,13 +91,16 @@ void WorkPage::buildUi()
     m_tagPanelButton = new IconButton(m_tagPanelVisible ? QStringLiteral("panel_left_close")
                                                         : QStringLiteral("panel_left_open"),
                                       &m_themeService, filterBar);
+    m_tagPanelButton->setProperty("workControlId", QStringLiteral("WorkTagPanelButton"));
+    m_tagPanelButton->setIconPixelSize(22);
+    m_tagPanelButton->setButtonPixelSize(28);
 
     m_tagPanelButton->setToolTip(m_tagPanelVisible ? QStringLiteral("隐藏标签筛选栏")
                                                    : QStringLiteral("显示标签筛选栏"));
     filterBarLayout->addWidget(m_tagPanelButton);
 
     auto *filterScroll = new QScrollArea(filterBar);
-
+    filterScroll->setObjectName(QStringLiteral("WorkFilterScrollArea"));
     filterScroll->setWidgetResizable(true);
     filterScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     filterScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -99,24 +119,53 @@ void WorkPage::buildUi()
         input->setFixedWidth(width);
         filters->addWidget(input);
     };
-    const QStringList serialSuggestions = m_repository.serialSuggestions();
-    const QStringList actressSuggestions = m_repository.actressSuggestions();
-    const QStringList directorSuggestions = m_repository.directorSuggestions();
-    const QStringList actorSuggestions = m_repository.actorSuggestions();
-    m_serialFilter =
-        new CompleterLineEdit([serialSuggestions] { return serialSuggestions; }, filterContent);
-    m_actressFilter =
-        new CompleterLineEdit([actressSuggestions] { return actressSuggestions; }, filterContent);
+    const QString databasePath = m_database.databaseName();
+    const auto loadSuggestions = [databasePath](auto query)
+    {
+        SqliteConnection connection;
+        QString errorMessage;
+        if (!connection.open(databasePath, true, &errorMessage))
+        {
+            qWarning() << "WorkPage completion data load failed:" << errorMessage;
+            return QStringList{};
+        }
+        WorkRepository repository(connection.database());
+        return std::invoke(query, repository);
+    };
+    QList<TagOption> tagOptions;
+    QString initialLoadError;
+    {
+        SqliteConnection connection;
+        if (connection.open(m_database.databaseName(), true, &initialLoadError))
+        {
+            WorkRepository repository(connection.database());
+            tagOptions = repository.tagOptions();
+        }
+    }
+    if (!initialLoadError.isEmpty())
+        qWarning() << "WorkPage initial filter data load failed:" << initialLoadError;
+    m_serialFilter = new CompleterLineEdit(
+        [loadSuggestions]
+        { return loadSuggestions(&WorkRepository::serialSuggestions); }, filterContent);
+    m_serialFilter->setProperty("workControlId", QStringLiteral("WorkSerialFilter"));
+    m_actressFilter = new CompleterLineEdit(
+        [loadSuggestions]
+        { return loadSuggestions(&WorkRepository::actressSuggestions); }, filterContent);
+    m_actressFilter->setProperty("workControlId", QStringLiteral("WorkActressFilter"));
     m_titleFilter = new DesignLineEdit(filterContent);
-
+    m_titleFilter->setProperty("workControlId", QStringLiteral("WorkTitleFilter"));
     m_searchInput = new DesignLineEdit(filterContent);
-
+    m_searchInput->setProperty("workControlId", QStringLiteral("WorkNotesFilter"));
     m_storyFilter = new DesignLineEdit(filterContent);
-
-    m_directorFilter =
-        new CompleterLineEdit([directorSuggestions] { return directorSuggestions; }, filterContent);
-    m_actorFilter =
-        new CompleterLineEdit([actorSuggestions] { return actorSuggestions; }, filterContent);
+    m_storyFilter->setProperty("workControlId", QStringLiteral("WorkStoryFilter"));
+    m_directorFilter = new CompleterLineEdit(
+        [loadSuggestions]
+        { return loadSuggestions(&WorkRepository::directorSuggestions); }, filterContent);
+    m_directorFilter->setProperty("workControlId", QStringLiteral("WorkDirectorFilter"));
+    m_actorFilter = new CompleterLineEdit(
+        [loadSuggestions]
+        { return loadSuggestions(&WorkRepository::actorSuggestions); }, filterContent);
+    m_actorFilter->setProperty("workControlId", QStringLiteral("WorkActorFilter"));
     const auto addComboFilter =
         [filters, filterContent](const QString &label, QComboBox *combo, int width)
     {
@@ -134,22 +183,15 @@ void WorkPage::buildUi()
     addFilter(QStringLiteral("导演"), m_directorFilter, 150);
     addFilter(QStringLiteral("男优"), m_actorFilter, 120);
     m_makerFilter = new DesignComboBox(filterContent);
-
+    m_makerFilter->setProperty("workControlId", QStringLiteral("WorkMakerFilter"));
     m_labelFilter = new DesignComboBox(filterContent);
-
+    m_labelFilter->setProperty("workControlId", QStringLiteral("WorkLabelFilter"));
     m_seriesFilter = new DesignComboBox(filterContent);
-
+    m_seriesFilter->setProperty("workControlId", QStringLiteral("WorkSeriesFilter"));
     for (auto *combo : {m_makerFilter, m_labelFilter, m_seriesFilter})
     {
         combo->addItem(QString());
     }
-    const auto addOptions = [](QComboBox *combo, const QList<NamedIdOption> &options)
-    {
-        for (const NamedIdOption &option : options) combo->addItem(option.name, option.id);
-    };
-    addOptions(m_makerFilter, m_repository.makerOptions());
-    addOptions(m_labelFilter, m_repository.labelOptions());
-    addOptions(m_seriesFilter, m_repository.seriesOptions());
     addComboFilter(QStringLiteral("片商"), m_makerFilter, 160);
     addComboFilter(QStringLiteral("厂牌"), m_labelFilter, 160);
     addComboFilter(QStringLiteral("系列"), m_seriesFilter, 160);
@@ -158,18 +200,23 @@ void WorkPage::buildUi()
 
     auto *refreshButton = new RotateButton(QStringLiteral("refresh_cw"), &m_themeService,
                                            filterBar);
-
+    refreshButton->setProperty("workControlId", QStringLiteral("WorkRefreshButton"));
+    refreshButton->setIconPixelSize(24);
+    refreshButton->setButtonPixelSize(24);
     refreshButton->setToolTip(QStringLiteral("刷新作品"));
 
     auto *clearButton = new ShakeButton(QStringLiteral("eraser"), &m_themeService, filterBar);
+    clearButton->setProperty("workControlId", QStringLiteral("WorkClearButton"));
+    clearButton->setIconPixelSize(24);
+    clearButton->setButtonPixelSize(24);
     clearButton->setToolTip(QStringLiteral("清空筛选"));
 
     m_countLabel = new DesignLabel({}, filterBar);
-
+    m_countLabel->setProperty("workControlId", QStringLiteral("WorkCountLabel"));
     m_countLabel->setFixedWidth(100);
 
     m_sortSelector = new DesignComboBox(filterBar);
-
+    m_sortSelector->setProperty("workControlId", QStringLiteral("WorkSortSelector"));
     m_sortSelector->addItem(QStringLiteral("随机顺序"), static_cast<int>(WorkSortOrder::Random));
     m_sortSelector->addItem(QStringLiteral("添加逆序"),
                             static_cast<int>(WorkSortOrder::CreatedDescending));
@@ -183,10 +230,10 @@ void WorkPage::buildUi()
                             static_cast<int>(WorkSortOrder::MakerAscending));
     m_sortSelector->addItem(QStringLiteral("制作商逆序"),
                             static_cast<int>(WorkSortOrder::MakerDescending));
-    m_sortSelector->addItem(QStringLiteral("更新时间逆序"),
-                            static_cast<int>(WorkSortOrder::UpdatedDescending));
     m_sortSelector->addItem(QStringLiteral("更新时间顺序"),
                             static_cast<int>(WorkSortOrder::UpdatedAscending));
+    m_sortSelector->addItem(QStringLiteral("更新时间逆序"),
+                            static_cast<int>(WorkSortOrder::UpdatedDescending));
     m_sortSelector->addItem(QStringLiteral("发布时间逆序"),
                             static_cast<int>(WorkSortOrder::ReleaseDateDescending));
     m_sortSelector->addItem(QStringLiteral("发布时间顺序"),
@@ -198,25 +245,40 @@ void WorkPage::buildUi()
     m_sortSelector->setCurrentIndex(1);
 
     m_scopeSelector = new DesignComboBox(filterBar);
-
+    m_scopeSelector->setProperty("workControlId", QStringLiteral("WorkScopeSelector"));
     m_scopeSelector->addItems({QStringLiteral("公共库范围"), QStringLiteral("收藏库范围"),
                                QStringLiteral("收藏未观看"), QStringLiteral("已撸过")});
     m_scopeSelector->setCurrentIndex(0);
     m_scopeSelector->setToolTip(QStringLiteral("选择公共库、收藏或观看记录范围"));
     m_viewButton = new IconButton(m_largeCoverView ? QStringLiteral("layout_grid")
                                                    : QStringLiteral("layout_waterfall"),
-                                  &m_themeService, filterBar);
+                                   &m_themeService, filterBar);
+    m_viewButton->setProperty("workControlId", QStringLiteral("WorkCoverViewButton"));
+    m_viewButton->setIconPixelSize(22);
+    m_viewButton->setButtonPixelSize(28);
 
     m_viewButton->setToolTip(m_largeCoverView
                                  ? QStringLiteral("当前：大图卡片视图，点击切换为标准瀑布流")
                                  : QStringLiteral("当前：标准卡片视图，点击切换为大图卡片"));
 
-    filterBarLayout->addWidget(refreshButton);
-    filterBarLayout->addWidget(clearButton);
-    filterBarLayout->addWidget(m_countLabel);
-    filterBarLayout->addWidget(m_scopeSelector);
-    filterBarLayout->addWidget(m_sortSelector);
-    filterBarLayout->addWidget(m_viewButton);
+    // Keep all commands and result metadata in an explicit trailing group.
+    // This mirrors the Python toolbar and remains right-aligned even when
+    // the scrolling filter area has no surplus width.
+    auto *trailingControls = new QWidget(filterBar);
+    auto *trailingLayout = new QHBoxLayout(trailingControls);
+    trailingLayout->setContentsMargins(0, 0, 0, 0);
+    trailingLayout->setSpacing(6);
+    for (QWidget *control : {static_cast<QWidget *>(refreshButton),
+                             static_cast<QWidget *>(clearButton),
+                             static_cast<QWidget *>(m_countLabel),
+                             static_cast<QWidget *>(m_scopeSelector),
+                             static_cast<QWidget *>(m_sortSelector),
+                             static_cast<QWidget *>(m_viewButton)})
+    {
+        control->setParent(trailingControls);
+        trailingLayout->addWidget(control);
+    }
+    filterBarLayout->addWidget(trailingControls, 0, Qt::AlignRight | Qt::AlignVCenter);
     root->addWidget(filterBar);
 
     m_lazyArea = new LazyScrollArea(m_largeCoverView ? 250 : 220, this);
@@ -225,27 +287,41 @@ void WorkPage::buildUi()
     body->setContentsMargins(0, 0, 0, 0);
     body->setSpacing(0);
     m_tagPanel = new QWidget(this);
-
+    m_tagPanel->setObjectName(QStringLiteral("WorkTagPanel"));
     auto *tagLayout = new QHBoxLayout(m_tagPanel);
     tagLayout->setContentsMargins(0, 0, 0, 0);
-    m_tagSelector = new WorkTagSelector(m_repository.tagOptions(), &m_themeService, m_tagPanel);
-    m_tagSelector->setLoader([this] { return m_repository.tagOptions(); });
-    tagLayout->addWidget(m_tagSelector);
+    m_tagSelector = new WorkTagSelector(tagOptions, &m_themeService, m_tagPanel);
+    m_tagSelector->setSelectedColumnWidth(84);
+    applyInitialDefaultTagFilter(tagOptions);
+    m_tagSelector->setLoader(
+        [this]
+        {
+            SqliteConnection connection;
+            QString errorMessage;
+            if (!connection.open(m_database.databaseName(), true, &errorMessage))
+            {
+                qWarning() << "WorkPage tag load failed:" << errorMessage;
+                return QList<TagOption>{};
+            }
+            WorkRepository repository(connection.database());
+            return repository.tagOptions();
+        });
+    tagLayout->addWidget(m_tagSelector, 0, Qt::AlignLeft);
     m_tagPanel->setVisible(m_tagPanelVisible);
     body->addWidget(m_tagPanel);
     body->addWidget(m_lazyArea, 1);
     root->addLayout(body, 1);
 
-    m_table = new TokenTableWidget(0, 4, this);
-
-    m_table->hide();
-    buildEditor();
-
     connect(refreshButton, &QPushButton::clicked, this,
             [this]
             {
-                m_randomSeed = QRandomGenerator::global()->generate();
-                m_randomSeed2 = QRandomGenerator::global()->generate();
+                // Python only re-seeds when the active order is random.  A
+                // normal refresh must keep the current deterministic order.
+                if (selectedSortOrder() == WorkSortOrder::Random)
+                {
+                    m_randomSeed = QRandomGenerator::global()->bounded(1, 1'000'001);
+                    m_randomSeed2 = QRandomGenerator::global()->bounded(1, 1'000'001);
+                }
                 applyFilters();
             });
     connect(
@@ -258,9 +334,9 @@ void WorkPage::buildUi()
                                                             : QStringLiteral("panel_left_open"));
             m_tagPanelButton->setToolTip(m_tagPanelVisible ? QStringLiteral("隐藏标签筛选栏")
                                                            : QStringLiteral("显示标签筛选栏"));
-            AppSettings settings = m_settings.app();
-            settings.workTagSelectorVisible = m_tagPanelVisible;
-            m_settings.saveApp(settings);
+            AppSettings appSettings = settings::app();
+            appSettings.workTagSelectorVisible = m_tagPanelVisible;
+            settings::saveApp(appSettings);
         });
     connect(clearButton, &QPushButton::clicked, this, &WorkPage::clearFilters);
 
@@ -285,10 +361,68 @@ void WorkPage::buildUi()
     }
     connect(m_tagSelector, &WorkTagSelector::selectionChanged, m_filterTimer,
             qOverload<>(&QTimer::start));
-    connect(m_sortSelector, &QComboBox::currentIndexChanged, this, [this](int) { applyFilters(); });
-    connect(m_scopeSelector, &QComboBox::currentIndexChanged, this,
-            [this](int) { applyFilters(); });
-    connect(m_table, &QTableWidget::itemSelectionChanged, this, &WorkPage::loadSelectedWork);
+    connect(m_sortSelector, &QComboBox::currentIndexChanged, m_filterTimer,
+            qOverload<>(&QTimer::start));
+    connect(m_scopeSelector, &QComboBox::currentIndexChanged, m_filterTimer,
+            qOverload<>(&QTimer::start));
+    loadReferenceOptionsAsync();
+}
+
+void WorkPage::applyInitialDefaultTagFilter(const QList<TagOption> &tags)
+{
+    const auto tag = std::find_if(tags.cbegin(), tags.cend(), [](const TagOption &option)
+    {
+        return option.name == initialDefaultTagName;
+    });
+    if (tag != tags.cend())
+        m_tagSelector->setSelectedIds({tag->id});
+}
+
+void WorkPage::loadReferenceOptionsAsync()
+{
+    const QString databasePath = m_database.databaseName();
+    QPointer<WorkPage> guard(this);
+    QThreadPool::globalInstance()->start(
+        [guard, databasePath]
+        {
+            SqliteConnection connection;
+            QString errorMessage;
+            if (!connection.open(databasePath, true, &errorMessage))
+            {
+                qWarning() << "WorkPage reference data load failed:" << errorMessage;
+                return;
+            }
+            WorkRepository repository(connection.database());
+            const QList<NamedIdOption> makers = repository.makerOptions();
+            const QList<NamedIdOption> labels = repository.labelOptions();
+            const QList<NamedIdOption> series = repository.seriesOptions();
+            if (guard.isNull())
+                return;
+            QMetaObject::invokeMethod(
+                guard,
+                [guard, makers, labels, series]
+                {
+                    if (guard.isNull())
+                        return;
+                    const auto populate = [](QComboBox *combo,
+                                             const QList<NamedIdOption> &options)
+                    {
+                        const QVariant selected = combo->currentData();
+                        const QSignalBlocker comboBlocker(combo);
+                        const QSignalBlocker editBlocker(combo->lineEdit());
+                        combo->clear();
+                        combo->addItem(QString());
+                        for (const NamedIdOption &option : options)
+                            combo->addItem(option.name, option.id);
+                        const int index = combo->findData(selected);
+                        combo->setCurrentIndex(index >= 0 ? index : 0);
+                    };
+                    populate(guard->m_makerFilter, makers);
+                    populate(guard->m_labelFilter, labels);
+                    populate(guard->m_seriesFilter, series);
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 void WorkPage::applyFilters()
@@ -326,27 +460,10 @@ void WorkPage::toggleCoverSize()
     m_viewButton->setToolTip(m_largeCoverView
                                  ? QStringLiteral("当前：大图卡片视图，点击切换为标准瀑布流")
                                  : QStringLiteral("当前：标准卡片视图，点击切换为大图卡片"));
-    AppSettings settings = m_settings.app();
-    settings.workLargeCoverView = m_largeCoverView;
-    m_settings.saveApp(settings);
+    AppSettings appSettings = settings::app();
+    appSettings.workLargeCoverView = m_largeCoverView;
+    settings::saveApp(appSettings);
     refresh();
-}
-
-void WorkPage::buildEditor()
-{
-    m_editorDialog = new QDialog(this);
-
-    m_editorDialog->setWindowTitle(QStringLiteral("修改作品"));
-    m_editorDialog->setWindowModality(Qt::NonModal);
-    m_editorDialog->resize(620, 900);
-    auto *layout = new QVBoxLayout(m_editorDialog);
-    layout->setContentsMargins(0, 0, 0, 0);
-    m_editor = new WorkEditorWidget(m_database, m_themeService, m_coverDirectory, m_fanartDirectory,
-                                    m_imageFetchEndpoint, m_editorDialog);
-    layout->addWidget(m_editor);
-    connect(m_editor, &WorkEditorWidget::workSaved, this, [this](qint64, bool) { refresh(); });
-    connect(m_editor, &WorkEditorWidget::workLinkRequested,
-            this, &WorkPage::detailRequested);
 }
 
 void WorkPage::refresh()
@@ -358,26 +475,71 @@ void WorkPage::refresh()
 void WorkPage::refreshData()
 {
     QString errorMessage;
-    const std::optional<int> total = m_repository.count(currentSearch(), &errorMessage);
-    if (!total.has_value())
+    SqliteConnection connection;
+    if (!connection.open(m_database.databaseName(), true, &errorMessage))
     {
-        ToastNotification::showMessage(window(),
-                                       QStringLiteral("统计作品失败：%1").arg(errorMessage),
-                                       ToastNotification::Level::Error, 4000, &m_themeService);
+        const QString message = errorMessage.isEmpty() ? QStringLiteral("无法打开只读数据库")
+                                                       : errorMessage;
+        if (message != m_lastCountError)
+        {
+            ToastNotification::showMessage(
+                window(), QStringLiteral("统计作品失败：%1").arg(message),
+                ToastNotification::Level::Error, 4000, &m_themeService);
+            m_lastCountError = message;
+        }
         return;
     }
+
+    WorkRepository repository(connection.database());
+    const std::optional<int> total = repository.count(currentSearch(), &errorMessage);
+    if (!total.has_value())
+    {
+        const QString message = errorMessage.isEmpty() ? QStringLiteral("未知数据库错误")
+                                                       : errorMessage;
+        if (message != m_lastCountError)
+        {
+            ToastNotification::showMessage(
+                window(), QStringLiteral("统计作品失败：%1").arg(message),
+                ToastNotification::Level::Error, 4000, &m_themeService);
+            m_lastCountError = message;
+        }
+        return;
+    }
+    m_lastCountError.clear();
     m_countLabel->setText(QStringLiteral("过滤总数:%1").arg(*total));
     qInfo() << "WorkPage query returned" << *total << "rows";
     m_lazyArea->reset();
-    if (*total == 0)
-    {
-        m_table->setRowCount(0);
-    }
+}
+
+void WorkPage::focusSearch()
+{
+    initialize();
+    if (m_searchInput == nullptr)
+        return;
+    m_searchInput->setFocus(Qt::ShortcutFocusReason);
+    m_searchInput->selectAll();
+}
+
+QWidget *WorkPage::captureContent()
+{
+    initialize();
+    if (m_lazyArea == nullptr)
+        return nullptr;
+    return m_lazyArea->widget();
 }
 
 void WorkPage::refreshReferences()
 {
     initialize();
+    QString errorMessage;
+    SqliteConnection connection;
+    if (!connection.open(m_database.databaseName(), true, &errorMessage))
+    {
+        ToastNotification::showMessage(window(), QStringLiteral("刷新筛选项失败：%1").arg(errorMessage),
+                                       ToastNotification::Level::Error, 4000, &m_themeService);
+        return;
+    }
+    WorkRepository repository(connection.database());
     const auto repopulate = [](QComboBox *combo, const QList<NamedIdOption> &items)
     {
         const QVariant selected = combo->currentData();
@@ -388,10 +550,9 @@ void WorkPage::refreshReferences()
         const int index = combo->findData(selected);
         combo->setCurrentIndex(index >= 0 ? index : 0);
     };
-    repopulate(m_makerFilter, m_repository.makerOptions());
-    repopulate(m_labelFilter, m_repository.labelOptions());
-    repopulate(m_seriesFilter, m_repository.seriesOptions());
-    m_editor->refreshReferences();
+    repopulate(m_makerFilter, repository.makerOptions());
+    repopulate(m_labelFilter, repository.labelOptions());
+    repopulate(m_seriesFilter, repository.seriesOptions());
     refresh();
 }
 
@@ -399,17 +560,25 @@ void WorkPage::refreshTags()
 {
     initialize();
     m_tagSelector->reloadTags();
-    m_editor->refreshAssociations();
     refresh();
 }
 
 QList<QWidget *> WorkPage::loadCardPage(int pageIndex, int pageSize)
 {
     QString errorMessage;
+    SqliteConnection connection;
+    if (!connection.open(m_database.databaseName(), true, &errorMessage))
+    {
+        ToastNotification::showMessage(window(),
+                                       QStringLiteral("加载作品失败：%1").arg(errorMessage),
+                                       ToastNotification::Level::Error, 4000, &m_themeService);
+        return {};
+    }
     WorkSearch search = currentSearch();
     search.limit = pageSize;
     search.offset = pageIndex * pageSize;
-    const QList<WorkSummary> works = m_repository.search(search, &errorMessage);
+    WorkRepository repository(connection.database());
+    const QList<WorkSummary> works = repository.search(search, &errorMessage);
     if (!errorMessage.isEmpty())
     {
         ToastNotification::showMessage(window(),
@@ -418,38 +587,76 @@ QList<QWidget *> WorkPage::loadCardPage(int pageIndex, int pageSize)
         return {};
     }
 
-    if (pageIndex == 0)
-    {
-        m_table->setRowCount(0);
-    }
     QList<QWidget *> cards;
     cards.reserve(works.size());
+    QList<WorkCard *> workCards;
+    workCards.reserve(works.size());
+    const bool greenMode = settings::app().greenMode;
     for (const WorkSummary &work : works)
     {
-        const int row = m_table->rowCount();
-        m_table->insertRow(row);
-        auto *serialItem = new QTableWidgetItem(work.serialNumber);
-        serialItem->setData(Qt::UserRole, work.id);
-        m_table->setItem(row, 0, serialItem);
-        m_table->setItem(row, 1, new QTableWidgetItem(work.chineseTitle));
-        m_table->setItem(row, 2, new QTableWidgetItem(work.releaseDate));
-        m_table->setItem(row, 3, new QTableWidgetItem(work.director));
-        auto *card = new WorkCard(work, m_coverDirectory, m_largeCoverView);
+        auto *card = new WorkCard(work, m_coverDirectory, m_largeCoverView, nullptr,
+                                  greenMode, true);
         connect(card, &WorkCard::activated, this, &WorkPage::showWorkDetails);
         connect(card, &WorkCard::editRequested, this, &WorkPage::loadWork);
         cards.append(card);
+        workCards.append(card);
     }
-    return cards;
-}
 
-void WorkPage::loadSelectedWork()
-{
-    const int row = m_table->currentRow();
-    if (row < 0 || m_table->item(row, 0) == nullptr)
+    const int columnWidth = m_largeCoverView ? 250 : 220;
+    int viewportWidth = m_lazyArea->viewport()->width();
+    int viewportHeight = m_lazyArea->viewport()->height();
+    if (viewportWidth < columnWidth)
+        viewportWidth = qMax(columnWidth, width() - (m_tagPanelVisible ? 108 : 0));
+    if (viewportHeight < 100)
+        viewportHeight = qMax(600, height() - 50);
+    constexpr int spacing = 10;
+    constexpr int topMargin = 5;
+    const int columns = qMax(1, (viewportWidth + spacing) / (columnWidth + spacing));
+    QVector<int> heights(columns, topMargin);
+    QList<WorkCard *> visibleCards;
+    QList<WorkCard *> deferredCards;
+    const int priorityExtent = viewportHeight + 300;
+    for (WorkCard *card : std::as_const(workCards))
     {
-        return;
+        int column = 0;
+        for (int index = 1; index < heights.size(); ++index)
+            if (heights.at(index) < heights.at(column))
+                column = index;
+        if (heights.at(column) < priorityExtent)
+            visibleCards.append(card);
+        else
+            deferredCards.append(card);
+        heights[column] += card->sizeHint().height() + spacing;
     }
-    loadWork(m_table->item(row, 0)->data(Qt::UserRole).toLongLong());
+
+    auto batch = std::make_shared<CoverBatchState>();
+    batch->pendingVisible = visibleCards.size();
+    for (WorkCard *card : std::as_const(deferredCards))
+        batch->deferredCards.append(card);
+    const auto releaseDeferred = [batch]
+    {
+        if (batch->deferredReleased)
+            return;
+        batch->deferredReleased = true;
+        for (const QPointer<WorkCard> &card : std::as_const(batch->deferredCards))
+            if (card)
+                card->startCoverLoad(-10);
+    };
+    for (WorkCard *card : std::as_const(visibleCards))
+        connect(card, &WorkCard::coverLoadFinished, this, [batch, releaseDeferred]
+        {
+            if (batch->deferredReleased || batch->pendingVisible <= 0)
+                return;
+            if (--batch->pendingVisible == 0)
+                releaseDeferred();
+        });
+    if (visibleCards.isEmpty())
+        releaseDeferred();
+    else
+        for (WorkCard *card : std::as_const(visibleCards))
+            card->startCoverLoad(100);
+    QTimer::singleShot(180, this, releaseDeferred);
+    return cards;
 }
 
 void WorkPage::showWorkDetails(qint64 workId)
@@ -465,23 +672,48 @@ void WorkPage::openEditor(qint64 workId)
 
 void WorkPage::loadWork(qint64 workId)
 {
-    if (!m_editor->loadWork(workId))
-        return;
-    m_editorDialog->setWindowTitle(
-        QStringLiteral("修改作品 · %1").arg(m_editor->currentSerialNumber()));
-    m_editorDialog->show();
-    m_editorDialog->raise();
-    m_editorDialog->activateWindow();
+    emit editRequested(workId);
 }
 
 void WorkPage::openCreateEditor()
 {
     initialize();
-    m_editor->beginCreate();
-    m_editorDialog->setWindowTitle(QStringLiteral("新增作品"));
-    m_editorDialog->show();
-    m_editorDialog->raise();
-    m_editorDialog->activateWindow();
+    emit createRequested();
+}
+
+void WorkPage::filterByActor(qint64 actorId)
+{
+    if (actorId <= 0) return;
+    initialize();
+    clearFilters();
+
+    QString error;
+    SqliteConnection connection;
+    if (!connection.open(m_database.databaseName(), true, &error)) return;
+    const auto details =
+        PersonRepository(connection.database()).findDetails(PersonKind::Actor, actorId, &error);
+    if (!details.has_value()) return;
+    for (const PersonName &name : details->names)
+    {
+        const QString displayName = !name.chinese.trimmed().isEmpty() ? name.chinese
+                                    : !name.japanese.trimmed().isEmpty() ? name.japanese
+                                                                         : name.english;
+        if (!displayName.trimmed().isEmpty())
+        {
+            m_actorFilter->setText(displayName);
+            refreshData();
+            return;
+        }
+    }
+}
+
+void WorkPage::filterByTag(qint64 tagId)
+{
+    if (tagId <= 0) return;
+    initialize();
+    clearFilters();
+    m_tagSelector->setSelectedIds({tagId});
+    refreshData();
 }
 
 WorkSortOrder WorkPage::selectedSortOrder() const
@@ -492,13 +724,13 @@ WorkSortOrder WorkPage::selectedSortOrder() const
 WorkSearch WorkPage::currentSearch() const
 {
     WorkSearch search;
-    search.serialNumber = m_serialFilter->text();
-    search.title = m_titleFilter->text();
-    search.chineseStory = m_storyFilter->text();
-    search.notes = m_searchInput->text();
-    search.director = m_directorFilter->text();
-    search.actressName = m_actressFilter->text();
-    search.actorName = m_actorFilter->text();
+    search.serialNumber = m_serialFilter->text().trimmed();
+    search.title = m_titleFilter->text().trimmed();
+    search.chineseStory = m_storyFilter->text().trimmed();
+    search.notes = m_searchInput->text().trimmed();
+    search.director = m_directorFilter->text().trimmed();
+    search.actressName = m_actressFilter->text().trimmed();
+    search.actorName = m_actorFilter->text().trimmed();
     if (m_makerFilter->currentData().isValid())
         search.makerId = m_makerFilter->currentData().toLongLong();
     if (m_labelFilter->currentData().isValid())
@@ -512,15 +744,36 @@ WorkSearch WorkPage::currentSearch() const
     {
     case 1:
         search.restrictToIncludedWorkIds = true;
-        search.includedWorkIds = m_privateRepository.favoriteWorkIds(&privateError);
+        {
+            SqliteConnection connection;
+            if (connection.open(m_privateDatabase.databaseName(), true, &privateError))
+            {
+                PrivateRepository repository(connection.database());
+                search.includedWorkIds = repository.favoriteWorkIds(&privateError);
+            }
+        }
         break;
     case 2:
         search.restrictToIncludedWorkIds = true;
-        search.includedWorkIds = m_privateRepository.favoriteUnwatchedWorkIds(&privateError);
+        {
+            SqliteConnection connection;
+            if (connection.open(m_privateDatabase.databaseName(), true, &privateError))
+            {
+                PrivateRepository repository(connection.database());
+                search.includedWorkIds = repository.favoriteUnwatchedWorkIds(&privateError);
+            }
+        }
         break;
     case 3:
         search.restrictToIncludedWorkIds = true;
-        search.includedWorkIds = m_privateRepository.masturbationWorkIds(&privateError);
+        {
+            SqliteConnection connection;
+            if (connection.open(m_privateDatabase.databaseName(), true, &privateError))
+            {
+                PrivateRepository repository(connection.database());
+                search.includedWorkIds = repository.masturbationWorkIds(&privateError);
+            }
+        }
         break;
     default:
         break;

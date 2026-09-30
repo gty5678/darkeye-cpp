@@ -40,8 +40,12 @@ void ClickableLabel::mouseReleaseEvent(QMouseEvent *event)
         QApplication::clipboard()->setText(text());
         Toast::showSuccess(window(), QStringLiteral("复制成功"), nullptr, 2000);
         emit clicked();
+        event->accept();
+        return;
     } else if (m_actressJump && event->button() == Qt::RightButton) {
         emit actressJumpRequested(text());
+        event->accept();
+        return;
     }
     DesignLabel::mouseReleaseEvent(event);
 }

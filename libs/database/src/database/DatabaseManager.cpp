@@ -10,7 +10,7 @@
 
 namespace darkeye {
 
-bool DatabaseManager::initialize(const AppPaths &paths, QString *errorMessage)
+bool DatabaseManager::initialize(const settings::Paths &paths, QString *errorMessage)
 {
     if (!prepareDatabase(m_publicConnection, paths.publicDatabase(),
                          paths.publicBackupDirectory(), DatabaseKind::Public,
@@ -24,6 +24,11 @@ bool DatabaseManager::initialize(const AppPaths &paths, QString *errorMessage)
         return false;
     }
     return true;
+}
+
+bool DatabaseManager::initialize(QString *errorMessage)
+{
+    return initialize(settings::Paths{}, errorMessage);
 }
 
 SqliteConnection &DatabaseManager::publicConnection() noexcept

@@ -114,6 +114,25 @@ QString ThemeService::customPrimary() const
     return m_customPrimary;
 }
 
+void ThemeService::setCurrent(ThemeId theme)
+{
+    if (m_current == theme) return;
+    m_current = theme;
+    emit themeChanged(theme);
+}
+
+void ThemeService::setCustomPrimary(const QString &customPrimary)
+{
+    const QString normalized = customPrimary.trimmed();
+    if (m_customPrimary == normalized) return;
+    m_customPrimary = normalized;
+}
+
+ThemeTokens ThemeService::currentTokens() const
+{
+    return tokens(m_current, m_customPrimary);
+}
+
 bool ThemeService::setTheme(ThemeId theme, const QString &customPrimary)
 {
     static std::once_flag resourceInitialization;
@@ -149,13 +168,15 @@ bool ThemeService::setTheme(ThemeId theme, const QString &customPrimary)
         styleSheet.replace(iterator.key(), iterator.value());
     }
     m_application.setStyleSheet(styleSheet);
-    m_current = theme;
     const QColor requested(customPrimary.trimmed());
-    m_customPrimary = requested.isValid()
-                              && (theme == ThemeId::Light || theme == ThemeId::Dark)
-                          ? requested.name()
-                          : QString();
-    emit themeChanged(theme);
+    const QString nextPrimary = requested.isValid()
+                                    && (theme == ThemeId::Light || theme == ThemeId::Dark)
+                                ? requested.name()
+                                : QString();
+    const bool changed = m_current != theme || m_customPrimary != nextPrimary;
+    m_current = theme;
+    m_customPrimary = nextPrimary;
+    if (changed) emit themeChanged(theme);
     return true;
 }
 

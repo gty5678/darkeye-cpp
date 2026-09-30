@@ -9,7 +9,8 @@
 
 class QLineEdit;
 class QLabel;
-class QScrollArea;
+class QGraphicsScene;
+class QGraphicsView;
 class QTabWidget;
 class QVariantAnimation;
 
@@ -18,8 +19,25 @@ namespace darkeye
 
 class IconButton;
 class TagCard;
-class TagFlowWidget;
+class TagFlowScene;
 class ThemeService;
+
+// A single-card preview that shares WorkTagSelector's TagCard renderer.  It is
+// used by tag management so a live preview cannot drift from the selector.
+class TagDisplayPreview final : public QWidget
+{
+    Q_OBJECT
+
+  public:
+    explicit TagDisplayPreview(ThemeService *themes = nullptr, QWidget *parent = nullptr);
+    void setTag(const QString &name, const QString &color, const QString &detail = {});
+
+  private:
+    QGraphicsView *m_view = nullptr;
+    QGraphicsScene *m_scene = nullptr;
+    TagCard *m_card = nullptr;
+    ThemeService *m_themes = nullptr;
+};
 
 class WorkTagSelector final : public QWidget
 {
@@ -31,7 +49,13 @@ class WorkTagSelector final : public QWidget
     explicit WorkTagSelector(const QList<TagOption> &tags, ThemeService *themes = nullptr, QWidget *parent = nullptr);
 
     [[nodiscard]] QList<qint64> selectedIds() const;
+    // 对应 Python TagSelector5.load_with_ids：由作品编辑器加载关联标签时同步左侧已选区。
+    void setSelectedIds(const QList<qint64> &ids);
     void clearSelection();
+    // WorkPage/ShelfPage override TagSelector5's generic 130px view with an 84px compact column.
+    void setSelectedColumnWidth(int width);
+    // 编辑作品时与 Python TagSelector5 一致，默认显示可选标签面板。
+    void setAvailablePanelExpanded(bool expanded);
     void setLoader(Loader loader);
     void reloadTags();
 
@@ -42,7 +66,7 @@ class WorkTagSelector final : public QWidget
     bool eventFilter(QObject *watched, QEvent *event) override;
 
   private:
-    void setPanelExpanded(bool expanded);
+    void setPanelExpanded(bool expanded, bool animate = true);
     void setTagSelected(qint64 tagId, bool selected, bool switchTab = true);
     void rebuildSearch(const QString &text);
     void navigateSearch(int offset);
@@ -56,12 +80,12 @@ class WorkTagSelector final : public QWidget
     QList<TagOption> m_tags;
     QHash<qint64, TagCard *> m_items;
     QHash<qint64, TagCard *> m_selectedItems;
-    QHash<QString, TagFlowWidget *> m_flows;
-    QHash<QString, QScrollArea *> m_views;
+    QHash<QString, TagFlowScene *> m_flows;
+    QHash<QString, QGraphicsView *> m_views;
     QSet<qint64> m_selectedIds;
     QList<qint64> m_selectedOrder;
-    TagFlowWidget *m_selectedFlow = nullptr;
-    QScrollArea *m_selectedView = nullptr;
+    TagFlowScene *m_selectedFlow = nullptr;
+    QGraphicsView *m_selectedView = nullptr;
     QWidget *m_panel = nullptr;
     QTabWidget *m_tabs = nullptr;
     QLineEdit *m_search = nullptr;
@@ -71,6 +95,7 @@ class WorkTagSelector final : public QWidget
     IconButton *m_expandButton = nullptr;
     QVariantAnimation *m_panelAnimation = nullptr;
     bool m_panelExpanded = false;
+    int m_selectedColumnWidth = 130;
     bool m_updating = false;
     QList<qint64> m_searchMatches;
     int m_searchIndex = -1;

@@ -26,6 +26,9 @@ class TokenSpinBox final : public QSpinBox
 {
 public:
     explicit TokenSpinBox(QWidget *parent = nullptr);
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
 };
 
 class TokenGroupBox final : public QGroupBox

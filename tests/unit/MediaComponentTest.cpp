@@ -20,8 +20,10 @@ private slots:
     void iconProviderRendersKnownIcon();
     void iconButtonRefreshesWithTheme();
     void asyncImageLoadsOffThread();
+    void asyncImageCanDeferOffscreenWork();
     void clearedImageRejectsStaleResult();
     void imageDropPurposeIsConfigurable();
+    void imageDropRendersDashedPlaceholderBorder();
     void fanartPreservesJsonOrderAndRemoteState();
     void fanartFinalizesPendingLocalImages();
     void crawlerFieldsKeepPythonSelectionContract();
@@ -95,6 +97,29 @@ void MediaComponentTest::asyncImageLoadsOffThread()
     QCOMPARE(label.pixmap().size(), QSize(120, 80));
 }
 
+void MediaComponentTest::asyncImageCanDeferOffscreenWork()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString path = directory.filePath(QStringLiteral("deferred-cover.jpg"));
+    QImage source(1200, 800, QImage::Format_RGB32);
+    source.fill(Qt::green);
+    QVERIFY(source.save(path));
+
+    darkeye::AsyncImageLabel label;
+    label.resize(120, 80);
+    label.setDeferredLoading(true);
+    QSignalSpy loaded(&label, &darkeye::AsyncImageLabel::imageLoaded);
+    label.setSource(path);
+    QTest::qWait(50);
+    QCOMPARE(loaded.count(), 0);
+    QVERIFY(label.pixmap().isNull());
+
+    label.startDeferredLoad(100);
+    QTRY_COMPARE_WITH_TIMEOUT(loaded.count(), 1, 3000);
+    QCOMPARE(label.pixmap().size(), QSize(120, 80));
+}
+
 void MediaComponentTest::clearedImageRejectsStaleResult()
 {
     QTemporaryDir directory;
@@ -122,6 +147,35 @@ void MediaComponentTest::imageDropPurposeIsConfigurable()
     darkeye::ImageDropWidget imageDrop(directory.path());
     imageDrop.setPurpose(QStringLiteral("作品封面"));
     QCOMPARE(imageDrop.purpose(), QStringLiteral("作品封面"));
+}
+
+void MediaComponentTest::imageDropRendersDashedPlaceholderBorder()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    darkeye::ImageDropWidget imageDrop(directory.path());
+    imageDrop.resize(220, 260);
+    imageDrop.show();
+    QCoreApplication::processEvents();
+
+    auto *preview = imageDrop.findChild<darkeye::AsyncImageLabel *>(
+        QStringLiteral("ImageDropPreview"));
+    QVERIFY(preview != nullptr);
+    const QImage rendered = preview->grab().toImage();
+    const QColor expectedBorder(QStringLiteral("#8a8a8a"));
+    bool foundBorderPixel = false;
+    for (int y = 0; y < rendered.height() && !foundBorderPixel; ++y)
+    {
+        for (int x = 0; x < rendered.width(); ++x)
+        {
+            if (rendered.pixelColor(x, y) == expectedBorder)
+            {
+                foundBorderPixel = true;
+                break;
+            }
+        }
+    }
+    QVERIFY2(foundBorderPixel, "empty image drops must retain a dashed placeholder border");
 }
 
 void MediaComponentTest::fanartPreservesJsonOrderAndRemoteState()
@@ -214,4 +268,3 @@ void MediaComponentTest::crawlerFieldsKeepPythonSelectionContract()
 
 QTEST_MAIN(MediaComponentTest)
 #include "MediaComponentTest.moc"
-

@@ -115,16 +115,18 @@ CircularLoading::CircularLoading(int size, int strokeWidth,
 }
 
 bool CircularLoading::isAnimating() const { return m_timer->isActive(); }
+void CircularLoading::start() { m_timer->start(); }
+void CircularLoading::stop() { m_timer->stop(); }
 
 void CircularLoading::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
-    m_timer->start();
+    start();
 }
 
 void CircularLoading::hideEvent(QHideEvent *event)
 {
-    m_timer->stop();
+    stop();
     QWidget::hideEvent(event);
 }
 
@@ -155,5 +157,4 @@ void CircularLoading::refreshTokens()
 }
 
 } // namespace darkeye
-
 

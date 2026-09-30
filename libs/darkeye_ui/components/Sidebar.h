@@ -53,6 +53,8 @@ public:
     explicit Sidebar(const QList<SidebarMenuDefinition> &menus = {},
                      ThemeService *themes = nullptr,
                      QWidget *parent = nullptr);
+    Sidebar(const QList<SidebarMenuDefinition> &menus, const QString &iconsBasePath,
+            ThemeService *themes = nullptr, QWidget *parent = nullptr);
     QString selectedId() const;
     bool isExpanded() const;
     void clearSelection();
@@ -73,6 +75,7 @@ private:
     int m_collapsedWidth = 60;
     bool m_expanded = false;
     QString m_selectedId;
+    QString m_iconsBasePath;
     ThemeService *m_themes = nullptr;
     QHash<QString, SidebarMenuButton *> m_buttons;
     QVBoxLayout *m_layout = nullptr;

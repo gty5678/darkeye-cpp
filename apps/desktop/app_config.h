@@ -2,7 +2,6 @@
 
 namespace darkeye {
 
-	inline constexpr char kAppVersion[] = "1.2.5";
 	inline constexpr int kRequiredPublicDbVersion = 2;
 	inline constexpr char kRequiredPrivateDbVersion[] = "1.1";
 

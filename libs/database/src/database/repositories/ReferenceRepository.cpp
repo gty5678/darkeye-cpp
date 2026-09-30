@@ -515,6 +515,47 @@ bool ReferenceRepository::updateTag(const TagRecord &record, QString *errorMessa
     return true;
 }
 
+bool ReferenceRepository::updateTagColors(const QList<qint64> &tagIds, const QString &color,
+                                          QString *errorMessage)
+{
+    if (tagIds.isEmpty() || color.trimmed().isEmpty())
+    {
+        if (errorMessage != nullptr)
+            *errorMessage = QStringLiteral("请选择标签并指定颜色");
+        return false;
+    }
+    Transaction transaction(m_database);
+    if (!transaction.isActive())
+    {
+        if (errorMessage != nullptr)
+            *errorMessage = transaction.errorString();
+        return false;
+    }
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("UPDATE tag SET color=? "
+                                 "WHERE tag_id=? AND redirect_tag_id IS NULL"));
+    for (qint64 id : tagIds)
+    {
+        if (id <= 0)
+            continue;
+        query.bindValue(0, color.trimmed());
+        query.bindValue(1, id);
+        if (!query.exec())
+        {
+            if (errorMessage != nullptr)
+                *errorMessage = query.lastError().text();
+            return false;
+        }
+    }
+    if (!transaction.commit())
+    {
+        if (errorMessage != nullptr)
+            *errorMessage = transaction.errorString();
+        return false;
+    }
+    return true;
+}
+
 bool ReferenceRepository::removeTag(qint64 tagId, QString *errorMessage)
 {
     if (tagId <= 0)
@@ -714,7 +755,8 @@ bool ReferenceRepository::moveTagType(qint64 typeId, int offset, QString *errorM
                                        : QStringLiteral("标签类型已位于边界");
         return false;
     }
-    types.swapItemsAt(source, target);
+    const TagTypeRecord moved = types.takeAt(source);
+    types.insert(target, moved);
     Transaction transaction(m_database);
     if (!transaction.isActive())
     {

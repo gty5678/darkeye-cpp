@@ -15,6 +15,7 @@ public:
     explicit HeartLabel(QWidget *parent = nullptr);
     bool isChecked() const;
     bool state() const;
+    bool getState() const { return state(); }
     void setState(bool state);
     qreal scale() const;
     void setScale(qreal scale);

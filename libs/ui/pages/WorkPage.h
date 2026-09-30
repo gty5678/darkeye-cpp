@@ -12,8 +12,6 @@
 
 class QLabel;
 class QComboBox;
-class QDialog;
-class QTableWidget;
 class QTimer;
 
 namespace darkeye
@@ -24,7 +22,6 @@ class CompleterLineEdit;
 class IconButton;
 class LazyScrollArea;
 class WorkTagSelector;
-class WorkEditorWidget;
 
 class WorkPage final : public LazyWidget
 {
@@ -32,7 +29,7 @@ class WorkPage final : public LazyWidget
 
 public:
     explicit WorkPage(
-        QSqlDatabase database, ThemeService &themeService, Settings &settings,
+        QSqlDatabase database, ThemeService &themeService,
         QString coverDirectory = {}, QSqlDatabase privateDatabase = {},
         QString fanartDirectory = {},
         QUrl imageFetchEndpoint = QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/image")),
@@ -41,30 +38,37 @@ public:
     void refresh();
     void refreshReferences();
     void refreshTags();
+    void focusSearch();
+    [[nodiscard]] QWidget *captureContent();
     void openEditor(qint64 workId);
     void openCreateEditor();
+    void filterByActor(qint64 actorId);
+    void filterByTag(qint64 tagId);
 
 signals:
     void detailRequested(qint64 workId);
+    void editRequested(qint64 workId);
+    void createRequested();
+    void worksChanged();
 
 private:
     void lazyLoad() override;
     void buildUi();
+    void loadReferenceOptionsAsync();
+    void applyInitialDefaultTagFilter(const QList<TagOption> &tags);
     void refreshData();
     void applyFilters();
     void clearFilters();
     void toggleCoverSize();
     [[nodiscard]] QList<QWidget *> loadCardPage(int pageIndex, int pageSize);
-    void buildEditor();
-    void loadSelectedWork();
     void showWorkDetails(qint64 workId);
     void loadWork(qint64 workId);
     [[nodiscard]] WorkSortOrder selectedSortOrder() const;
     [[nodiscard]] WorkSearch currentSearch() const;
 
     ThemeService &m_themeService;
-    Settings &m_settings;
     QSqlDatabase m_database;
+    QSqlDatabase m_privateDatabase;
     WorkRepository m_repository;
     PrivateRepository m_privateRepository;
     QString m_coverDirectory;
@@ -86,16 +90,14 @@ private:
     QTimer *m_filterTimer = nullptr;
     quint32 m_randomSeed = 1;
     quint32 m_randomSeed2 = 1;
+    QString m_lastCountError;
     QLabel *m_countLabel = nullptr;
     QWidget *m_tagPanel = nullptr;
     IconButton *m_tagPanelButton = nullptr;
     IconButton *m_viewButton = nullptr;
-    QTableWidget *m_table = nullptr;
     LazyScrollArea *m_lazyArea = nullptr;
     bool m_largeCoverView = false;
     bool m_tagPanelVisible = true;
-    WorkEditorWidget *m_editor = nullptr;
-    QDialog *m_editorDialog = nullptr;
 };
 
 } // namespace darkeye

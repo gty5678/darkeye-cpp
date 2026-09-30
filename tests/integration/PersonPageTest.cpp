@@ -11,7 +11,7 @@
 #include "darkeye_ui/components/HeartLabel.h"
 #include "darkeye_ui/components/LazyScrollArea.h"
 #include "ui/components/ImageDropWidget.h"
-#include "ui/dialogs/PersonEditorDialog.h"
+#include "ui/pages/ModifyActressPage.h"
 #include "ui/components/PersonInfoPanel.h"
 #include "ui/components/ActressWorkTimeline.h"
 #include "ui/components/WikiTextEdit.h"
@@ -21,11 +21,15 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QImage>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSet>
 #include <QSqlQuery>
+#include <QSpinBox>
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -254,12 +258,68 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
 
     const QString imageDirectory =
         QDir(temporaryDirectory.path()).filePath(QStringLiteral("actressimages"));
-    darkeye::PersonEditorDialog editor(publicConnection.database(), themes, imageDirectory);
-    QVERIFY(editor.loadPerson(darkeye::PersonKind::Actress, *actressId));
-    auto *nameTable = editor.findChild<QTableWidget *>(QStringLiteral("PersonNameEditor"));
-    auto *addName = editor.findChild<QPushButton *>(QStringLiteral("PersonAddNameButton"));
-    auto *moveNameUp = editor.findChild<QPushButton *>(QStringLiteral("PersonMoveNameUpButton"));
-    auto *notes = editor.findChild<darkeye::WikiTextEdit *>(QStringLiteral("PersonNotesInput"));
+    darkeye::ModifyActressPage editor(publicConnection.database(), themes, imageDirectory);
+    QVERIFY(editor.loadActress(*actressId));
+    QJsonObject alias;
+    alias.insert(QStringLiteral("jp"), QStringLiteral("采集艺名"));
+    alias.insert(QStringLiteral("kana"), QStringLiteral("げいめい"));
+    alias.insert(QStringLiteral("en"), QStringLiteral("Captured Alias"));
+    QJsonObject captureData;
+    captureData.insert(QStringLiteral("日文名"), QStringLiteral("采集日文名"));
+    captureData.insert(QStringLiteral("假名"), QStringLiteral("さいしゅう"));
+    captureData.insert(QStringLiteral("英文名"), QStringLiteral("Captured Name"));
+    captureData.insert(QStringLiteral("身高"), 166);
+    captureData.insert(QStringLiteral("胸围"), 88);
+    captureData.insert(QStringLiteral("腰围"), 57);
+    captureData.insert(QStringLiteral("臀围"), 86);
+    captureData.insert(QStringLiteral("罩杯"), QStringLiteral("F"));
+    captureData.insert(QStringLiteral("出生日期"), QStringLiteral("2000-01-02"));
+    captureData.insert(QStringLiteral("出道日期"), QStringLiteral("2020-03-04"));
+    captureData.insert(QStringLiteral("minnano_actress_id"), QStringLiteral("12345"));
+    captureData.insert(QStringLiteral("alias_chain"), QJsonArray{alias});
+    QJsonObject context;
+    context.insert(QStringLiteral("actress_id"), *actressId);
+    QJsonObject capture;
+    capture.insert(QStringLiteral("context"), context);
+    capture.insert(QStringLiteral("data"), captureData);
+    QString captureError;
+    QVERIFY2(editor.applyCapture(capture, &captureError), qPrintable(captureError));
+    QSpinBox *capturedHeight = nullptr;
+    QLineEdit *capturedMinnano = nullptr;
+    for (QSpinBox *spinBox : editor.findChildren<QSpinBox *>())
+    {
+        if (spinBox->property("testId") == QStringLiteral("PersonHeightInput"))
+            capturedHeight = spinBox;
+    }
+    for (QLineEdit *lineEdit : editor.findChildren<QLineEdit *>())
+    {
+        if (lineEdit->property("testId") == QStringLiteral("PersonMinnanoInput"))
+            capturedMinnano = lineEdit;
+    }
+    QVERIFY(capturedHeight != nullptr);
+    QCOMPARE(capturedHeight->value(), 166);
+    QVERIFY(capturedMinnano != nullptr);
+    QCOMPARE(capturedMinnano->text(), QStringLiteral("12345"));
+    auto *capturedNames = editor.findChild<QTableWidget *>(QStringLiteral("DesignTableWidget"));
+    QVERIFY(capturedNames != nullptr);
+    QCOMPARE(capturedNames->item(0, 1)->text(), QStringLiteral("采集日文名"));
+    QCOMPARE(capturedNames->item(1, 1)->text(), QStringLiteral("采集艺名"));
+    QVERIFY(editor.loadActress(*actressId));
+    const auto uncommitted =
+        people.findDetails(darkeye::PersonKind::Actress, *actressId, &errorMessage);
+    QVERIFY2(uncommitted.has_value(), qPrintable(errorMessage));
+    QVERIFY(uncommitted->height != 166);
+    auto *nameTable = editor.findChild<QTableWidget *>(QStringLiteral("DesignTableWidget"));
+    QPushButton *addName = nullptr;
+    QPushButton *moveNameUp = nullptr;
+    for (QPushButton *button : editor.findChildren<QPushButton *>())
+    {
+        if (button->property("testId") == QStringLiteral("PersonAddNameButton"))
+            addName = button;
+        if (button->property("testId") == QStringLiteral("PersonMoveNameUpButton"))
+            moveNameUp = button;
+    }
+    auto *notes = editor.findChild<darkeye::WikiTextEdit *>();
     auto *imageDrop =
         editor.findChild<darkeye::ImageDropWidget *>(QStringLiteral("PersonImageDropWidget"));
     QVERIFY(nameTable != nullptr);
@@ -268,7 +328,17 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
     QVERIFY(notes != nullptr);
     QVERIFY(notes->completerList().contains(QStringLiteral("PERSON-001")));
     QVERIFY(imageDrop != nullptr);
+    QPushButton *save = nullptr;
+    for (QPushButton *button : editor.findChildren<QPushButton *>())
+    {
+        if (button->property("testId") == QStringLiteral("PersonSaveButton"))
+            save = button;
+    }
+    QVERIFY(save != nullptr);
+    QVERIFY(!save->isEnabled());
     nameTable->item(0, 0)->setText(QStringLiteral("修改后姓名"));
+    QVERIFY(save->isEnabled());
+    QVERIFY(save->styleSheet().contains(QStringLiteral("#FFA500")));
     addName->click();
     nameTable->item(1, 1)->setText(QStringLiteral("旧艺名"));
     nameTable->selectRow(1);
@@ -280,9 +350,10 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
     avatar.fill(QColor(80, 120, 200, 180));
     QVERIFY(avatar.save(sourceImage));
     imageDrop->setImagePath(sourceImage);
-    QSignalSpy savedSignal(&editor, &darkeye::PersonEditorDialog::personSaved);
+    QSignalSpy savedSignal(&editor, &darkeye::ModifyActressPage::personSaved);
     QVERIFY(editor.savePerson());
     QCOMPARE(savedSignal.count(), 1);
+    QVERIFY(!save->isEnabled());
 
     const auto saved = people.findDetails(darkeye::PersonKind::Actress, *actressId, &errorMessage);
     QVERIFY2(saved.has_value(), qPrintable(errorMessage));

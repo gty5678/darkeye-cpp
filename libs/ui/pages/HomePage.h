@@ -1,12 +1,12 @@
 #pragma once
 
-#include <QWidget>
+#include "darkeye_ui/base/LazyWidget.h"
 
 namespace darkeye {
 
 class ThemeService;
 
-class HomePage final : public QWidget
+class HomePage final : public LazyWidget
 {
     Q_OBJECT
 
@@ -14,7 +14,7 @@ public:
     explicit HomePage(ThemeService &themeService, QWidget *parent = nullptr);
 
 private:
-    ThemeService &m_themeService;
+    void lazyLoad() override;
 };
 
 } // namespace darkeye

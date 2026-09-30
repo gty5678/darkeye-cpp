@@ -19,11 +19,11 @@
 | `ui/base/__init__.py` | — | 不迁移 | 仅 Python 包导出 |
 | `BaseMoveableTableModel.py` | `components/TokenViews.*`、各 Repository | 部分 | 行移动、持久化顺序合同 |
 | `BaseMoveableTableView.py` | `components/TokenViews.*` | 部分 | 拖放反馈、键盘行为 |
-| `MakerComboDelegate.py` | `components/MakerSelector.*` | 部分 | 表格 delegate 编辑语义 |
+| `MakerComboDelegate.py` | `components/MakerComboDelegate.*`、`components/MakerSelector.*` | 完成 | 表格编辑时显示名称、读写 maker_id；其他列沿用文本编辑 |
 | `SearchLineBase.py` | `components/CompleterLineEdit.*` | 合并 | 搜索防抖已由页面实现 |
 | `SqliteEditableTableModel.py` | Repository + 管理组件 | 合并 | 各管理页分别验收编辑/回滚 |
 | `SqliteQueryTableModel.py` | Repository + Qt item model | 合并 | 分页与刷新逐页验收 |
-| `WorkCompletenessQueryTableModel.py` | — | 未开始 | 15 维完整度模型 |
+| `WorkCompletenessQueryTableModel.py` | `pages/management/SummaryQueryWidget.*` | 完成 | 15 维 bit 列以分值排序，score 作为隐藏排序辅助列 |
 
 ## `ui/basic`
 
@@ -52,7 +52,7 @@
 | `AddActressDialog.py` | `dialogs/AddActressDialog.*` | 完成 | 已核对 trim、必填、写库、提示和外部搜索 |
 | `AddMakeLoveDialog.py` | `dialogs/AddMakeLoveDialog.*` | 完成 | 已核对默认时间、评分、字段和写库 |
 | `AddMasturbationDialog.py` | `dialogs/AddMasturbationDialog.*` | 完成 | 已核对番号、工具补全、评分和写库 |
-| `AddQuickWork.py` | `components/WorkEditorWidget.*` | 部分 | 快捷添加独立入口、采集联动 |
+| `AddQuickWork.py` | `pages/management/AddWorkTabPage3.*` | 部分 | 快捷添加独立入口、采集联动 |
 | `AddSexualArousalDialog.py` | `dialogs/AddSexualArousalDialog.*` | 完成 | 已核对当天 06:00、备注和写库 |
 | `open.py` | `MainWindow::registerApplicationActions` | 完成 | 私人记录与快捷作品入口均已接线；人物新增原文件不经 `open.py` |
 | `TagTypeModifyDialog.py` | `components/TagManagementWidget.*` | 合并 | 已并入管理页标签类型页签 |
@@ -87,19 +87,19 @@
 | `ActorPage.py` | `pages/PersonPage.*` | 完成 | — |
 | `ActressPage.py` | `pages/PersonPage.*` | 部分 | 女优采集入口 |
 | `AvPage.py` | — | 未开始 | 当前路由为占位页 |
-| `CoverBrowser.py` | — | 未开始 | 剧照浏览、翻页、删除/下载 |
+| `CoverBrowser.py` | `pages/FanartBrowserPage.*` | 完成 | 作品详情入口、剧照浏览、翻页、删除/下载及持久化已接入 |
 | `DashboardPage.py` | `pages/DashboardPage.*` | 完成 | 精确保留 Python 当前统计区与两组占位列表；当前作为 3D 商店迁移完成前的正常业务首页 |
-| `ForceDirectPage.py` | `libs/graph` + 待建页面 | 部分 | 图页面装配、数据同步、交互 |
+| `ForceDirectPage.py` | `libs/graph_view` + 待建页面 | 部分 | 图页面装配、数据同步、交互 |
 | `HomePage.py` | — | 未开始 | Python 3D 商店尚未迁移；原 C++ 组件展厅已退出正式路由，组件展示由独立 demo 承担 |
 | `InboxPage.py` | — | 未开始 | 当前路由为占位页 |
 | `ManagementPage.py` | `pages/ManagementPage.*` | 部分 | 缺采集/翻译相关管理操作 |
-| `ModifyActorPage.py` | `dialogs/PersonEditorDialog.*` | 完成 | — |
-| `ModifyActressPage.py` | `dialogs/PersonEditorDialog.*` | 部分 | 女优采集与远程资料合并 |
+| `ModifyActorPage.py` | `pages/ModifyActorPage.*` | 完成 | — |
+| `ModifyActressPage.py` | `pages/ModifyActressPage.*` | 部分 | 女优采集与远程资料合并 |
 | `SettingPage.py` | `pages/SettingsPage.*` | 完成 | 八段 ModernScrollMenu 结构已接入；子页状态分别见下表 |
-| `ShelfPage.py` | — | 未开始 | 当前路由为占位页 |
+| `ShelfPage.py` | `pages/ShelfPage.*`、`components/DvdShelfView.*`、`resources/qml/dvd/*` | 部分 | 筛选/标签/范围与复制的 Qt Quick 3D DVD 场景已接入；待迁移 Python 的可见窗口、详情/操作 Bridge |
 | `SingleActressPage.py` | `pages/PersonDetailPage.*`、`components/ActressWorkTimeline.*` | 部分 | 作品时间线与人物头部已接入；页面间距仍需继续做逐像素视觉核对 |
-| `SingleWorkPage.py` | `pages/WorkDetailPage.*` | 部分 | fanart 浏览、本地视频扫描 |
-| `StatisticsPage.py` | `pages/StatisticsPage.*` | 部分 | 信息面板已接入；PlotTabPage 仍待逐图迁移 |
+| `SingleWorkPage.py` | `pages/WorkDetailPage.*`、`pages/FanartBrowserPage.*` | 部分 | 剧照浏览已接入；本地视频扫描待迁移 |
+| `StatisticsPage.py` | `pages/StatisticsPage.*` | 完成 | 信息面板与统计页签均已接入；页面刷新会保留两项数据视图同步 |
 | `WorkPage.py` | `pages/WorkPage.*` | 完成 | — |
 | `WorkspaceDemoPage.py` | `tests/demos/myads_demo` | 不迁移 | 产品外 demo |
 
@@ -107,23 +107,23 @@
 
 | Python 文件 | C++ 落点 | 状态 | 剩余核对 |
 |---|---|---|---|
-| `AddWorkTabPage3.py` | `components/WorkEditorWidget.*`、`FanartStripWidget.*` | 部分 | 采集、多源字段选择、工作区布局恢复 |
-| `LabelManagementPage.py` | `components/ReferenceManagementWidget.*` | 完成 | — |
+| `AddWorkTabPage3.py` | `pages/management/AddWorkTabPage3.*`、`components/FanartStripWidget.*` | 部分 | 采集、多源字段选择、工作区布局恢复 |
+| `LabelManagementPage.py` | `pages/management/ReferenceManagementWidget.*` | 完成 | — |
 | `ManagementTable.py` | 多个管理组件 | 合并 | — |
-| `RecycleBinPage.py` | `components/WorkBatchStateWidget.*` | 完成 | — |
+| `RecycleBinPage.py` | `pages/management/WorkBatchStateWidget.*` | 完成 | — |
 | `SearchTable.py` | Repository 搜索 + 管理组件 | 合并 | — |
-| `SeriesManagementPage.py` | `components/ReferenceManagementWidget.*` | 完成 | — |
-| `StudioManagementPage.py` | `components/ReferenceManagementWidget.*`、`MakerPrefixManagementWidget.*` | 完成 | — |
-| `TagManagement.py` | `components/TagManagementWidget.*` | 完成 | — |
-| `UpdateManyTabPage.py` | `components/WorkMaintenanceWidget.*` | 部分 | 批量翻译、女优补全、采集 |
-| `WorkSoftDeletePage.py` | `components/WorkBatchStateWidget.*` | 完成 | — |
+| `SeriesManagementPage.py` | `pages/management/ReferenceManagementWidget.*` | 完成 | — |
+| `StudioManagementPage.py` | `pages/management/ReferenceManagementWidget.*`、`pages/management/MakerPrefixManagementWidget.*` | 完成 | — |
+| `TagManagement.py` | `pages/management/TagManagementWidget.*` | 完成 | — |
+| `UpdateManyTabPage.py` | `pages/management/WorkMaintenanceWidget.*` | 部分 | 批量翻译、女优补全、采集 |
+| `WorkSoftDeletePage.py` | `pages/management/WorkBatchStateWidget.*` | 完成 | — |
 
 ## `ui/pages/settings`
 
 | Python 文件 | C++ 落点 | 状态 | 剩余核对 |
 |---|---|---|---|
 | `settings/__init__.py` | — | 不迁移 | 仅 Python 包导出 |
-| `about.py` | `pages/SettingsPage.*::AboutSettingsPage`、`utils/UpdateUtils.*` | 部分 | 版本比较和 latest.json 解析已迁移；在线请求重试和本地安装包更新待服务接线 |
+| `about.py` | `pages/SettingsPage.*::AboutSettingsPage`、`utils/UpdateUtils.*`、`services/UpdateService.*` | 完成 | 在线检查含重试、官方更新器启动和本地 zip/tar.zst 安装包入口已接线 |
 | `common.py` | `pages/SettingsPage.*`、`ThemeService.*` | 部分 | 主题、主色、绿色模式控件与持久化已迁移；绿色模式业务消费者待接入 |
 | `crawler.py` | — | 未开始 | Collector/浏览器/接口设置 |
 | `database.py` | 数据库服务 + 待建设置页 | 部分 | 路径、备份、恢复 UI |
@@ -137,9 +137,9 @@
 | Python 文件 | C++ 落点 | 状态 | 剩余核对 |
 |---|---|---|---|
 | `statistic/PersonalDataPage.py` | `pages/PersonalDataPage.*` | 完成 | 七项概览、三档最常记录女优、去化周期和热力图已接入 |
-| `statistic/PlotTabPage.py` | — | 未开始 | 全部统计图及时间范围 |
+| `statistic/PlotTabPage.py` | `pages/PlotTabPage.*` | 完成 | 四种范围、年龄/年份/身高直方图、罩杯饼图、腰臀气泡图、导演/片商/最爱女优排行及添加时间线已接入；旧版已禁用的词云与年回忆录保持禁用 |
 | `statistics/__init__.py` | — | 不迁移 | 仅 Python 包导出 |
-| `statistics/MplCanvas.py` | `components/Charts.*` + 待扩展图表 | 部分 | 现仅热力图/雷达图 |
+| `statistics/MplCanvas.py` | `pages/PlotTabPage.cpp` 原生自绘图表 + `components/Charts.*` | 完成 | 按页面使用的直方、柱、饼、气泡和时间线图均已原生迁移；热力图/雷达图继续由公共 Charts 组件承载 |
 | `statistics/SwitchHeapMap.py` | `PersonalDataPage.*`、`components/Charts.*` | 部分 | 年份和三类记录已切换；年份按钮列暂用下拉框 |
 
 ## `ui/widgets`
@@ -154,7 +154,7 @@
 | `SingleActressInfo.py` | `components/PersonInfoPanel.*`、`components/ClickableLabel.*` | 部分 | Python 同款姓名行、头像资料区、日期格式和五维身材雷达图已接入；边框与细部间距继续核对 |
 | `StatsOverviewCards.py` | `components/StatsOverviewCards.*` | 完成 | 七项查询与刷新已接入 |
 | `work_completeness_leds.py` | `components/WorkCompletenessIndicators.*` | 完成 | 15 维灯条、bit delegate、提示与未知状态均已迁移 |
-| `work_summary_edit_delegate.py` | `components/WorkEditorWidget.*` | 部分 | 表格内摘要编辑 delegate |
+| `work_summary_edit_delegate.py` | `pages/management/AddWorkTabPage3.*` | 部分 | 表格内摘要编辑 delegate |
 
 ## `ui/widgets/image`
 

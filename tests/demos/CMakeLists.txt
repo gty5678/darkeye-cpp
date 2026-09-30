@@ -1,4 +1,4 @@
 add_subdirectory(colorwheel_demo)
-add_subdirectory(forceview_demo)
+add_subdirectory(graph_view_demo)
 add_subdirectory(myads_demo)
 add_subdirectory(ui_snapshot)

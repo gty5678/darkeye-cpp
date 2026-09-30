@@ -1,11 +1,11 @@
 #pragma once
 
+#include "darkeye_ui/base/LazyWidget.h"
 #include "darkeye_ui/theme/ThemeService.h"
 #include "database/repositories/PersonRepository.h"
 #include "database/repositories/PrivateRepository.h"
 
 #include <QSqlDatabase>
-#include <QWidget>
 
 class QComboBox;
 class QLabel;
@@ -17,7 +17,7 @@ namespace darkeye
 class CompleterLineEdit;
 class LazyScrollArea;
 
-class PersonPage final : public QWidget
+class PersonPage : public LazyWidget
 {
     Q_OBJECT
 
@@ -27,6 +27,7 @@ public:
                         QWidget *parent = nullptr);
 
     void refresh();
+    [[nodiscard]] QWidget *captureContent();
     [[nodiscard]] PersonKind kind() const noexcept;
 
 signals:
@@ -34,6 +35,7 @@ signals:
     void editRequested(PersonKind kind, qint64 personId);
 
 private:
+    void lazyLoad() override;
     void buildUi();
     void applyFilters();
     void clearFilters();
@@ -58,5 +60,3 @@ private:
 };
 
 } // namespace darkeye
-
-

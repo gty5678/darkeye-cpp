@@ -1,4 +1,4 @@
-#include "app/AppPaths.h"
+#include "settings/Paths.h"
 #include "darkeye_ui/theme/ThemeService.h"
 #include "database/SqliteConnection.h"
 #include "MainWindow.h"
@@ -7,7 +7,8 @@
 #include "darkeye_ui/components/ColorWheel.h"
 #include "darkeye_ui/components/Sidebar.h"
 #include "ui/components/FanartStripWidget.h"
-#include "ui/dialogs/PersonEditorDialog.h"
+#include "ui/components/WorkCard.h"
+#include "ui/pages/ModifyActressPage.h"
 #include "ui/pages/DashboardPage.h"
 
 #include <QApplication>
@@ -17,8 +18,20 @@
 #include <QPushButton>
 #include <QSqlQuery>
 #include <QTabWidget>
-#include <QTableWidget>
 #include <QTest>
+
+namespace
+{
+template <typename T>
+T *findWorkControl(QObject *root, const QString &controlId)
+{
+    if (root == nullptr) return nullptr;
+    for (T *child : root->findChildren<T *>())
+        if (child->property("workControlId").toString() == controlId)
+            return child;
+    return nullptr;
+}
+}
 
 int main(int argc, char *argv[])
 {
@@ -27,10 +40,10 @@ int main(int argc, char *argv[])
         return 2;
     const QString dataDirectory = QDir::cleanPath(application.arguments().at(1));
     const QString outputDirectory = QDir::cleanPath(application.arguments().at(2));
-    qputenv("DARKEYE_DATA_DIR", dataDirectory.toUtf8());
     QDir().mkpath(outputDirectory);
 
-    darkeye::AppPaths paths(QCoreApplication::applicationDirPath());
+    const QString applicationDirectory = QFileInfo(dataDirectory).absoluteDir().absolutePath();
+    const darkeye::settings::Paths paths(applicationDirectory);
     darkeye::SqliteConnection publicConnection;
     darkeye::SqliteConnection privateConnection;
     QString errorMessage;
@@ -40,9 +53,8 @@ int main(int argc, char *argv[])
         return 3;
     }
     darkeye::ThemeService themes(application);
-    darkeye::Settings settings(paths.settingsFile());
-    darkeye::MainWindow window(paths, settings, themes, publicConnection.database(),
-                               privateConnection.database());
+    darkeye::MainWindow window(themes, publicConnection.database(),
+                               privateConnection.database(), paths);
     // Sidebar occupies 62px; this leaves WorkPage at the same 1340px width used
     // by PythonWorkSnapshot.py for a direct visual comparison.
     window.resize(1402, 800);
@@ -54,10 +66,9 @@ int main(int argc, char *argv[])
     if (sidebar == nullptr || workPage == nullptr)
         return 4;
     emit sidebar->itemClicked(QStringLiteral("work"));
-    auto *workCount = workPage->findChild<QLabel *>(QStringLiteral("WorkCountLabel"));
-    auto *workTable = workPage->findChild<QTableWidget *>(QStringLiteral("WorkTable"));
+    auto *workCount = findWorkControl<QLabel>(workPage, QStringLiteral("WorkCountLabel"));
     if (workCount == nullptr || workCount->text() == QStringLiteral("过滤总数:0") ||
-        workTable == nullptr || workTable->rowCount() == 0)
+        workPage->findChildren<darkeye::WorkCard *>().isEmpty())
     {
         return 28;
     }
@@ -73,8 +84,8 @@ int main(int argc, char *argv[])
         return 9;
     }
     auto *tagPanel = workPage->findChild<QWidget *>(QStringLiteral("WorkTagPanel"));
-    auto *tagPanelButton = workPage->findChild<QPushButton *>(
-        QStringLiteral("WorkTagPanelButton"));
+    auto *tagPanelButton = findWorkControl<QPushButton>(
+        workPage, QStringLiteral("WorkTagPanelButton"));
     auto *tagExpand = workPage->findChild<QPushButton *>(
         QStringLiteral("WorkTagExpandButton"));
     if (tagPanel == nullptr || tagPanelButton == nullptr || tagExpand == nullptr)
@@ -133,7 +144,7 @@ int main(int argc, char *argv[])
                                     actressQuery.value(0).toLongLong());
     QTest::qWait(500);
     auto *personEditor =
-        window.findChild<darkeye::PersonEditorDialog *>(QStringLiteral("PersonEditorDialog"));
+        window.findChild<darkeye::ModifyActressPage *>(QStringLiteral("ModifyActressPage"));
     if (personEditor == nullptr ||
         !personEditor->grab().save(
             QDir(outputDirectory).filePath(QStringLiteral("person-editor.png"))))
@@ -200,8 +211,8 @@ int main(int argc, char *argv[])
     if (workRelationTabs == nullptr)
         return 23;
     workRelationTabs->setCurrentIndex(3);
-    auto *fanartStrip = managementTabs->currentWidget()->findChild<darkeye::FanartStripWidget *>(
-        QStringLiteral("WorkFanartStrip"));
+    auto *fanartStrip = findWorkControl<darkeye::FanartStripWidget>(
+        managementTabs->currentWidget(), QStringLiteral("WorkFanartStrip"));
     if (fanartStrip == nullptr)
         return 24;
     fanartStrip->setEntries({{QStringLiteral("https://invalid.example/fanart-1.jpg"),

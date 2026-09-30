@@ -6,5 +6,6 @@
     </qresource>
     <qresource prefix="/icons">
         <file alias="logo.svg">../../resources/icons/logo.svg</file>
+        <file alias="anonymous.jpg">../../resources/icons/anonymous.jpg</file>
     </qresource>
 </RCC>

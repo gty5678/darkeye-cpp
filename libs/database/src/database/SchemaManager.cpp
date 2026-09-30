@@ -113,6 +113,12 @@ bool SchemaManager::initializeEmptyDatabase(SqliteConnection &connection, Databa
     if (!SqlScriptRunner::executeResource(connection.database(), resourcePath, errorMessage)) {
         return false;
     }
+    if (kind == DatabaseKind::Public
+        && !SqlScriptRunner::executeResource(connection.database(),
+                                              QStringLiteral(":/sql/init-content.sql"),
+                                              errorMessage)) {
+        return false;
+    }
     return validateCurrentSchema(connection, kind, errorMessage);
 }
 

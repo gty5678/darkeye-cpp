@@ -22,6 +22,7 @@ signals:
 
 private:
     QString resolvedPath(const QString &imagePath) const;
+    void applyOctagonMask();
     void startLoad();
     void applyImage(quint64 request, const QString &path, const QImage &image);
 

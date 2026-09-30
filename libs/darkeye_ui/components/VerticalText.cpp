@@ -118,24 +118,67 @@ TokenVLabel::TokenVLabel(const QString &text, ThemeService *themes, QWidget *par
     });
     if (m_themes != nullptr) connect(m_themes, &ThemeService::themeChanged,
                                     this, [this] {
-        if (!m_explicitColors) {
-            const ThemeTokens values = tokensFor(m_themes);
-            m_background = QColor(values.pageBackground);
-            m_textColor = QColor(values.text);
-            m_border = QColor(values.border);
-            m_hoverColor = QColor(values.primary);
-        }
+        const ThemeTokens values = tokensFor(m_themes);
+        if (!m_explicitBackground) m_background = QColor(values.pageBackground);
+        if (!m_explicitTextColor) m_textColor = QColor(values.text);
+        if (!m_explicitBorder) m_border = QColor(values.border);
+        if (!m_explicitHoverColor) m_hoverColor = QColor(values.primary);
         update();
     });
     updateSize();
 }
+
+TokenVLabel::TokenVLabel(const QString &text, const QColor &background,
+                         const QColor &textColor, int fixedWidth,
+                         int fixedHeight, const QColor &border,
+                         const QColor &hover, ThemeService *themes,
+                         QWidget *parent)
+    : TokenVLabel(text, themes, parent)
+{
+    if (background.isValid()) {
+        m_background = background;
+        m_explicitBackground = true;
+    }
+    if (textColor.isValid()) {
+        m_textColor = textColor;
+        m_explicitTextColor = true;
+    }
+    if (border.isValid()) {
+        m_border = border;
+        m_explicitBorder = true;
+    }
+    if (hover.isValid()) {
+        m_hoverColor = hover;
+        m_explicitHoverColor = true;
+    }
+    if (fixedWidth > 0 && fixedHeight > 0) setFixedSize(fixedWidth, fixedHeight);
+    update();
+}
+
 void TokenVLabel::setTextDynamic(const QString &text) { setText(text); updateSize(); update(); }
 void TokenVLabel::setColors(const QColor &background, const QColor &text,
                             const QColor &hover)
 {
-    m_explicitColors = true;
-    m_background = background; m_textColor = text;
-    if (hover.isValid()) m_hoverColor = hover;
+    m_background = background;
+    m_textColor = text;
+    m_explicitBackground = true;
+    m_explicitTextColor = true;
+    if (hover.isValid()) {
+        m_hoverColor = hover;
+        m_explicitHoverColor = true;
+    }
+    update();
+}
+void TokenVLabel::setBorderColor(const QColor &border)
+{
+    m_border = border;
+    m_explicitBorder = border.isValid();
+    update();
+}
+void TokenVLabel::setHoverColor(const QColor &hover)
+{
+    m_hoverColor = hover;
+    m_explicitHoverColor = hover.isValid();
     update();
 }
 void TokenVLabel::flashInvert(int duration, int interval)
@@ -178,15 +221,49 @@ TokenVerticalTabBar::TokenVerticalTabBar(ThemeService *themes, QWidget *parent)
 {
     setObjectName(QStringLiteral("VerticalTabBar"));
     setShape(QTabBar::RoundedWest);
+    const auto applyTokenFont = [this] {
+        const ThemeTokens tokens = tokensFor(m_themes);
+        QFont tokenFont(tokens.fontFamilyBase);
+        QString pixelSize = tokens.fontSizeMiddle;
+        pixelSize.remove(QStringLiteral("px"), Qt::CaseInsensitive);
+        tokenFont.setPixelSize(qMax(1, pixelSize.toInt()));
+        setFont(tokenFont);
+        updateGeometry();
+        update();
+    };
+    applyTokenFont();
     if (m_themes != nullptr) connect(m_themes, &ThemeService::themeChanged,
-                                    this, [this] { update(); });
+                                    this, applyTokenFont);
 }
 QSize TokenVerticalTabBar::tabSizeHint(int index) const
 {
+    const QString text = VerticalTextLayout::replaceEllipsis(tabText(index));
     const QFontMetrics metrics(font());
-    return {qMax(40, qRound(metrics.height() * 1.5)),
-            qMax(40, metrics.height()
-                         * static_cast<int>(tabText(index).size()) + 8)};
+    const qreal lineSpacing = metrics.height() * 0.05;
+    const int characterHeight = metrics.height();
+    const int characterWidth = metrics.maxWidth();
+    const int verticalPadding = qRound(characterHeight * 0.2);
+    const int horizontalPadding = qRound(characterWidth * 0.3);
+    int totalHeight = verticalPadding * 2;
+    for (const VerticalTextLayout::TextRun &run :
+         VerticalTextLayout::splitTextBlocks(text)) {
+        if (run.english)
+            totalHeight += metrics.horizontalAdvance(run.text) + qRound(lineSpacing);
+        else
+            totalHeight += qRound((characterHeight + lineSpacing) * run.text.size());
+    }
+    int maximumCharacterWidth = 0;
+    for (const QChar character : text)
+        if (!character.isSpace())
+            maximumCharacterWidth = qMax(maximumCharacterWidth,
+                                         metrics.horizontalAdvance(character));
+    const int minimumWidth = maximumCharacterWidth > 0
+        ? qRound(maximumCharacterWidth * 1.5) : 40;
+    const int idealWidth = maximumCharacterWidth > 0
+        ? maximumCharacterWidth + horizontalPadding * 2 : 60;
+    const int maximumWidth = maximumCharacterWidth > 0
+        ? qRound(maximumCharacterWidth * 2.5) : 120;
+    return {qMax(minimumWidth, qMin(idealWidth, maximumWidth)), totalHeight};
 }
 void TokenVerticalTabBar::paintEvent(QPaintEvent *)
 {
@@ -200,10 +277,9 @@ void TokenVerticalTabBar::paintEvent(QPaintEvent *)
         painter.drawControl(QStyle::CE_TabBarTabShape, option);
         painter.setPen(QColor(index == currentIndex() ? tokens.textInverse : tokens.text));
         painter.setFont(font());
-        drawVerticalText(painter, tabRect(index).adjusted(2, 4, -2, -4), text);
+        const int topMargin = qRound(painter.fontMetrics().height() * 0.3);
+        drawVerticalText(painter, tabRect(index).adjusted(0, topMargin, 0, 0), text);
     }
 }
 
 } // namespace darkeye
-
-

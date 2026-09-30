@@ -6,6 +6,7 @@
 #include <QLabel>
 #include <QPainter>
 #include <QSplitter>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <algorithm>
 #include <stdexcept>
@@ -180,10 +181,29 @@ QWidget *WorkspaceWidget::buildNode(const std::shared_ptr<LayoutNode> &node)
     auto *splitter = new QSplitter(node->orientation, this);
     splitter->setChildrenCollapsible(false);
     splitter->setHandleWidth(2);
+    // 延后到鼠标释放才提交尺寸，避免深层 splitter 在父级重排期间以零尺寸进行
+    // opaque resize，从而短暂把相邻窗格挤成 0。
+    splitter->setOpaqueResize(false);
     for (const auto &child : node->children) splitter->addWidget(buildNode(child));
-    if (node->sizes.size() == splitter->count()) splitter->setSizes(node->sizes);
+    const QList<int> requestedSizes = node->sizes;
+    const auto validSizes = [splitter](const QList<int> &sizes) {
+        return sizes.size() == splitter->count() &&
+               std::all_of(sizes.cbegin(), sizes.cend(), [](int size) { return size > 0; });
+    };
+    if (validSizes(requestedSizes)) splitter->setSizes(requestedSizes);
+    // 新建 splitter 时父布局还没有最终几何尺寸。此时 setSizes 可能被 Qt 的一次
+    // 零尺寸布局覆盖；在事件循环下一轮重新应用保存的比例。
+    if (validSizes(requestedSizes)) {
+        QTimer::singleShot(0, splitter, [splitter, requestedSizes] {
+            splitter->setSizes(requestedSizes);
+        });
+    }
     connect(splitter, &QSplitter::splitterMoved, this,
-            [splitter, node](int, int) { node->sizes = splitter->sizes(); });
+            [splitter, node, validSizes](int, int) {
+                const QList<int> sizes = splitter->sizes();
+                // 忽略父级重建/隐藏期间的零尺寸通知，不能让它污染可持久化布局。
+                if (validSizes(sizes)) node->sizes = sizes;
+            });
     return splitter;
 }
 
@@ -226,7 +246,9 @@ PaneWidget *WorkspaceWidget::split(PaneWidget *target, Placement placement, int 
         placement == Placement::Left || placement == Placement::Right
             ? Qt::Horizontal : Qt::Vertical;
     m_tree.split(target->paneId(), orientation, before, id, percent);
-    rebuild();
+    // 拆分会重建树，但已有窗格（及其中的内容 widget）必须继续复用；否则调用方
+    // 持有的 PaneWidget 指针会在连续拆分中失效，并可能在销毁工作区时重复释放布局。
+    rebuild(true);
     setActivePane(pane(id));
     emit layoutChanged();
     return pane(id);
@@ -523,5 +545,3 @@ void WorkspaceWidget::applyTheme(const DockTheme &theme)
 DockTheme WorkspaceWidget::theme() const { return m_theme; }
 
 } // namespace darkeye::myads
-
-

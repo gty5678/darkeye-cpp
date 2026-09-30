@@ -12,6 +12,12 @@ DesignLabel::DesignLabel(const QString &text, QWidget *parent) : QLabel(text, pa
     setAttribute(Qt::WA_TranslucentBackground);
 }
 
+DesignLabel::DesignLabel(const QString &text, const QString &tone, QWidget *parent)
+    : DesignLabel(text, parent)
+{
+    setTone(tone);
+}
+
 void DesignLabel::setTone(const QString &tone)
 {
     setProperty("tone", tone.trimmed().isEmpty() ? QStringLiteral("default")

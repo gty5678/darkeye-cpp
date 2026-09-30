@@ -189,6 +189,9 @@ MultiplePathManagement::MultiplePathManagement(const QString &labelText, QWidget
     connect(addButton, &QPushButton::clicked, this, &MultiplePathManagement::addRow);
     connect(deleteButton, &QPushButton::clicked, this,
             &MultiplePathManagement::deleteSelectedRows);
+    connect(m_table, &TokenTableWidget::addRequested, this, &MultiplePathManagement::addRow);
+    connect(m_table, &TokenTableWidget::deleteRequested, this,
+            &MultiplePathManagement::deleteSelectedRows);
     connect(m_table, &QTableWidget::cellDoubleClicked, this,
             &MultiplePathManagement::handleCellDoubleClicked);
     connect(m_table->selectionModel(), &QItemSelectionModel::selectionChanged, this,

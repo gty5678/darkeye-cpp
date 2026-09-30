@@ -21,6 +21,8 @@
 #include "darkeye_ui/components/LazyScrollArea.h"
 #include "darkeye_ui/components/LinkCard.h"
 #include "darkeye_ui/components/LoadingFeedback.h"
+#include "darkeye_ui/components/MakerSelector.h"
+#include "darkeye_ui/components/MakerComboDelegate.h"
 #include "darkeye_ui/components/ModalDialog.h"
 #include "darkeye_ui/components/ModernScrollMenu.h"
 #include "darkeye_ui/components/OctImage.h"

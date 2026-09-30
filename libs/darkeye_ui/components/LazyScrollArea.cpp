@@ -3,6 +3,7 @@
 #include "darkeye_ui/layouts/WaterfallLayout.h"
 
 #include <QScrollBar>
+#include <QResizeEvent>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -12,17 +13,12 @@ namespace darkeye {
 
 LazyScrollArea::LazyScrollArea(int columnWidth, QWidget *parent)
     : QScrollArea(parent), m_contentWidget(new QWidget(this)),
-      m_waterfallWidget(new QWidget(m_contentWidget)),
-      m_contentLayout(new QVBoxLayout(m_contentWidget)),
+      m_waterfallWidget(m_contentWidget),
       m_layout(new WaterfallLayout(m_waterfallWidget, columnWidth, 0, 10))
 {
     setObjectName(QStringLiteral("DesignLazyScrollArea"));
     setWidgetResizable(true);
     setFrameShape(QFrame::NoFrame);
-    m_contentLayout->setContentsMargins(0, 0, 0, 0);
-    m_contentLayout->setSpacing(0);
-    m_contentLayout->addWidget(m_waterfallWidget, 0, Qt::AlignTop);
-    m_contentLayout->addStretch();
     m_layout->setContentsMargins(0, 5, 0, 0);
     setWidget(m_contentWidget);
     connect(verticalScrollBar(), &QScrollBar::valueChanged, this,
@@ -39,6 +35,11 @@ void LazyScrollArea::reset()
 {
     while (QLayoutItem *item = m_layout->takeAt(0)) {
         if (QWidget *widget = item->widget()) {
+            // Match the Python implementation: remove cards from the content
+            // widget before scheduling deletion.  deleteLater() alone leaves
+            // the old card visible until the next event-loop turn, where it
+            // can briefly overlap the newly laid-out page during a refresh.
+            widget->setParent(nullptr);
             widget->deleteLater();
         }
         delete item;
@@ -76,7 +77,7 @@ bool LazyScrollArea::loadNextPage()
     }
     m_loading = false;
     m_layout->invalidate();
-    m_contentWidget->updateGeometry();
+    updateContentGeometry();
     scheduleScrollableCheck();
     return !widgets.isEmpty();
 }
@@ -84,6 +85,7 @@ bool LazyScrollArea::loadNextPage()
 void LazyScrollArea::setHeaderWidget(QWidget *widget)
 {
     if (m_headerWidget == widget) return;
+    if (widget != nullptr) ensureContentLayout();
     if (m_headerWidget != nullptr) {
         m_contentLayout->removeWidget(m_headerWidget);
         m_headerWidget->setParent(nullptr);
@@ -137,12 +139,21 @@ int LazyScrollArea::columnWidth() const
 
 void LazyScrollArea::setColumnWidth(int columnWidth)
 {
-    if (columnWidth > 0) m_layout->setColumnWidth(columnWidth);
+    if (columnWidth > 0) {
+        m_layout->setColumnWidth(columnWidth);
+        updateContentGeometry();
+    }
 }
 
 void LazyScrollArea::setPrefetchDistance(int distance)
 {
     m_prefetchDistance = qMax(0, distance);
+}
+
+void LazyScrollArea::resizeEvent(QResizeEvent *event)
+{
+    QScrollArea::resizeEvent(event);
+    updateContentGeometry();
 }
 
 void LazyScrollArea::handleScroll(int value)
@@ -157,7 +168,11 @@ void LazyScrollArea::scheduleScrollableCheck()
 {
     if (m_reachedEnd || !m_loader) return;
     const quint64 generation = m_generation;
-    QTimer::singleShot(0, this, [this, generation] {
+    // Allow QScrollArea and the waterfall layout to apply the newly appended
+    // cards before inspecting the scrollbar range.  Checking in the same
+    // event-loop turn observes a stale zero range and can preload every page
+    // instead of waiting for an actual scroll.
+    QTimer::singleShot(50, this, [this, generation] {
         checkScrollableAndLoad(generation);
     });
 }
@@ -170,6 +185,34 @@ void LazyScrollArea::checkScrollableAndLoad(quint64 generation)
     }
     ++m_scrollCheckRetries;
     loadNextPage();
+}
+
+void LazyScrollArea::ensureContentLayout()
+{
+    if (m_contentLayout != nullptr) return;
+
+    QWidget *waterfall = takeWidget();
+    Q_ASSERT(waterfall == m_waterfallWidget);
+    m_contentWidget = new QWidget(this);
+    m_contentLayout = new QVBoxLayout(m_contentWidget);
+    m_contentLayout->setContentsMargins(0, 0, 0, 0);
+    m_contentLayout->setSpacing(0);
+    waterfall->setParent(m_contentWidget);
+    m_contentLayout->addWidget(waterfall, 0, Qt::AlignTop);
+    m_contentLayout->addStretch();
+    setWidget(m_contentWidget);
+}
+
+void LazyScrollArea::updateContentGeometry()
+{
+    // QScrollArea does not reliably turn a custom layout's height-for-width
+    // result into its child's height.  Without an explicit minimum height the
+    // cards can paint below the widget bounds while the scrollbar only covers
+    // part of the waterfall.
+    const int contentWidth = qMax(1, viewport()->width());
+    m_waterfallWidget->setMinimumHeight(m_layout->heightForWidth(contentWidth));
+    m_waterfallWidget->updateGeometry();
+    m_contentWidget->updateGeometry();
 }
 
 } // namespace darkeye

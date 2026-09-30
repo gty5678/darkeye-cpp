@@ -4,6 +4,7 @@
 
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QSet>
 #include <QVariantList>
 
 namespace
@@ -563,6 +564,42 @@ bool PersonRepository::updateDetails(const PersonDetails &details, QString *erro
     const QString nameTable =
         actress ? QStringLiteral("actress_name") : QStringLiteral("actor_name");
     const QString idColumn = actress ? QStringLiteral("actress_id") : QStringLiteral("actor_id");
+    const QString nameIdColumn =
+        actress ? QStringLiteral("actress_name_id") : QStringLiteral("actor_name_id");
+
+    // Match update_actress_name() in the Python application: retain existing
+    // name rows and their identities, remove only rows the editor removed, and
+    // then rebuild the redirect chain.  Deleting every row first breaks any
+    // external reference to actress_name and can fail under foreign-key checks.
+    QSet<qint64> existingNameIds;
+    QSqlQuery existingNames(m_database);
+    existingNames.prepare(QStringLiteral("SELECT %1 FROM %2 WHERE %3=?")
+                              .arg(nameIdColumn, nameTable, idColumn));
+    existingNames.addBindValue(details.id);
+    if (!existingNames.exec())
+    {
+        if (errorMessage != nullptr)
+            *errorMessage = existingNames.lastError().text();
+        return false;
+    }
+    while (existingNames.next())
+        existingNameIds.insert(existingNames.value(0).toLongLong());
+
+    QSet<qint64> submittedNameIds;
+    for (const PersonName &name : details.names)
+    {
+        if (name.id > 0)
+            submittedNameIds.insert(name.id);
+    }
+    for (const qint64 nameId : submittedNameIds)
+    {
+        if (!existingNameIds.contains(nameId))
+        {
+            if (errorMessage != nullptr)
+                *errorMessage = QStringLiteral("姓名不属于当前人物");
+            return false;
+        }
+    }
     if (actress)
     {
         QSqlQuery unlink(m_database);
@@ -576,53 +613,147 @@ bool PersonRepository::updateDetails(const PersonDetails &details, QString *erro
             return false;
         }
     }
-    QSqlQuery removeNames(m_database);
-    removeNames.prepare(QStringLiteral("DELETE FROM %1 WHERE %2=?").arg(nameTable, idColumn));
-    removeNames.addBindValue(details.id);
-    if (!removeNames.exec())
+    const QSet<qint64> deletedNameIds = existingNameIds - submittedNameIds;
+    for (const qint64 nameId : deletedNameIds)
     {
-        if (errorMessage != nullptr)
-            *errorMessage = removeNames.lastError().text();
-        return false;
+        QSqlQuery removeName(m_database);
+        removeName.prepare(QStringLiteral("DELETE FROM %1 WHERE %2=? AND %3=?")
+                               .arg(nameTable, nameIdColumn, idColumn));
+        removeName.addBindValue(nameId);
+        removeName.addBindValue(details.id);
+        if (!removeName.exec() || removeName.numRowsAffected() != 1)
+        {
+            if (errorMessage != nullptr)
+                *errorMessage = removeName.lastError().text().isEmpty()
+                                    ? QStringLiteral("删除姓名失败")
+                                    : removeName.lastError().text();
+            return false;
+        }
     }
 
     qint64 previousNameId = 0;
     for (qsizetype index = 0; index < details.names.size(); ++index)
     {
         const PersonName &name = details.names.at(index);
-        QSqlQuery insertName(m_database);
-        if (actress)
+        if (name.id > 0)
         {
-            insertName.prepare(
-                QStringLiteral("INSERT INTO actress_name(actress_id,name_type,cn,jp,en,kana,"
-                               "redirect_actress_name_id) VALUES(?,?,?,?,?,?,?)"));
+            QSqlQuery updateName(m_database);
+            if (actress)
+            {
+                updateName.prepare(QStringLiteral(
+                    "UPDATE actress_name SET name_type=?,cn=?,jp=?,en=?,kana=?,"
+                    "redirect_actress_name_id=? WHERE actress_name_id=? AND actress_id=?"));
+            }
+            else
+            {
+                updateName.prepare(QStringLiteral(
+                    "UPDATE actor_name SET name_type=?,cn=?,jp=?,en=?,kana=? "
+                    "WHERE actor_name_id=? AND actor_id=?"));
+            }
+            updateName.addBindValue(index == 0 ? 1 : 0);
+            updateName.addBindValue(name.chinese.trimmed());
+            updateName.addBindValue(name.japanese.trimmed());
+            updateName.addBindValue(name.english.trimmed());
+            updateName.addBindValue(name.kana.trimmed());
+            if (actress)
+                updateName.addBindValue(previousNameId > 0 ? QVariant(previousNameId) : QVariant());
+            updateName.addBindValue(name.id);
+            updateName.addBindValue(details.id);
+            if (!updateName.exec() || updateName.numRowsAffected() != 1)
+            {
+                if (errorMessage != nullptr)
+                    *errorMessage = updateName.lastError().text().isEmpty()
+                                        ? QStringLiteral("更新姓名失败")
+                                        : updateName.lastError().text();
+                return false;
+            }
+            previousNameId = name.id;
         }
         else
         {
-            insertName.prepare(
-                QStringLiteral("INSERT INTO actor_name(actor_id,name_type,cn,jp,en,kana) "
-                               "VALUES(?,?,?,?,?,?)"));
+            QSqlQuery insertName(m_database);
+            if (actress)
+            {
+                insertName.prepare(QStringLiteral(
+                    "INSERT INTO actress_name(actress_id,name_type,cn,jp,en,kana,"
+                    "redirect_actress_name_id) VALUES(?,?,?,?,?,?,?)"));
+            }
+            else
+            {
+                insertName.prepare(QStringLiteral(
+                    "INSERT INTO actor_name(actor_id,name_type,cn,jp,en,kana) "
+                    "VALUES(?,?,?,?,?,?)"));
+            }
+            insertName.addBindValue(details.id);
+            insertName.addBindValue(index == 0 ? 1 : 0);
+            insertName.addBindValue(name.chinese.trimmed());
+            insertName.addBindValue(name.japanese.trimmed());
+            insertName.addBindValue(name.english.trimmed());
+            insertName.addBindValue(name.kana.trimmed());
+            if (actress)
+                insertName.addBindValue(previousNameId > 0 ? QVariant(previousNameId) : QVariant());
+            if (!insertName.exec())
+            {
+                if (errorMessage != nullptr)
+                    *errorMessage = insertName.lastError().text();
+                return false;
+            }
+            previousNameId = insertName.lastInsertId().toLongLong();
         }
-        insertName.addBindValue(details.id);
-        insertName.addBindValue(index == 0 ? 1 : 0);
-        insertName.addBindValue(name.chinese.trimmed());
-        insertName.addBindValue(name.japanese.trimmed());
-        insertName.addBindValue(name.english.trimmed());
-        insertName.addBindValue(name.kana.trimmed());
-        if (actress)
-            insertName.addBindValue(previousNameId > 0 ? QVariant(previousNameId) : QVariant());
-        if (!insertName.exec())
-        {
-            if (errorMessage != nullptr)
-                *errorMessage = insertName.lastError().text();
-            return false;
-        }
-        previousNameId = insertName.lastInsertId().toLongLong();
     }
     if (!transaction.commit())
     {
         if (errorMessage != nullptr)
             *errorMessage = transaction.errorString();
+        return false;
+    }
+    return true;
+}
+
+bool PersonRepository::deletePerson(PersonKind kind, qint64 personId, QString *errorMessage)
+{
+    if (personId <= 0)
+    {
+        if (errorMessage != nullptr) *errorMessage = QStringLiteral("人物不存在");
+        return false;
+    }
+    const bool actress = kind == PersonKind::Actress;
+    const QString relationTable = actress ? QStringLiteral("work_actress_relation")
+                                          : QStringLiteral("work_actor_relation");
+    const QString idColumn = actress ? QStringLiteral("actress_id") : QStringLiteral("actor_id");
+    QSqlQuery references(m_database);
+    references.prepare(QStringLiteral("SELECT 1 FROM %1 WHERE %2=? LIMIT 1").arg(relationTable, idColumn));
+    references.addBindValue(personId);
+    if (!references.exec())
+    {
+        if (errorMessage != nullptr) *errorMessage = references.lastError().text();
+        return false;
+    }
+    if (references.next())
+    {
+        if (errorMessage != nullptr) *errorMessage = QStringLiteral("存在包含该人物的作品，无法删除");
+        return false;
+    }
+    Transaction transaction(m_database);
+    if (!transaction.isActive())
+    {
+        if (errorMessage != nullptr) *errorMessage = transaction.errorString();
+        return false;
+    }
+    QSqlQuery names(m_database);
+    names.prepare(QStringLiteral("DELETE FROM %1_name WHERE %2=?")
+                      .arg(actress ? QStringLiteral("actress") : QStringLiteral("actor"), idColumn));
+    names.addBindValue(personId);
+    QSqlQuery entity(m_database);
+    entity.prepare(QStringLiteral("DELETE FROM %1 WHERE %2=?")
+                       .arg(actress ? QStringLiteral("actress") : QStringLiteral("actor"), idColumn));
+    entity.addBindValue(personId);
+    if (!names.exec() || !entity.exec() || entity.numRowsAffected() != 1 || !transaction.commit())
+    {
+        if (errorMessage != nullptr)
+            *errorMessage = !names.lastError().text().isEmpty() ? names.lastError().text()
+                : (!entity.lastError().text().isEmpty() ? entity.lastError().text()
+                                                        : transaction.errorString());
         return false;
     }
     return true;

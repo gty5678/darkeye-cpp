@@ -15,11 +15,12 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64",
         "DARKEYE_BUILD_TESTS": "OFF",
-        "CMAKE_INSTALL_PREFIX": "C:/Users/yin/Desktop/DarkeyeCPP"
+        "CMAKE_INSTALL_PREFIX": "C:/Users/yin/Desktop/DarkeyeCPP",
+        "CMAKE_INSTALL_BINDIR": "."
       }
     },
     {
-      "name": "windows-msvc-release",
+      "name": "windows-msvc-release-no-data",
       "displayName": "Windows MSVC + Ninja + Qt 6.10.3 Release",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/windows-msvc-release",
@@ -27,7 +28,23 @@
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64",
         "DARKEYE_BUILD_TESTS": "OFF",
-        "CMAKE_INSTALL_PREFIX": "C:/Users/yin/Desktop/DarkeyeCPP"
+        "CMAKE_INSTALL_PREFIX": "C:/Users/yin/Desktop/Darkeye-no-data",
+        "DARKEYE_INSTALL_DATA": "OFF",
+        "CMAKE_INSTALL_BINDIR": "."
+      }
+    },
+    {
+      "name": "windows-msvc-release-data",
+      "displayName": "Windows MSVC + Ninja + Qt 6.10.3 Release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-msvc-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64",
+        "DARKEYE_BUILD_TESTS": "OFF",
+        "CMAKE_INSTALL_PREFIX": "C:/Users/yin/Desktop/DarkeyeCPP-data",
+        "DARKEYE_INSTALL_DATA": "ON",
+        "CMAKE_INSTALL_BINDIR": "."
       }
     },
     {
@@ -39,7 +56,8 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64",
         "DARKEYE_BUILD_TESTS": "ON",
-        "CMAKE_INSTALL_PREFIX": "C:/Users/yin/Desktop/DarkeyeCPP"
+        "CMAKE_INSTALL_PREFIX": "C:/Users/yin/Desktop/DarkeyeCPP",
+        "CMAKE_INSTALL_BINDIR": "."
       }
     },
     {
@@ -50,7 +68,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64",
-        "DARKEYE_BUILD_TESTS": "ON"
+        "DARKEYE_BUILD_TESTS": "ON",
+        "CMAKE_INSTALL_BINDIR": "."
       }
     }
   ],
@@ -60,8 +79,12 @@
       "configurePreset": "windows-msvc-debug"
     },
     {
-      "name": "release",
-      "configurePreset": "windows-msvc-release"
+      "name": "release-data",
+      "configurePreset": "windows-msvc-release-data"
+    },
+    {
+      "name": "release-no-data",
+      "configurePreset": "windows-msvc-release-no-data"
     },
     {
       "name": "debug-tests",

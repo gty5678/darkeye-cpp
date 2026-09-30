@@ -5,6 +5,7 @@
 #include "darkeye_ui/layouts/WaterfallLayout.h"
 
 #include <QLabel>
+#include <QScrollBar>
 #include <QWidget>
 #include <QtTest>
 
@@ -19,6 +20,9 @@ private slots:
     void waterfallUsesShortestColumn();
     void lazyAreaLoadsOnePageAtATime();
     void lazyAreaSupportsHeaderAndPreloadsUntilScrollable();
+    void lazyAreaLoadsNextPageWhenScrolledNearBottom();
+    void lazyAreaScrollRangeCoversWholeWaterfall();
+    void lazyAreaDetachesOldCardsBeforeDeferredDeletion();
 };
 
 void LayoutTest::flowLayoutWrapsItems()
@@ -171,6 +175,78 @@ void LayoutTest::lazyAreaSupportsHeaderAndPreloadsUntilScrollable()
     QCOMPARE(calls, 2);
     area.setHeaderWidget(nullptr);
     QVERIFY(area.headerWidget() == nullptr);
+}
+
+void LayoutTest::lazyAreaLoadsNextPageWhenScrolledNearBottom()
+{
+    darkeye::LazyScrollArea area(100);
+    area.resize(120, 150);
+    area.setPageSize(3);
+    int calls = 0;
+    area.setLoader([&calls](int page, int pageSize) {
+        ++calls;
+        QList<QWidget *> result;
+        const int count = page < 2 ? pageSize : 0;
+        for (int index = 0; index < count; ++index) {
+            auto *label = new QLabel(QString::number(page * pageSize + index));
+            label->setFixedSize(100, 100);
+            result.append(label);
+        }
+        return result;
+    });
+
+    area.show();
+    QTRY_VERIFY_WITH_TIMEOUT(area.verticalScrollBar()->maximum() > 0, 1000);
+    QCOMPARE(area.itemCount(), 3);
+    QCOMPARE(calls, 1);
+
+    area.verticalScrollBar()->setValue(area.verticalScrollBar()->maximum());
+    QTRY_COMPARE_WITH_TIMEOUT(area.itemCount(), 6, 1000);
+    QCOMPARE(calls, 2);
+}
+
+void LayoutTest::lazyAreaScrollRangeCoversWholeWaterfall()
+{
+    darkeye::LazyScrollArea area(100);
+    area.resize(450, 150);
+    area.setPageSize(70);
+    area.setLoader([](int page, int pageSize) {
+        QList<QWidget *> result;
+        if (page != 0) return result;
+        for (int index = 0; index < pageSize; ++index) {
+            auto *label = new QLabel(QString::number(index));
+            label->setFixedSize(100, 100);
+            result.append(label);
+        }
+        return result;
+    });
+
+    area.show();
+    const int expectedHeight = 18 * 100 + 17 * 10 + 5;
+    QTRY_VERIFY_WITH_TIMEOUT(area.verticalScrollBar()->maximum()
+                             >= expectedHeight - area.viewport()->height(), 1000);
+}
+
+void LayoutTest::lazyAreaDetachesOldCardsBeforeDeferredDeletion()
+{
+    darkeye::LazyScrollArea area(100);
+    area.setPageSize(1);
+    QWidget *firstCard = nullptr;
+    area.setLoader([&firstCard](int, int) {
+        auto *card = new QLabel;
+        card->setFixedSize(100, 20);
+        if (firstCard == nullptr) firstCard = card;
+        return QList<QWidget *>{card};
+    });
+
+    QVERIFY(firstCard != nullptr);
+    QVERIFY(firstCard->parentWidget() != nullptr);
+
+    area.reset();
+
+    // deleteLater() is intentionally deferred, but an outgoing card must no
+    // longer be a visible child while the new page is laid out.
+    QVERIFY(firstCard->parentWidget() == nullptr);
 }
 
 QTEST_MAIN(LayoutTest)

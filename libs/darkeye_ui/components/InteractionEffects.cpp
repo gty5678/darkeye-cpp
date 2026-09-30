@@ -44,6 +44,17 @@ RotateButton::RotateButton(const QString &iconName, ThemeService *themes,
     m_animation->setDuration(400);
 }
 
+RotateButton::RotateButton(const QString &iconName, const QString &iconPath,
+                           int iconSize, int outerSize, bool hoverable,
+                           ThemeService *themes, QWidget *parent)
+    : IconButton(iconName, iconPath, iconSize, outerSize, hoverable, false,
+                 themes, parent)
+{
+    setObjectName(QStringLiteral("DesignRotateButton"));
+    m_animation = new QPropertyAnimation(this, "angle", this);
+    m_animation->setDuration(400);
+}
+
 qreal RotateButton::angle() const { return m_angle; }
 void RotateButton::setAngle(qreal angle) { m_angle = angle; update(); }
 
@@ -68,6 +79,18 @@ void RotateButton::mousePressEvent(QMouseEvent *event)
 ShakeButton::ShakeButton(const QString &iconName, ThemeService *themes,
                          QWidget *parent)
     : IconButton(iconName, themes, parent)
+{
+    setObjectName(QStringLiteral("DesignShakeButton"));
+    m_animation = new QPropertyAnimation(this, "iconOffset", this);
+    m_animation->setDuration(400);
+    m_animation->setEasingCurve(QEasingCurve::OutQuad);
+}
+
+ShakeButton::ShakeButton(const QString &iconName, const QString &iconPath,
+                         int iconSize, int outerSize, bool hoverable,
+                         ThemeService *themes, QWidget *parent)
+    : IconButton(iconName, iconPath, iconSize, outerSize, hoverable, false,
+                 themes, parent)
 {
     setObjectName(QStringLiteral("DesignShakeButton"));
     m_animation = new QPropertyAnimation(this, "iconOffset", this);

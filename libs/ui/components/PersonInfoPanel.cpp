@@ -9,15 +9,18 @@
 #include "darkeye_ui/components/TokenControls.h"
 #include "darkeye_ui/components/TokenViews.h"
 #include "ui/components/ClickableLabel.h"
-#include "ui/components/ActressWorkTimeline.h"
 #include "utils/GeneralUtils.h"
 
 #include <QGridLayout>
 #include <QHash>
 #include <QHeaderView>
 #include <QLabel>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QSizePolicy>
 #include <QTableWidget>
 #include <QTableWidgetItem>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <cmath>
 #include <functional>
@@ -86,14 +89,14 @@ QList<QPair<double, double>> measurementPairs(
 namespace darkeye
 {
 
-PersonInfoPanel::PersonInfoPanel(ThemeService &themes, QString imageDirectory, QWidget *parent,
-                                 QString coverDirectory)
+PersonInfoPanel::PersonInfoPanel(ThemeService &themes, QString imageDirectory, QWidget *parent)
     : QWidget(parent), m_themes(themes), m_imageDirectory(std::move(imageDirectory))
 {
     setObjectName(QStringLiteral("PersonInfoPanel"));
+    setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
     auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(18, 18, 18, 18);
-    root->setSpacing(12);
+    root->setContentsMargins(10, 0, 0, 0);
+    root->setSpacing(0);
 
     auto *summary = new QWidget(this);
     auto *summaryLayout = new QHBoxLayout(summary);
@@ -104,21 +107,22 @@ PersonInfoPanel::PersonInfoPanel(ThemeService &themes, QString imageDirectory, Q
     m_names = new QWidget(left);
     m_names->setFixedHeight(50);
     m_names->setLayout(new QHBoxLayout);
-    m_names->layout()->setContentsMargins(0, 0, 0, 0);
+    m_names->layout()->setContentsMargins(11, 11, 11, 11);
     leftLayout->addWidget(m_names);
     auto *info = new QWidget(left);
     auto *infoLayout = new QHBoxLayout(info);
     infoLayout->setContentsMargins(0, 0, 0, 0);
-    m_avatar = new OctImage({}, m_imageDirectory, 180, true, info);
+    m_avatar = new OctImage({}, m_imageDirectory, 150, true, info);
     m_avatar->setObjectName(QStringLiteral("PersonDetailAvatar"));
+    m_avatar->installEventFilter(this);
     infoLayout->addWidget(m_avatar, 0, Qt::AlignTop);
     m_facts = new QWidget(info);
     m_facts->setLayout(new QGridLayout);
-    m_facts->layout()->setContentsMargins(12, 0, 0, 0);
-    infoLayout->addWidget(m_facts, 1, Qt::AlignTop);
+    m_facts->layout()->setContentsMargins(0, 0, 0, 0);
+    infoLayout->addWidget(m_facts, 0, Qt::AlignTop);
     leftLayout->addWidget(info);
     leftLayout->addStretch();
-    summaryLayout->addWidget(left, 1);
+    summaryLayout->addWidget(left);
 
     m_heart = new HeartLabel(m_names);
     m_heart->setObjectName(QStringLiteral("PersonFavoriteButton"));
@@ -128,6 +132,7 @@ PersonInfoPanel::PersonInfoPanel(ThemeService &themes, QString imageDirectory, Q
     m_radar = new RadarChartWidget({}, {}, {}, 5, &m_themes, summary);
     m_radar->setFixedSize(250, 220);
     summaryLayout->addWidget(m_radar, 0, Qt::AlignTop);
+    summaryLayout->addStretch();
     root->addWidget(summary);
 
     m_notes = new DesignLabel({}, this);
@@ -135,22 +140,20 @@ PersonInfoPanel::PersonInfoPanel(ThemeService &themes, QString imageDirectory, Q
     m_notes->setWordWrap(true);
     root->addWidget(m_notes);
 
-    auto *aliasesGroup = new TokenGroupBox(QStringLiteral("姓名与别名"), this);
-    auto *aliasesLayout = new QVBoxLayout(aliasesGroup);
-    m_aliases = new TokenTableWidget(0, 4, aliasesGroup);
+    m_aliasesGroup = new TokenGroupBox(QStringLiteral("姓名与别名"), this);
+    auto *aliasesLayout = new QVBoxLayout(m_aliasesGroup);
+    m_aliases = new TokenTableWidget(0, 4, m_aliasesGroup);
     m_aliases->setObjectName(QStringLiteral("PersonAliasTable"));
     m_aliases->setHorizontalHeaderLabels({QStringLiteral("中文"), QStringLiteral("日文"),
                                           QStringLiteral("英文"), QStringLiteral("假名")});
     m_aliases->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     m_aliases->setEditTriggers(QAbstractItemView::NoEditTriggers);
     aliasesLayout->addWidget(m_aliases);
-    root->addWidget(aliasesGroup);
+    root->addWidget(m_aliasesGroup);
 
-    auto *worksGroup = new TokenGroupBox(QStringLiteral("关联作品"), this);
-    auto *worksLayout = new QVBoxLayout(worksGroup);
-    m_timeline = new ActressWorkTimeline(worksGroup, std::move(coverDirectory));
-    worksLayout->addWidget(m_timeline);
-    m_works = new TokenTableWidget(0, 3, worksGroup);
+    m_worksGroup = new TokenGroupBox(QStringLiteral("关联作品"), this);
+    auto *worksLayout = new QVBoxLayout(m_worksGroup);
+    m_works = new TokenTableWidget(0, 3, m_worksGroup);
     m_works->setObjectName(QStringLiteral("PersonWorkTable"));
     m_works->setHorizontalHeaderLabels(
         {QStringLiteral("番号"), QStringLiteral("标题"), QStringLiteral("发行日期")});
@@ -160,7 +163,7 @@ PersonInfoPanel::PersonInfoPanel(ThemeService &themes, QString imageDirectory, Q
     m_works->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_works->setSelectionBehavior(QAbstractItemView::SelectRows);
     worksLayout->addWidget(m_works);
-    root->addWidget(worksGroup, 1);
+    root->addWidget(m_worksGroup, 1);
 
     connect(m_heart, &HeartLabel::clicked, this,
             [this](bool favorite) { emit favoriteChanged(favorite); });
@@ -177,8 +180,6 @@ PersonInfoPanel::PersonInfoPanel(ThemeService &themes, QString imageDirectory, Q
                 if (item != nullptr)
                     emit workRequested(item->data(Qt::UserRole).toLongLong());
             });
-    connect(m_timeline, &ActressWorkTimeline::workRequested,
-            this, &PersonInfoPanel::workRequested);
 }
 
 void PersonInfoPanel::setDetails(const PersonDetails &details, bool favorite)
@@ -187,6 +188,10 @@ void PersonInfoPanel::setDetails(const PersonDetails &details, bool favorite)
     m_personId = details.id;
     m_avatar->updateImage(details.imagePath);
     m_heart->setVisible(details.kind == PersonKind::Actress);
+    m_edit->setVisible(details.kind == PersonKind::Actor);
+    m_notes->setVisible(details.kind == PersonKind::Actor);
+    m_aliasesGroup->setVisible(details.kind == PersonKind::Actor);
+    m_worksGroup->setVisible(details.kind == PersonKind::Actor);
     m_heart->setState(favorite);
     m_notes->setText(details.notes.trimmed().isEmpty() ? QStringLiteral("暂无备注")
                                                        : details.notes.trimmed());
@@ -194,6 +199,41 @@ void PersonInfoPanel::setDetails(const PersonDetails &details, bool favorite)
     rebuildFacts(details);
     rebuildRadar(details);
     rebuildWorks(details);
+}
+
+bool PersonInfoPanel::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_avatar
+        && (event->type() == QEvent::ContextMenu
+            || (event->type() == QEvent::MouseButtonPress
+                && static_cast<QMouseEvent *>(event)->button() == Qt::RightButton)))
+    {
+        // Keep the avatar's edit gesture from opening a context menu on a
+        // parent or overlapping widget.
+        event->accept();
+        return true;
+    }
+    if (watched == m_avatar && event->type() == QEvent::MouseButtonRelease)
+    {
+        const auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if (mouseEvent->button() == Qt::RightButton && m_personId > 0)
+        {
+            const qint64 personId = m_personId;
+            QTimer::singleShot(0, this, [this, personId] { emit editRequested(personId); });
+            return true;
+        }
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
+void PersonInfoPanel::paintEvent(QPaintEvent *event)
+{
+    QWidget::paintEvent(event);
+    QPainter painter(this);
+    painter.setPen(QPen(Qt::darkGray, 2));
+    QRect border = rect();
+    border.adjust(1, 1, -1, -1);
+    painter.drawRect(border);
 }
 
 qint64 PersonInfoPanel::personId() const noexcept
@@ -236,7 +276,8 @@ void PersonInfoPanel::rebuildNames(const PersonDetails &details)
         }
     }
     nameLayout->addWidget(m_heart, 0, Qt::AlignBottom);
-    nameLayout->addWidget(m_edit, 0, Qt::AlignBottom);
+    if (details.kind == PersonKind::Actor)
+        nameLayout->addWidget(m_edit, 0, Qt::AlignBottom);
     nameLayout->addStretch();
 
     m_aliases->setRowCount(details.names.size());
@@ -325,31 +366,26 @@ void PersonInfoPanel::rebuildFacts(const PersonDetails &details)
         ++row;
     };
     addFact(QStringLiteral("生日"), utils::convertDate(details.birthday));
-    addFact(QStringLiteral("身高"), valueOrDash(details.height));
     if (details.kind == PersonKind::Actress)
     {
-        addFact(QStringLiteral("罩杯"), details.cup);
-        addFact(QStringLiteral("胸围"), valueOrDash(details.bust));
-        addFact(QStringLiteral("腰围"), valueOrDash(details.waist));
-        addFact(QStringLiteral("臀围"), valueOrDash(details.hip));
         addFact(QStringLiteral("出道日期"), utils::convertDate(details.debutDate));
-        addFact(QStringLiteral("Minnano ID"), details.minnanoUrl);
+        for (qsizetype index = 0; index + 1 < details.names.size(); ++index)
+            addFact(QStringLiteral("别名"), valueOrDash(details.names.at(index).japanese));
     }
     else
     {
+        addFact(QStringLiteral("身高"), valueOrDash(details.height));
         addFact(QStringLiteral("外貌"), valueOrDash(details.handsome));
         addFact(QStringLiteral("体型"), valueOrDash(details.fat));
     }
-    addFact(QStringLiteral("需要更新"),
-            details.needUpdate ? QStringLiteral("是") : QStringLiteral("否"));
+    if (details.kind == PersonKind::Actor)
+        addFact(QStringLiteral("需要更新"),
+                details.needUpdate ? QStringLiteral("是") : QStringLiteral("否"));
 }
 
 void PersonInfoPanel::rebuildWorks(const PersonDetails &details)
 {
-    m_timeline->setVisible(details.kind == PersonKind::Actress);
     m_works->setVisible(details.kind == PersonKind::Actor);
-    m_timeline->setWorks(details.kind == PersonKind::Actress
-                             ? details.works : QList<PersonWorkSummary>());
     m_works->setRowCount(details.works.size());
     for (qsizetype row = 0; row < details.works.size(); ++row)
     {

@@ -1,11 +1,12 @@
 #pragma once
 
+#include "darkeye_ui/base/LazyWidget.h"
+
 #include <QList>
 #include <QSqlDatabase>
-#include <QWidget>
 
-class QComboBox;
 class QLabel;
+class QPushButton;
 
 namespace darkeye
 {
@@ -15,7 +16,7 @@ class StatsOverviewCards;
 class ThemeService;
 class TopActressCard;
 
-class PersonalDataPage final : public QWidget
+class PersonalDataPage final : public LazyWidget
 {
     Q_OBJECT
 
@@ -27,6 +28,7 @@ public:
     void refresh();
 
 private:
+    void lazyLoad() override;
     void refreshHeatmap();
 
     QSqlDatabase m_publicDatabase;
@@ -36,8 +38,9 @@ private:
     StatsOverviewCards *m_overview = nullptr;
     QList<TopActressCard *> m_topActressCards;
     QLabel *m_salesCycle = nullptr;
-    QComboBox *m_yearSelector = nullptr;
-    QComboBox *m_recordKindSelector = nullptr;
+    QList<QPushButton *> m_yearButtons;
+    int m_currentYear = 0;
+    int m_recordKindIndex = 0;
     QLabel *m_heatmapTitle = nullptr;
     CalendarHeatmap *m_heatmap = nullptr;
 };

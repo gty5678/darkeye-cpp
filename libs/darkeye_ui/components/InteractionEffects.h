@@ -19,6 +19,9 @@ public:
     explicit RotateButton(const QString &iconName = QStringLiteral("settings"),
                           ThemeService *themes = nullptr,
                           QWidget *parent = nullptr);
+    RotateButton(const QString &iconName, const QString &iconPath, int iconSize,
+                 int outerSize, bool hoverable = true,
+                 ThemeService *themes = nullptr, QWidget *parent = nullptr);
     qreal angle() const;
     void setAngle(qreal angle);
 
@@ -40,6 +43,9 @@ public:
     explicit ShakeButton(const QString &iconName = QStringLiteral("settings"),
                          ThemeService *themes = nullptr,
                          QWidget *parent = nullptr);
+    ShakeButton(const QString &iconName, const QString &iconPath, int iconSize,
+                int outerSize, bool hoverable = true,
+                ThemeService *themes = nullptr, QWidget *parent = nullptr);
     qreal iconOffset() const;
     void setIconOffset(qreal offset);
 

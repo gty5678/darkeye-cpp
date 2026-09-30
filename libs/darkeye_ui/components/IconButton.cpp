@@ -3,6 +3,9 @@
 #include "darkeye_ui/theme/ThemeService.h"
 #include "darkeye_ui/theme/IconProvider.h"
 
+#include <QFileInfo>
+#include <QStyle>
+
 namespace darkeye {
 
 IconButton::IconButton(const QString &iconName, ThemeService *themeService,
@@ -18,6 +21,18 @@ IconButton::IconButton(const QString &iconName, ThemeService *themeService,
                 [this] { refreshIcon(); });
     }
     refreshIcon();
+}
+
+IconButton::IconButton(const QString &iconName, const QString &iconPath,
+                       int iconSize, int outerSize, bool hoverable,
+                       bool inverted, ThemeService *themeService, QWidget *parent)
+    : IconButton(iconName, themeService, parent)
+{
+    setIconPath(iconPath);
+    setIconPixelSize(iconSize);
+    setButtonPixelSize(outerSize);
+    setHoverable(hoverable);
+    setInverted(inverted);
 }
 
 QString IconButton::iconName() const { return m_iconName; }
@@ -54,6 +69,14 @@ void IconButton::setInverted(bool inverted)
     refreshIcon();
 }
 
+void IconButton::setHoverable(bool hoverable)
+{
+    setProperty("hoverable", hoverable);
+    style()->unpolish(this);
+    style()->polish(this);
+    update();
+}
+
 void IconButton::refreshIcon()
 {
     const ThemeTokens tokens = m_themeService != nullptr
@@ -62,11 +85,15 @@ void IconButton::refreshIcon()
                                    : ThemeService::tokens(ThemeId::Light);
     const QColor color(m_inverted ? tokens.textInverse : tokens.icon);
     const QSize size(m_iconPixelSize, m_iconPixelSize);
-    setIcon(m_iconPath.isEmpty() ? IconProvider::builtIn(m_iconName, size, color)
-                                 : IconProvider::fromSvg(m_iconPath, size, color));
+    if (m_iconPath.isEmpty()) {
+        setIcon(IconProvider::builtIn(m_iconName, size, color));
+    } else if (QFileInfo(m_iconPath).suffix().compare(QStringLiteral("svg"),
+                                                       Qt::CaseInsensitive) == 0) {
+        setIcon(IconProvider::fromSvg(m_iconPath, size, color));
+    } else {
+        setIcon(QIcon(m_iconPath));
+    }
     setIconSize(size);
 }
 
 } // namespace darkeye
-
-

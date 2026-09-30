@@ -20,12 +20,14 @@ namespace darkeye
 
 PersonPage::PersonPage(PersonKind kind, QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
                        ThemeService &themeService, QString imageDirectory, QWidget *parent)
-    : QWidget(parent), m_kind(kind), m_repository(std::move(publicDatabase)),
+    : LazyWidget(parent), m_kind(kind), m_repository(std::move(publicDatabase)),
       m_privateRepository(std::move(privateDatabase)), m_themeService(themeService),
       m_imageDirectory(std::move(imageDirectory))
 {
-    setObjectName(kind == PersonKind::Actress ? QStringLiteral("ActressPage")
-                                              : QStringLiteral("ActorPage"));
+}
+
+void PersonPage::lazyLoad()
+{
     m_randomSeed = QRandomGenerator::global()->generate();
     m_randomSeed2 = QRandomGenerator::global()->generate();
     buildUi();
@@ -41,8 +43,6 @@ void PersonPage::buildUi()
     root->setSpacing(6);
 
     auto *filterBar = new QWidget(this);
-    filterBar->setObjectName(m_kind == PersonKind::Actress ? QStringLiteral("ActressFilterBar")
-                                                           : QStringLiteral("ActorFilterBar"));
     filterBar->setFixedHeight(44);
     auto *filters = new QHBoxLayout(filterBar);
     filters->setContentsMargins(10, 0, 10, 0);
@@ -53,12 +53,10 @@ void PersonPage::buildUi()
                                        filterBar));
     const QStringList nameSuggestions = m_repository.nameSuggestions(m_kind);
     m_nameInput = new CompleterLineEdit([nameSuggestions] { return nameSuggestions; }, filterBar);
-    m_nameInput->setObjectName(QStringLiteral("PersonNameFilter"));
     m_nameInput->setFixedWidth(180);
     filters->addWidget(m_nameInput);
 
     m_cupSelector = new DesignComboBox(filterBar);
-    m_cupSelector->setObjectName(QStringLiteral("ActressCupFilter"));
     m_cupSelector->addItem(QString());
     m_cupSelector->addItems(m_repository.cupOptions());
     if (m_kind == PersonKind::Actress)
@@ -71,37 +69,40 @@ void PersonPage::buildUi()
         m_cupSelector->hide();
     }
 
+    // Keep secondary actions in one trailing group.  The Python pages place
+    // refresh, reset and result information at the right edge of this bar.
+    auto *trailingControls = new QWidget(filterBar);
+    auto *trailingLayout = new QHBoxLayout(trailingControls);
+    trailingLayout->setContentsMargins(0, 0, 0, 0);
+    trailingLayout->setSpacing(6);
+
     auto *refreshButton =
-        new RotateButton(QStringLiteral("refresh_cw"), &m_themeService, filterBar);
-    refreshButton->setObjectName(QStringLiteral("PersonRefreshButton"));
+        new RotateButton(QStringLiteral("refresh_cw"), &m_themeService, trailingControls);
     refreshButton->setToolTip(QStringLiteral("刷新人物"));
-    auto *clearButton = new ShakeButton(QStringLiteral("eraser"), &m_themeService, filterBar);
-    clearButton->setObjectName(QStringLiteral("PersonClearButton"));
+    auto *clearButton =
+        new ShakeButton(QStringLiteral("eraser"), &m_themeService, trailingControls);
     clearButton->setToolTip(QStringLiteral("清空筛选"));
-    filters->addWidget(refreshButton);
-    filters->addWidget(clearButton);
 
-    m_countLabel = new DesignLabel({}, filterBar);
-    m_countLabel->setObjectName(QStringLiteral("PersonCountLabel"));
+    m_countLabel = new DesignLabel({}, trailingControls);
     m_countLabel->setFixedWidth(110);
-    filters->addWidget(m_countLabel);
     filters->addStretch();
+    trailingLayout->addWidget(refreshButton);
+    trailingLayout->addWidget(clearButton);
+    trailingLayout->addWidget(m_countLabel);
 
-    m_scopeSelector = new DesignComboBox(filterBar);
-    m_scopeSelector->setObjectName(QStringLiteral("PersonScopeSelector"));
+    m_scopeSelector = new DesignComboBox(trailingControls);
     m_scopeSelector->addItem(QStringLiteral("公共库范围"), false);
     m_scopeSelector->addItem(QStringLiteral("收藏库范围"), true);
     if (m_kind == PersonKind::Actress)
     {
-        filters->addWidget(m_scopeSelector);
+        trailingLayout->addWidget(m_scopeSelector);
     }
     else
     {
         m_scopeSelector->hide();
     }
 
-    m_sortSelector = new DesignComboBox(filterBar);
-    m_sortSelector->setObjectName(QStringLiteral("PersonSortSelector"));
+    m_sortSelector = new DesignComboBox(trailingControls);
     m_sortSelector->addItem(QStringLiteral("随机顺序"), static_cast<int>(PersonSortOrder::Random));
     m_sortSelector->addItem(QStringLiteral("添加顺序"),
                             static_cast<int>(PersonSortOrder::CreatedAscending));
@@ -137,11 +138,11 @@ void PersonPage::buildUi()
     }
     m_sortSelector->setCurrentIndex(
         m_sortSelector->findData(static_cast<int>(PersonSortOrder::CreatedDescending)));
-    filters->addWidget(m_sortSelector);
+    trailingLayout->addWidget(m_sortSelector);
+    filters->addWidget(trailingControls, 0, Qt::AlignRight | Qt::AlignVCenter);
     root->addWidget(filterBar);
 
     m_lazyArea = new LazyScrollArea(150, this);
-    m_lazyArea->setObjectName(QStringLiteral("PersonLazyScrollArea"));
     root->addWidget(m_lazyArea, 1);
 
     m_filterTimer = new QTimer(this);
@@ -162,6 +163,7 @@ void PersonPage::buildUi()
 
 void PersonPage::refresh()
 {
+    initialize();
     if (static_cast<PersonSortOrder>(m_sortSelector->currentData().toInt()) ==
         PersonSortOrder::Random)
     {
@@ -170,6 +172,14 @@ void PersonPage::refresh()
     }
     m_lazyArea->reset();
     updateCount();
+}
+
+QWidget *PersonPage::captureContent()
+{
+    initialize();
+    if (m_lazyArea == nullptr)
+        return nullptr;
+    return m_lazyArea->widget();
 }
 
 PersonKind PersonPage::kind() const noexcept
@@ -250,5 +260,3 @@ QList<QWidget *> PersonPage::loadCardPage(int pageIndex, int pageSize)
 }
 
 } // namespace darkeye
-
-
