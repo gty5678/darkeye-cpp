@@ -9,6 +9,8 @@
 #include <QProcess>
 #include <memory>
 
+class QWidget;
+
 namespace darkeye {
 
 class MainWindow;
@@ -26,6 +28,7 @@ public:
 private:
     void configureIdentity();
     void applyInitialTheme();
+    void prewarmGraphRenderer();
     void startBackgroundServices();
     void stopLlamaServer();
 
@@ -34,6 +37,7 @@ private:
     ThemeService m_themeService;
     DatabaseManager m_databaseManager;
     std::unique_ptr<MainWindow> m_mainWindow;
+    std::unique_ptr<QWidget> m_graphPrewarmWindow;
     std::unique_ptr<LocalApiServer> m_localApiServer;
     std::unique_ptr<ManagedCollector> m_managedCollector;
     std::unique_ptr<QProcess> m_llamaServer;

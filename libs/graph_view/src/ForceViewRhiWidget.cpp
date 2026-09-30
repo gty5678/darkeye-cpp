@@ -689,6 +689,10 @@ void ForceViewRhiWidget::renderRhi(QRhiCommandBuffer* cb)
 
 void ForceViewRhiWidget::onFrameSubmitted()
 {
+    if (!m_hasSubmittedFrame) {
+        m_hasSubmittedFrame = true;
+        emit firstFrameSubmitted();
+    }
     ++m_frameCount;
     const double now = nowSec();
     if (m_lastFpsTime <= 0.0) {

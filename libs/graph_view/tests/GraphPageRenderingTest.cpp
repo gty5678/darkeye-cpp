@@ -6,6 +6,7 @@
 #include "ui/pages/ForceDirectPage.h"
 
 #include <QApplication>
+#include <QEventLoop>
 #include <QLabel>
 #include <QMainWindow>
 #include <QSignalSpy>
@@ -13,6 +14,8 @@
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStackedWidget>
+#include <QThread>
+#include <QVBoxLayout>
 #include <QtTest>
 
 class GraphPageRenderingTest final : public QObject
@@ -20,9 +23,36 @@ class GraphPageRenderingTest final : public QObject
     Q_OBJECT
 
 private slots:
+    void coveredRendererSubmitsFrame();
     void rendersWhenRendererExistsBeforeWindowShow();
     void loadsFirstGraphSnapshotAfterAnInitiallyEmptyView();
 };
+
+void GraphPageRenderingTest::coveredRendererSubmitsFrame()
+{
+    QWidget window;
+    window.resize(900, 600);
+    auto *prewarm = new QWidget(&window);
+    prewarm->setGeometry(0, 0, 240, 200);
+    auto *layout = new QVBoxLayout(prewarm);
+    layout->setContentsMargins(0, 0, 0, 0);
+    auto *view = new ForceViewRhiWidget(prewarm);
+    layout->addWidget(view);
+    view->setGraph(1, {}, {0.0f, 0.0f}, {QStringLiteral("prewarm")},
+                   {QStringLiteral("prewarm")}, {4.0f}, {QColor(QStringLiteral("#808080"))});
+    auto *cover = new QLabel(QStringLiteral("占位页"), &window);
+    cover->setGeometry(window.rect());
+    cover->setAutoFillBackground(true);
+    prewarm->lower();
+    QSignalSpy frameSpy(view, &ForceViewRhiWidget::firstFrameSubmitted);
+    window.show();
+    for (int frame = 0; frame < 10; ++frame) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+        QThread::msleep(16);
+    }
+    QVERIFY(!frameSpy.isEmpty());
+    view->pauseSimulation();
+}
 
 void GraphPageRenderingTest::rendersWhenRendererExistsBeforeWindowShow()
 {
@@ -70,16 +100,21 @@ void GraphPageRenderingTest::rendersWhenRendererExistsBeforeWindowShow()
         stack->setCurrentIndex(0);
         auto *view = page->findChild<ForceViewRhiWidget *>();
         QVERIFY(view != nullptr);
+        auto *loadingOverlay = page->findChild<QLabel *>(QStringLiteral("graphLoadingOverlay"));
+        QVERIFY(loadingOverlay != nullptr);
         QSignalSpy paintSpy(view, &ForceViewRhiWidget::paintTimeUpdated);
         window.setCentralWidget(stack);
         window.resize(900, 600);
         window.show();
         QVERIFY(QTest::qWaitForWindowExposed(&window));
+        QVERIFY(!loadingOverlay->isVisible());
 
         // Match MainWindow: the page data is initialized on first navigation,
         // while the QRhi renderer itself existed before the window was shown.
         page->initialize();
         stack->setCurrentWidget(page);
+        QVERIFY(loadingOverlay->isVisible());
+        QCOMPARE(loadingOverlay->geometry(), page->rect());
         // A QSQLITE :memory: database is local to one connection, whereas
         // GraphManager's scheduled loader uses a worker connection.  Complete
         // this fixture's data initialization on its owning connection instead
@@ -88,6 +123,7 @@ void GraphPageRenderingTest::rendersWhenRendererExistsBeforeWindowShow()
         QVERIFY2(manager.initialize(&initializeError), qPrintable(initializeError));
         QTRY_COMPARE_WITH_TIMEOUT(view->getNodeIds().size(), 2, 2000);
         QTRY_VERIFY_WITH_TIMEOUT(!paintSpy.isEmpty(), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(!loadingOverlay->isVisible(), 5000);
 
         auto *graphWidget = page->findChild<darkeye::graph_view::GraphViewWidget *>();
         QVERIFY(graphWidget != nullptr);

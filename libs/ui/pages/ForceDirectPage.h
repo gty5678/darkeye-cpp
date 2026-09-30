@@ -4,6 +4,7 @@
 
 class QShowEvent;
 class QResizeEvent;
+class QLabel;
 
 namespace darkeye {
 class ThemeService;
@@ -50,6 +51,7 @@ private:
     ThemeService &m_themeService;
     graph::GraphManager &m_graphManager;
     graph_view::GraphViewWidget *m_graphView = nullptr;
+    QLabel *m_loadingOverlay = nullptr;
     TokenCheckBox *m_favoriteOnly = nullptr;
     StateToggleButton *m_settingsButton = nullptr;
     ForceViewSettingsPanel *m_settingsPanel = nullptr;

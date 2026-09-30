@@ -5,13 +5,18 @@
 #include "darkeye_ui/theme/ThemeService.h"
 #include "http/LocalApiServer.h"
 #include "MainWindow.h"
+#include "graph_view/ForceViewRhiWidget.h"
 #include "ui/dialogs/TermsDialog.h"
 
+#include <QColor>
+#include <QEventLoop>
 #include <QIcon>
 #include <QMessageBox>
 #include <QFileInfo>
 #include <QProcess>
+#include <QThread>
 #include <QTimer>
+#include <QVBoxLayout>
 
 namespace darkeye {
 
@@ -52,6 +57,39 @@ Application::Application(int &argc, char **argv)
                      [this] { stopLlamaServer(); });
 }
 
+void Application::prewarmGraphRenderer()
+{
+    // Python renders a small ForceViewRhiWidget during startup. On Windows,
+    // a fully offscreen window may never submit a frame, so keep this renderer
+    // in the visible main window but underneath its opaque page widgets.
+    m_graphPrewarmWindow = std::make_unique<QWidget>(m_mainWindow->centralWidget());
+    m_graphPrewarmWindow->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_graphPrewarmWindow->setGeometry(0, 0, 240, 200);
+
+    auto *layout = new QVBoxLayout(m_graphPrewarmWindow.get());
+    layout->setContentsMargins(0, 0, 0, 0);
+    auto *view = new ForceViewRhiWidget(m_graphPrewarmWindow.get());
+    layout->addWidget(view);
+    view->setGraph(1, {}, {0.0f, 0.0f}, {QStringLiteral("prewarm")},
+                   {QStringLiteral("prewarm")}, {4.0f}, {QColor(QStringLiteral("#808080"))});
+
+    bool frameSubmitted = false;
+    const QMetaObject::Connection connection = QObject::connect(
+        view, &ForceViewRhiWidget::firstFrameSubmitted,
+        view, [&frameSubmitted] { frameSubmitted = true; });
+    m_graphPrewarmWindow->show();
+    m_graphPrewarmWindow->lower();
+    for (int frame = 0; frame < 10; ++frame) {
+        m_application.processEvents(QEventLoop::AllEvents, 50);
+        QThread::msleep(16);
+    }
+    QObject::disconnect(connection);
+    view->pauseSimulation();
+    if (!frameSubmitted) {
+        qWarning() << "Graph renderer prewarm did not submit a frame";
+    }
+}
+
 Application::~Application()
 {
     if (m_localApiServer) m_localApiServer->stop();
@@ -80,6 +118,7 @@ int Application::run()
         settings::saveApp(appSettings);
     }
     m_mainWindow->showInitial();
+    prewarmGraphRenderer();
     QTimer::singleShot(0, &m_application, [this] { startBackgroundServices(); });
     return m_application.exec();
 }

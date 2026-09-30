@@ -14,10 +14,13 @@
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QInputDialog>
+#include <QLabel>
 #include <QLineEdit>
+#include <QPalette>
 #include <QShowEvent>
 #include <QResizeEvent>
 #include <QMessageBox>
+#include <QTimer>
 #include <QVBoxLayout>
 
 namespace darkeye {
@@ -34,6 +37,20 @@ ForceDirectPage::ForceDirectPage(ThemeService &themeService, graph::GraphManager
 
     m_graphView = new graph_view::GraphViewWidget(m_graphManager, this);
     layout->addWidget(m_graphView, 1);
+
+    // The first QRhi render target is not ready when this stacked page first
+    // becomes visible. Cover it with the theme background until a frame has
+    // actually been submitted, matching Python's seamless first entry.
+    m_loadingOverlay = new QLabel(QStringLiteral("正在生成力导向图..."), this);
+    m_loadingOverlay->setObjectName(QStringLiteral("graphLoadingOverlay"));
+    m_loadingOverlay->setAlignment(Qt::AlignCenter);
+    m_loadingOverlay->setAutoFillBackground(true);
+    connect(m_graphView->view(), &ForceViewRhiWidget::firstFrameSubmitted,
+            m_loadingOverlay, [overlay = m_loadingOverlay] {
+                // Submission precedes composition into the window. Keep the
+                // cover through the next display refresh to avoid a black gap.
+                QTimer::singleShot(32, overlay, &QWidget::hide);
+            });
 
     m_favoriteOnly = new TokenCheckBox(QStringLiteral("仅显示收藏作品图"), this);
     m_favoriteOnly->setChecked(false);
@@ -146,6 +163,10 @@ void ForceDirectPage::updateOverlayGeometry()
 {
     constexpr int margin = 10;
     if (width() <= 0 || height() <= 0 || m_settingsButton == nullptr) return;
+    if (m_loadingOverlay != nullptr && m_loadingOverlay->isVisible()) {
+        m_loadingOverlay->setGeometry(rect());
+        m_loadingOverlay->raise();
+    }
     const QSize buttonSize = m_settingsButton->size();
     m_settingsButton->move(width() - buttonSize.width() - margin, margin);
     m_settingsButton->raise();
@@ -215,6 +236,10 @@ void ForceDirectPage::applyTheme()
     view->setHoverColor(color(tokens.primary, QColor(QStringLiteral("#257845"))));
     view->setTextColor(color(tokens.text, Qt::black));
     view->setTextDimColor(color(tokens.pageBackground, QColor(QStringLiteral("#eeeeee"))));
+    QPalette overlayPalette = m_loadingOverlay->palette();
+    overlayPalette.setColor(QPalette::Window, color(tokens.background, Qt::white));
+    overlayPalette.setColor(QPalette::WindowText, color(tokens.text, Qt::black));
+    m_loadingOverlay->setPalette(overlayPalette);
 }
 
 QStringList ForceDirectPage::graphNodeIds() const

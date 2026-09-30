@@ -191,6 +191,8 @@ signals:
     void fpsUpdated(float fps);
     // 每帧绘制耗时更新时发出毫秒值。
     void paintTimeUpdated(float ms);
+    // QRhi 画布首次提交可用于显示的帧时发出。
+    void firstFrameSubmitted();
     // 仿真 tick 耗时更新时发出毫秒值。
     void tickTimeUpdated(float ms);
     // 仿真线程启动时发出。
@@ -505,6 +507,7 @@ private:
     int m_msdfAtlasBuildId = 0;
 
     int m_frameCount = 0;
+    bool m_hasSubmittedFrame = false;
     double m_lastFpsTime = 0.0;
     float m_currentFps = 0.0f;
 };
