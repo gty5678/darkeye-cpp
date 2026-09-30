@@ -35,6 +35,7 @@
 !/data/**/.gitkeep
 !/data/README.md
 /data2/
+3rdparty/
 
 # Local databases, logs, and test artifacts
 *.db
