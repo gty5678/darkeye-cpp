@@ -11,8 +11,11 @@
 [![README · 简体中文][badge-readme-zh-CN]](README.CN.md)
 [![README · 繁體中文][badge-readme-zh-TW]](README.zh-TW.md)
 
-![Python][badge-python]
+
 ![Framework][badge-framework]
+![C++][badge-cpp]
+![CMake][badge-cmake]
+![MSVC][badge-msvc]
 ![Platform][badge-platform]
 ![License][badge-license]
 ![GitHub last commit][badge-last-commit]
@@ -284,6 +287,9 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 [badge-readme-zh-TW]: https://img.shields.io/badge/README%20%C2%B7%20%E7%B9%81%E9%AB%94%E4%B8%AD%E6%96%87-555555?style=for-the-badge
 [badge-readme-ja]: https://img.shields.io/badge/README%20%C2%B7%20%E6%97%A5%E6%9C%AC%E8%AA%9E-2ea44f?style=for-the-badge
 [badge-framework]: https://img.shields.io/badge/framework-Qt6.10-orange
+[badge-cpp]: https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus
+[badge-cmake]: https://img.shields.io/badge/CMake-CMake-064F8C?logo=cmake
+[badge-msvc]: https://img.shields.io/badge/MSVC-2022-5C2D91?logo=visualstudio
 [badge-platform]: https://img.shields.io/badge/Platform-Windows-blue
 [badge-license]: https://img.shields.io/github/license/gty5678/darkeye-cpp
 [badge-last-commit]: https://img.shields.io/github/last-commit/gty5678/darkeye-cpp
