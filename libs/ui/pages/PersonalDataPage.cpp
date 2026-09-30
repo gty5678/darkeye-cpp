@@ -267,6 +267,18 @@ void PersonalDataPage::refresh()
 
 void PersonalDataPage::refreshHeatmap()
 {
+    // Python's SwitchHeapMap keeps its loading page visible while the initial
+    // data workers run.  Do the same before the first C++ render: otherwise
+    // the transparent heatmap can be shown before its first paint completes.
+    if (m_heatmapInitialLoadPending)
+    {
+        m_heatmapInitialLoadPending = false;
+        m_heatmapTitle->setText(QStringLiteral("加载中..."));
+        m_heatmapContent->setCurrentWidget(m_heatmapPlaceholder);
+        QTimer::singleShot(0, this, [this] { refreshHeatmap(); });
+        return;
+    }
+
     const auto kind = static_cast<PersonalRecordKind>(m_recordKindIndex);
     PrivateRepository repository(m_privateDatabase);
     const QMap<QDate, int> counts = repository.dailyCounts(m_currentYear, kind);

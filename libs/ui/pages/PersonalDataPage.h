@@ -43,6 +43,7 @@ private:
     QList<QPushButton *> m_yearButtons;
     int m_currentYear = 0;
     int m_recordKindIndex = 0;
+    bool m_heatmapInitialLoadPending = true;
     QLabel *m_heatmapTitle = nullptr;
     QStackedWidget *m_heatmapContent = nullptr;
     QLabel *m_heatmapPlaceholder = nullptr;
