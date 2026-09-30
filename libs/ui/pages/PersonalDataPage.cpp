@@ -20,6 +20,8 @@
 #include <QPainterPath>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QStackedWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 
 namespace darkeye
@@ -188,9 +190,21 @@ void PersonalDataPage::lazyLoad()
     heatmapHeader->addWidget(nextKind);
     heatmapColumn->addLayout(heatmapHeader);
 
-    m_heatmap = new CalendarHeatmap(currentYear, {}, &m_themeService, heatmapPanel);
+    // Match the Python SwitchHeapMap: switch to a stable loading page before
+    // replacing a year's cells.  This prevents a transparent-widget repaint
+    // from exposing the native black backing store for one frame.
+    m_heatmapContent = new QStackedWidget(heatmapPanel);
+    m_heatmapContent->setFixedSize(750, 155);
+    m_heatmapPlaceholder = new DesignLabel(QStringLiteral("加载中..."), m_heatmapContent);
+    m_heatmapPlaceholder->setObjectName(QStringLiteral("PersonalRecordHeatmapPlaceholder"));
+    m_heatmapPlaceholder->setAlignment(Qt::AlignCenter);
+    m_heatmapPlaceholder->setFixedSize(750, 155);
+    m_heatmap = new CalendarHeatmap(currentYear, {}, &m_themeService, m_heatmapContent);
     m_heatmap->setObjectName(QStringLiteral("PersonalRecordHeatmap"));
-    heatmapColumn->addWidget(m_heatmap);
+    m_heatmapContent->addWidget(m_heatmapPlaceholder);
+    m_heatmapContent->addWidget(m_heatmap);
+    m_heatmapContent->setCurrentWidget(m_heatmapPlaceholder);
+    heatmapColumn->addWidget(m_heatmapContent);
     panelLayout->addLayout(heatmapColumn);
 
     auto *yearList = new QScrollArea(heatmapPanel);
@@ -231,8 +245,7 @@ void PersonalDataPage::lazyLoad()
         refreshHeatmap();
     });
     connect(yearGroup, &QButtonGroup::idClicked, this, [this](int year) {
-        m_currentYear = year;
-        refreshHeatmap();
+        changeYear(year);
     });
     refresh();
 }
@@ -273,6 +286,22 @@ void PersonalDataPage::refreshHeatmap()
                                 .arg(names.at(m_recordKindIndex))
                                 .arg(total));
     m_heatmap->updateData(m_currentYear, hash);
+    m_heatmapContent->setCurrentWidget(m_heatmap);
+}
+
+void PersonalDataPage::changeYear(int year)
+{
+    if (year == m_currentYear) return;
+
+    m_currentYear = year;
+    // Yield once so the loading page is painted before the database lookup and
+    // heatmap redraw.  Python does this naturally while its workers load data.
+    m_heatmapTitle->setText(QStringLiteral("加载中..."));
+    m_heatmapContent->setCurrentWidget(m_heatmapPlaceholder);
+    QTimer::singleShot(0, this, [this, year] {
+        // A second year click may arrive while this callback is queued.
+        if (year == m_currentYear) refreshHeatmap();
+    });
 }
 
 } // namespace darkeye

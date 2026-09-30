@@ -7,6 +7,7 @@
 
 class QLabel;
 class QPushButton;
+class QStackedWidget;
 
 namespace darkeye
 {
@@ -30,6 +31,7 @@ public:
 private:
     void lazyLoad() override;
     void refreshHeatmap();
+    void changeYear(int year);
 
     QSqlDatabase m_publicDatabase;
     QSqlDatabase m_privateDatabase;
@@ -42,6 +44,8 @@ private:
     int m_currentYear = 0;
     int m_recordKindIndex = 0;
     QLabel *m_heatmapTitle = nullptr;
+    QStackedWidget *m_heatmapContent = nullptr;
+    QLabel *m_heatmapPlaceholder = nullptr;
     CalendarHeatmap *m_heatmap = nullptr;
 };
 
