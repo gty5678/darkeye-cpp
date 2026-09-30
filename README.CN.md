@@ -294,7 +294,7 @@
 
 <!-- Links -->
 
-[link-docs]: https://gty5678.github.io/darkeye/
+[link-docs]: https://gty5678.github.io/darkeye-cpp/
 [link-video]: https://youtu.be/VCsw1D0ccgY?si=e9typx4kPnzaVFZq
 [link-website]: https://gty5678.github.io/darkeye-webpage/
 [link-discord]: https://discord.gg/3thnEguWUk
