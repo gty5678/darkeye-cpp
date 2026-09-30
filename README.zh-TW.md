@@ -1,6 +1,6 @@
 <div align="center">
-  <a href="https://de4321.github.io/darkeye-webpage/" target="_blank">
-    <img src="https://raw.githubusercontent.com/de4321/darkeye/main/resources/icons/logo.svg" alt="DarkEye" width="128" />
+  <a href="https://gty5678.github.io/darkeye-webpage/" target="_blank">
+    <img src="https://raw.githubusercontent.com/gty5678/darkeye-cpp/main/resources/icons/logo.svg" alt="DarkEye" width="128" />
   </a>
   <h1>DarkEye</h1>
   <p><strong>讓本機資料管理更清晰有序</strong></p>
@@ -45,7 +45,7 @@
 </p>
 
 <div align="center">
-  <a href="https://github.com/de4321/darkeye/releases" target="_blank">
+  <a href="https://github.com/gty5678/darkeye-cpp/releases" target="_blank">
     <img src="./docs/assets/show.jpg" alt="DarkEye 擬物化 DVD 展示" width="100%" />
   </a>
 </div>
@@ -55,7 +55,7 @@
 ## 下載與使用
 
 <div align="center">
-  <a href="https://github.com/de4321/darkeye/releases/download/v1.2.5/DarkEye-v1.2.5.zip">
+  <a href="https://github.com/gty5678/darkeye-cpp/releases/download/v1.2.5/DarkEye-v1.2.5.zip">
     <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Windows-blue?style=for-the-badge&logo=windows" alt="下載 Windows 版本" />
   </a>
 
@@ -68,26 +68,26 @@
 
 ### 瀏覽器擴充功能安裝
 
-👉 [線上文件：瀏覽器擴充功能安裝](https://de4321.github.io/darkeye/usage/#_2)
+👉 [線上文件：瀏覽器擴充功能安裝](https://gty5678.github.io/darkeye/usage/#_2)
 
 除非瀏覽器擴充功能單獨更新，一般**不需要**單獨下載瀏覽器擴充功能。
 <div align="center">
-  <a href="https://github.com/de4321/darkeye/releases/download/v1.2.5/chrome_capture.zip">
+  <a href="https://github.com/gty5678/darkeye-cpp/releases/download/v1.2.5/chrome_capture.zip">
     <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Chrome%2FEdge%20%E6%8F%92%E4%BB%B6-blue?style=for-the-badge" alt="下載 Chrome/Edge 擴充功能" />
   </a>
   　　
-  <a href="https://github.com/de4321/darkeye/releases/download/v1.2.5/firefox_capture.zip">
+  <a href="https://github.com/gty5678/darkeye-cpp/releases/download/v1.2.5/firefox_capture.zip">
     <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Firefox%20%E6%8F%92%E4%BB%B6-blue?style=for-the-badge" alt="下載 Firefox 擴充功能" />
   </a>
 </div>
 
 ### 使用說明
 
-👉 [線上文件：使用](https://de4321.github.io/darkeye/usage/#_3)
+👉 [線上文件：使用](https://gty5678.github.io/darkeye/usage/#_3)
 
 ### 版本與更新
 
-👉 [常見問題：更新與遷移](https://de4321.github.io/darkeye/faq/)
+👉 [常見問題：更新與遷移](https://gty5678.github.io/darkeye/faq/)
 
 設定中可自動更新**軟體本體**；軟體不會自動更新，但是**外掛**會在軟體 `extensions` 目錄更新，需要**手動到瀏覽器重新載入**。外掛另外可在 [Releases][link-releases] 手動下載。
 
@@ -155,11 +155,11 @@
 
 已支援 [mdcz](https://github.com/ShotHeadman/mdcz) 產出的 NFO 匯入。
 
-👉 [線上文件：mdcz NFO](https://de4321.github.io/darkeye/usage/#mdcz-nfo)
+👉 [線上文件：mdcz NFO](https://gty5678.github.io/darkeye/usage/#mdcz-nfo)
 
 ### Jvedio 遷移資料
 
-👉 [線上文件：Jvedio](https://de4321.github.io/darkeye/usage/#jvedio)
+👉 [線上文件：Jvedio](https://gty5678.github.io/darkeye/usage/#jvedio)
 
 ---
 
@@ -230,7 +230,7 @@
 
 若想開發，請先閱讀以下文件，將軟體執行起來。
 
-👉 [開發文件](https://de4321.github.io/darkeye/development/)
+👉 [開發文件](https://gty5678.github.io/darkeye/development/)
 
 ---
 
@@ -270,8 +270,8 @@
 ---
 ## 貢獻者
 
-<a href="https://github.com/de4321/darkeye/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=de4321/darkeye" alt="Contributors" width="500" />
+<a href="https://github.com/gty5678/darkeye-cpp/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=gty5678/darkeye-cpp" alt="Contributors" width="500" />
 </a>
 
 ---
@@ -288,17 +288,16 @@
 [badge-cmake]: https://img.shields.io/badge/CMake-CMake-064F8C?logo=cmake
 [badge-msvc]: https://img.shields.io/badge/MSVC-2022-5C2D91?logo=visualstudio
 [badge-platform]: https://img.shields.io/badge/Platform-Windows-blue
-[badge-license]: https://img.shields.io/github/license/de4321/darkeye
-[badge-last-commit]: https://img.shields.io/github/last-commit/de4321/darkeye
-[badge-release]: https://img.shields.io/github/v/release/de4321/darkeye
-[badge-stars]: https://img.shields.io/github/stars/de4321/darkeye?style=social
-[badge-downloads]: https://img.shields.io/github/downloads/de4321/darkeye/total
-[badge-downloads]: https://img.shields.io/github/downloads/de4321/darkeye/total
+[badge-license]: https://img.shields.io/github/license/gty5678/darkeye-cpp
+[badge-last-commit]: https://img.shields.io/github/last-commit/gty5678/darkeye-cpp
+[badge-release]: https://img.shields.io/github/v/release/gty5678/darkeye-cpp
+[badge-stars]: https://img.shields.io/github/stars/gty5678/darkeye-cpp?style=social
+[badge-downloads]: https://img.shields.io/github/downloads/gty5678/darkeye-cpp/total
 
 <!-- Links -->
 
-[link-docs]: https://de4321.github.io/darkeye/
+[link-docs]: https://gty5678.github.io/darkeye/
 [link-video]: https://youtu.be/VCsw1D0ccgY?si=e9typx4kPnzaVFZq
-[link-website]: https://de4321.github.io/darkeye-webpage/
+[link-website]: https://gty5678.github.io/darkeye-webpage/
 [link-discord]: https://discord.gg/3thnEguWUk
-[link-releases]: https://github.com/de4321/darkeye/releases
+[link-releases]: https://github.com/gty5678/darkeye-cpp/releases

@@ -1,10 +1,10 @@
 <div align="center">
-  <a href="https://de4321.github.io/darkeye-webpage/" target="_blank">
-    <img src="https://raw.githubusercontent.com/de4321/darkeye/main/resources/icons/logo.svg" alt="DarkEye" width="128" />
+  <a href="https://gty5678.github.io/darkeye-webpage/" target="_blank">
+    <img src="https://raw.githubusercontent.com/gty5678/darkeye-cpp/main/resources/icons/logo.svg" alt="DarkEye" width="128" />
   </a>
   <h1>DarkEye</h1>
-  <p><strong>让本地资料管理更清晰有序</strong></p>
-  <p>完全本地、重视隐私的媒体元数据与个人资料管理工具。支持通过浏览器扩展辅助抓取和拟物化 DVD 盒子陈列，将整理、搜索、分析与可视化整合在一起。</p>
+  <p><strong>洞察与秩序</strong></p>
+  <p>一个纯本地的个人媒体资料库、元数据编辑器、关系分析器和归档浏览器。</p>
   <br />
 
 [![README · 日本語][badge-readme-ja]](README.md)
@@ -45,7 +45,7 @@
 </p>
 
 <div align="center">
-  <a href="https://github.com/de4321/darkeye/releases" target="_blank">
+  <a href="https://github.com/gty5678/darkeye-cpp/releases" target="_blank">
     <img src="./docs/assets/show.jpg" alt="DarkEye 拟物化 DVD 展示" width="100%" />
   </a>
 </div>
@@ -55,7 +55,7 @@
 ## 下载与使用
 
 <div align="center">
-  <a href="https://github.com/de4321/darkeye/releases/download/v1.2.5/DarkEye-v1.2.5.zip">
+  <a href="https://github.com/gty5678/darkeye-cpp/releases/download/v1.2.5/DarkEye-v1.2.5.zip">
     <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Windows-blue?style=for-the-badge&logo=windows" alt="下载 Windows 版本" />
   </a>
 
@@ -68,26 +68,26 @@
 
 ### 浏览器扩展安装
 
-👉 [在线文档：浏览器扩展安装](https://de4321.github.io/darkeye/usage/#_2)
+👉 [在线文档：浏览器扩展安装](https://gty5678.github.io/darkeye/usage/#_2)
 
 除非浏览器扩展单独更新，一般**不需要**单独下载浏览器扩展。
 <div align="center">
-  <a href="https://github.com/de4321/darkeye/releases/download/v1.2.5/chrome_capture.zip">
+  <a href="https://github.com/gty5678/darkeye-cpp/releases/download/v1.2.5/chrome_capture.zip">
     <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Chrome%2FEdge%20%E6%8F%92%E4%BB%B6-blue?style=for-the-badge" alt="下载 Chrome/Edge 扩展" />
   </a>
   　　
-  <a href="https://github.com/de4321/darkeye/releases/download/v1.2.5/firefox_capture.zip">
+  <a href="https://github.com/gty5678/darkeye-cpp/releases/download/v1.2.5/firefox_capture.zip">
     <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Firefox%20%E6%8F%92%E4%BB%B6-blue?style=for-the-badge" alt="下载 Firefox 扩展" />
   </a>
 </div>
 
 ### 使用说明
 
-👉 [在线文档：使用](https://de4321.github.io/darkeye/usage/#_3)
+👉 [在线文档：使用](https://gty5678.github.io/darkeye/usage/#_3)
 
 ### 版本与更新
 
-👉 [常见问题：更新与迁移](https://de4321.github.io/darkeye/faq/)
+👉 [常见问题：更新与迁移](https://gty5678.github.io/darkeye/faq/)
 
 设置中可自动更新**软件本体**；软件不会自动更新，但是**插件**会在软件`extensions` 目录更新，需要**手动去浏览器重新加载**。插件另外可在[Releases][link-releases] 手动下载。
 
@@ -155,11 +155,11 @@
 
 已支持 [mdcz](https://github.com/ShotHeadman/mdcz) 产出的 NFO 导入。
 
-👉 [在线文档：mdcz NFO](https://de4321.github.io/darkeye/usage/#mdcz-nfo)
+👉 [在线文档：mdcz NFO](https://gty5678.github.io/darkeye/usage/#mdcz-nfo)
 
 ### Jvedio 迁移数据
 
-👉 [在线文档：Jvedio](https://de4321.github.io/darkeye/usage/#jvedio)
+👉 [在线文档：Jvedio](https://gty5678.github.io/darkeye/usage/#jvedio)
 
 ---
 
@@ -228,7 +228,7 @@
 主要技术基于 PySide6 / Qt Quick 3D、SQLite、本地 FastAPI 与浏览器扩展协同，并含 C++ 力导向图加速。
 
 若想开发，请先阅读下面的文档将软件运行起来。
-👉 [开发文档](https://de4321.github.io/darkeye/development/)
+👉 [开发文档](https://gty5678.github.io/darkeye/development/)
 
 ---
 
@@ -268,8 +268,8 @@
 ---
 ## 贡献者
 
-<a href="https://github.com/de4321/darkeye/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=de4321/darkeye" alt="Contributors" width="500" />
+<a href="https://github.com/gty5678/darkeye-cpp/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=gty5678/darkeye-cpp" alt="Contributors" width="500" />
 </a>
 
 ---
@@ -286,17 +286,16 @@
 [badge-cmake]: https://img.shields.io/badge/CMake-CMake-064F8C?logo=cmake
 [badge-msvc]: https://img.shields.io/badge/MSVC-2022-5C2D91?logo=visualstudio
 [badge-platform]: https://img.shields.io/badge/Platform-Windows-blue
-[badge-license]: https://img.shields.io/github/license/de4321/darkeye
-[badge-last-commit]: https://img.shields.io/github/last-commit/de4321/darkeye
-[badge-release]: https://img.shields.io/github/v/release/de4321/darkeye
-[badge-stars]: https://img.shields.io/github/stars/de4321/darkeye?style=social
-[badge-downloads]: https://img.shields.io/github/downloads/de4321/darkeye/total
-[badge-downloads]: https://img.shields.io/github/downloads/de4321/darkeye/total
+[badge-license]: https://img.shields.io/github/license/gty5678/darkeye-cpp
+[badge-last-commit]: https://img.shields.io/github/last-commit/gty5678/darkeye-cpp
+[badge-release]: https://img.shields.io/github/v/release/gty5678/darkeye-cpp
+[badge-stars]: https://img.shields.io/github/stars/gty5678/darkeye-cpp?style=social
+[badge-downloads]: https://img.shields.io/github/downloads/gty5678/darkeye-cpp/total
 
 <!-- Links -->
 
-[link-docs]: https://de4321.github.io/darkeye/
+[link-docs]: https://gty5678.github.io/darkeye/
 [link-video]: https://youtu.be/VCsw1D0ccgY?si=e9typx4kPnzaVFZq
-[link-website]: https://de4321.github.io/darkeye-webpage/
+[link-website]: https://gty5678.github.io/darkeye-webpage/
 [link-discord]: https://discord.gg/3thnEguWUk
-[link-releases]: https://github.com/de4321/darkeye/releases
+[link-releases]: https://github.com/gty5678/darkeye-cpp/releases

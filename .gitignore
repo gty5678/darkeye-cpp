@@ -1,6 +1,7 @@
 # CMake and generated build output
 /build/
 /out/
+/site/
 /cmake-build-*/
 /_build/
 /CMakeFiles/

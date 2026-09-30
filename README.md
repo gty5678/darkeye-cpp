@@ -1,5 +1,5 @@
 <div align="center">
-  <a href="https://de4321.github.io/darkeye-webpage/" target="_blank">
+  <a href="https://gty5678.github.io/darkeye-webpage/" target="_blank">
     <img src="https://raw.githubusercontent.com/gty5678/darkeye-cpp/main/resources/icons/logo.svg" alt="DarkEye" width="128" />
   </a>
   <h1>DarkEye</h1>
@@ -72,7 +72,7 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 
 ### 拡張機能のインストール
 
-👉 [オンラインドキュメント：インストール](https://de4321.github.io/darkeye/usage/#_2)
+👉 [オンラインドキュメント：インストール](https://gty5678.github.io/darkeye/usage/#_2)
 
 拡張単体の更新がない限り、通常は**拡張だけを別途ダウンロードする必要はありません**。
 <div align="center">
@@ -87,11 +87,11 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 
 ### 使い方
 
-👉 [オンラインドキュメント：使い方](https://de4321.github.io/darkeye/usage/#_3)
+👉 [オンラインドキュメント：使い方](https://gty5678.github.io/darkeye/usage/#_3)
 
 ### バージョンと更新
 
-👉 [FAQ：更新と移行](https://de4321.github.io/darkeye/faq/)
+👉 [FAQ：更新と移行](https://gty5678.github.io/darkeye/faq/)
 
 設定から**本体**の自動更新が可能です。ブラウザ拡張はストア公開できませんが、**拡張ファイル**はソフトの `extensions` フォルダで更新されるため、ブラウザ側で**再読み込み**が必要です。拡張は [Releases][link-releases] から手動でダウンロードも可能です。
 
@@ -159,11 +159,11 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 
 [mdcz](https://github.com/ShotHeadman/mdcz) が出力した NFO のインポートに対応しています。
 
-👉 [ドキュメント：mdcz NFO](https://de4321.github.io/darkeye/usage/#mdcz-nfo)
+👉 [ドキュメント：mdcz NFO](https://gty5678.github.io/darkeye/usage/#mdcz-nfo)
 
 ### Jvedio からのデータ移行
 
-👉 [ドキュメント：Jvedio](https://de4321.github.io/darkeye/usage/#jvedio)
+👉 [ドキュメント：Jvedio](https://gty5678.github.io/darkeye/usage/#jvedio)
 
 ---
 
@@ -232,7 +232,7 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 
 主な技術は PySide6 / Qt Quick 3D、SQLite、ローカル FastAPI とブラウザ拡張の協調、および C++ による力指向グラフの高速化です。
 
-👉 [開発ドキュメント](https://de4321.github.io/darkeye/development/)
+👉 [開発ドキュメント](https://gty5678.github.io/darkeye/development/)
 
 ---
 
@@ -299,8 +299,8 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 
 <!-- Links -->
 
-[link-docs]: https://de4321.github.io/darkeye/
+[link-docs]: https://gty5678.github.io/darkeye/
 [link-video]: https://youtu.be/VCsw1D0ccgY?si=e9typx4kPnzaVFZq
-[link-website]: https://de4321.github.io/darkeye-webpage/
+[link-website]: https://gty5678.github.io/darkeye-webpage/
 [link-discord]: https://discord.gg/3thnEguWUk
 [link-releases]: https://github.com/gty5678/darkeye-cpp/releases
