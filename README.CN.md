@@ -7,10 +7,9 @@
   <p>一个纯本地的个人媒体资料库、元数据编辑器、关系分析器和归档浏览器。</p>
   <br />
 
-[![README · English][badge-readme-en]](README.md)
-
+[![README · 日本語][badge-readme-ja]](README.md)
+[![README · 简体中文][badge-readme-zh-CN]](README.CN.md)
 [![README · 繁體中文][badge-readme-zh-TW]](README.zh-TW.md)
-[![README · 日本語][badge-readme-ja]](README.ja.md)
 
 ![Python][badge-python]
 ![Framework][badge-framework]
@@ -231,7 +230,6 @@
 
 <!-- Badge images -->
 
-[badge-readme-en]: https://img.shields.io/badge/README%20%C2%B7%20English-555555?style=for-the-badge
 [badge-readme-zh-CN]: https://img.shields.io/badge/README%20%C2%B7%20%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87-2ea44f?style=for-the-badge
 [badge-readme-zh-TW]: https://img.shields.io/badge/README%20%C2%B7%20%E7%B9%81%E9%AB%94%E4%B8%AD%E6%96%87-555555?style=for-the-badge
 [badge-readme-ja]: https://img.shields.io/badge/README%20%C2%B7%20%E6%97%A5%E6%9C%AC%E8%AA%9E-555555?style=for-the-badge
