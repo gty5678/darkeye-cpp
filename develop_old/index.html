@@ -1,0 +1,1082 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="DarkEye C++ documentation">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Develop old - DarkEye</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#_1" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href=".." title="DarkEye" class="md-header__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DarkEye
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Develop old
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="切换深色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换深色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../develop/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  开发白皮书
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  入门指南
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../CHANGELOG/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  版本更新记录
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  常见问题
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../settings/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  软件设置
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  开发准备
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../security/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  数据安全说明
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../architecture/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  整体架构
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="DarkEye" class="md-nav__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    DarkEye
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../develop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开发白皮书
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    入门指南
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    版本更新记录
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    常见问题
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    软件设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开发准备
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    数据安全说明
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    整体架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<p>只有静态的数据，比如很多的女优都会整容，变胖或者变瘦，前中后期整个脸都变了，男优的跨度太长了，演了20年的都有
+静态数据分析的都没有什么意义，至少个人喜欢的和数据评分，身高的关联性都不太大。但是就是要脸好看，妆容好，还有很多无形的，比如演技，叫声，体位的色情程度，眼神，这个就很难分析。
+很多的时候可能整体的和导演的关系很大，包括背景，机位，故事</p>
+<h1 id="_1">文档工具的使用<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<p>mkdocs serve 启动然后点击链接</p>
+<p>mkdocs build 构建</p>
+<h1 id="_2">项目整体的结构<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h1>
+<p>AVmanagement_project/
+├── main.py                  # 入口，启动 QApplication 和主窗口
+├── config.py                # 配置与路径管理（兼容 PyInstaller）
+├── settings.ini             # INI 配置文件,这个不跟踪，由程序生成
+├── requirements.txt         # 运行环境的要求
+├── README.md                # 基本的文档说明
+├── main.spec                # pyinstaller打包配置文件
+├── mkdocs.yml               # mkdocs文档的配置</p>
+<p>├── controller/          #控制
+│   ├── <strong>init</strong>.py
+│   ├── global_signal_bus.py      #全局信号
+│   └── message_service.py        #信息框弹出</p>
+<p>├── scripts/                   #使用脚本
+│   ├── build-nuitka.ps1
+│   ├── build-pyinstaller.ps1   # powershell，构建项目的命令行
+│   ├── cloc_by_file.py
+│   └── clocCode.ps1           # powershell，看项目有多少行代码的命令行</p>
+<p>├── core/ 
+│   ├── <strong>init</strong>.py
+│   ├── chart/                  # 绘图
+│   ├── crawler/                # 爬虫
+│   ├── database/               # SQLite 操作封装
+│   ├── recommendation/         # 推荐算法</p>
+<p>├── ui/                      # UI 构造模块（可以手写或加载 .ui 文件）
+│   ├── <strong>init</strong>.py
+│   ├── main_window.py       # 主窗口逻辑
+│   ├── widgets/      # 自定义控件
+│   ├── statistics/   # 统计表控件
+│   ├── pages/        #页面  <br />
+│   ├── basic/        #基本的控件  <br />
+│   ├── base/         #基础  </p>
+<p>├── resources/            # 图片、图标、数据库等静态资源,是需要复制到打包后的文件夹里的
+│   ├── icons/            #内部的图标
+│   ├── public/
+│   │   ├── actressimages/  #女演员头像
+│   │   ├── actorimages/    #男演员头像
+│   │   ├── workcovers/     #作品的封面
+│   │   └── public.db        #公有数据库 <br />
+│   ├── private/          <br />
+│   │   └── private.db      #私有数据库
+│   ├── config/
+│   │   ├── sesitive_words.txt  #敏感词过滤表
+│   │   ├── tag_map.json        #文字转换标签表
+│   └── sql/              #sql语句</p>
+<p>├── tests/                   # 单元测试</p>
+<p>├── docs/                             # 文档
+│   ├── api.md
+│   ├── av.md
+│   ├── AV数据库概念ERD.excalidraw
+│   ├── bug.md
+│   ├── data-collect.md
+│   ├── db-design.md
+│   ├── develop.md
+│   ├── future.md
+│   ├── index.md
+│   ├── recommendation.md
+│   ├── ui-design.md
+│   ├── usage.md
+│   └── 软件架构.excalidraw</p>
+<h1 id="_3">项目定位<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h1>
+<p>本地化、隐私导向的 AV 领域元数据管理与情报分析系统。目标是收藏与找出最有艺术性的作品。说实话大部分作品都是垃圾。由于独特的性癖，这个定制化程度非常的高。</p>
+<ul>
+<li>Insight (洞察) ：不仅仅是存数据，而是发现数据背后的联系（如：挖掘“共演关系”、“新人出道轨迹”）。</li>
+<li>Immersive (沉浸) ：从“填表单”转变为“刷流媒体”般的体验。</li>
+<li>Zero-Friction (零摩擦) ：极致的自动化采集，让用户感知不到录入过程。</li>
+</ul>
+<p>核心功能矩阵：
+1. 数据采集与清洗 (Intelligence Gathering) ：
+   - 多源爬虫 ：集成了 JavBus, JavDB, Minnano, Fanza 等多个数据源的爬虫 ( core/crawler )。
+   - 浏览器协同 ：通过 Firefox 插件 ( extensions/firefox_capture ) 与本地服务器 ( server/app.py ) 联动，实现了“浏览即采集”的高效工作流。交互能力，在浏览器中就知道这个片子本地是否收藏过
+   - ID 解析与清洗 ：具备处理复杂番号、去重的能力。
+2. 档案管理 (Asset Management) ：
+   - 结构化存储 ：公有库管理“女优 (Actress)”和“作品 (Work)”，“男优 (Actor)”，“标签”等等核心实体，及其关联关系。私有库关系喜欢的女优和作品，包括个人数据例如撸管记录。
+   - 开放导出，所有的数据都可自由导出为CSV格式。
+3. 可视化与洞察 (Visualization &amp; Insight) ：
+   - 关系图谱 ： ForceDirectedView (力导向图) 是产品的核心差异化亮点，用于展示人物与作品、人物与人物之间的关联网络。
+   - 多维视图 ：包含时间轴 ( TimeLinePage )、画廊 ( GalleryPage ) 和列表视图。</p>
+<p>量化自我 (Quantified Self) —— 贤者模式报告 ：
+- 改进 ：不要只记录“看了什么”，要分析“口味偏好变化”。生成年度/月度报告：
+  - "你这个月偏爱 MILF 类型，比上个月增加了 30%。"
+  - "你在周五晚上的活跃度最高。"
+- 价值 ：利用数据可视化（ForceView 之外的图表），让用户通过数据重新认识自己的性癖好。这能带来极强的情感连接。
+隐私向，一键伪装功能，按下快捷键，界面变成Excel界面</p>
+<p>独特UI风格，为CJK用户设计，展示页独特的竖排文本，体现CJK文化。极致的文化契合度 ：日文和中文（尤其是繁体）在竖排时能传达出强烈的“文学感”、“高级感”和“传统美学”。对于展示日系作品（AV 元数据），这能带来原汁原味的沉浸体验，仿佛在阅读日式海报或杂志。</p>
+<p>i18n,目标支持多语言，包括简中、繁中、日文、韩文。</p>
+<p>痛点 ：
+- 工具属性过重 ：目前的 UI 逻辑偏向“数据库增删改查”工具，缺乏“消费内容”的沉浸感。
+- 交互割裂 ：桌面端和浏览器端虽然有连接，但体验上是“采集 -&gt; 传输 -&gt; 刷新查看”，不够流畅。
+- 录入繁琐 ： 用户更期待“一键完成”。</p>
+<p>引入“Inbox（收件箱）”概念 ：
+- 浏览器插件采集的数据不再直接入库，而是进入“待处理区”。
+- 桌面端显示一个类似 Trello 的看板或流式列表。
+- 智能预处理 ：系统自动后台跑完爬虫、人脸识别、NSFW 检测。用户只需要做最后一步：“确认归档”。</p>
+<ol>
+<li>插件与桌面端的无缝融合 (Seamless Sync)
+现状 ：插件发送 HTTP 请求，桌面端被动接收。 优化方案 ：</li>
+<li>实时双向反馈 ：</li>
+<li>当插件在网页上检测到页面（如 JavDB）时，不仅显示“可抓取”，还应通过 API 查询本地库，直接在网页上显示：“本地已存在 (已看/未看)”。</li>
+</ol>
+<h1 id="_4">插件化架构<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h1>
+<p>核心功能，包括数据仓库的管理，模型的定义，图系统绘制，雷达图，不依赖爬虫的增删查改的界面</p>
+<p>插件化，matplotlib绘图，用爬虫的操作，机器学习的</p>
+<h1 id="_5">功能开发<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h1>
+<h2 id="_6">📌拟物类作品的收藏场景<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<p>注重仪式感，注重收藏感，有封面就包装成拟物的实体，放在书架子上，然后鼠标划过时可以抽出，然后观看。</p>
+<p>黑化的番号复制按钮📌比如说什么什么大楼，几号位置等等，不容易被检测出来。</p>
+<h2 id="_7">添加女优界面<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[x] 输入中文名与日文名，加女优，然后去网站自动更新信息</li>
+</ul>
+<h2 id="_8">🔴 手动添加/修改作品界面<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<h3 id="_9">使用场景<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h3>
+<p>可能在逛某地方的时候突然看到一个片子的番号只是单纯的想记录
+单独添加一个番号，后面手动补信息</p>
+<h3 id="_10">功能<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 输入番号，发布日期，一句话剧情的输入框</li>
+<li>[x] 过滤信息库匹配显示的导演输入框</li>
+<li>[x] 详细的输入框中日标题与介绍内容系统</li>
+<li>[ ] 旁边有爬虫按钮可实时去抓取📌 </li>
+<li>[x] 可筛选的女优选择器</li>
+<li>[x] 可筛选的男优选择器</li>
+<li>[ ] 添加侧双击女优可输入更多的信息，包括女优的态度的转变，职业，年轻程度 📌</li>
+<li>[x] 保存临时修改与加载临时修改</li>
+<li>[ ] 近期的修改记录显示，根据时间线去搜</li>
+<li>[x] 修改的加载与存储</li>
+<li>[x] 封面的加载，以及拖动保存图片到库内位置</li>
+<li>[x] 内容更改检测，更好的提示，规范化能否添加修改的行为。</li>
+<li>[x] Tag页面合并到此处，并且完成加载，修改，内容更改检测，临时存储，与临时加载功能。</li>
+<li>[ ] 动态的tagwidget页面</li>
+<li>[ ] 对比功能，比如同故事的作品对比，主要是筛选出同类型最好的片子</li>
+<li>[x] 谷歌翻译，可将日文翻译成中文。</li>
+<li>[x] 一键打开网站，利于手动复制资料</li>
+<li>[x] 取消QTextEdit的文本格式</li>
+<li>[ ] 根据时长弄一个进度条，可以在上面插内容，比如什么场景，然后分段，等等。</li>
+</ul>
+<h3 id="_11">技术实现<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
+<p>QDialog 弹出界面
+- [x] 可筛选的选择器 
+- [ ] 图片数据库image_url完整性检查📌
+.ini保存内部的记录</p>
+<p>近期的修改记录显示主要是依靠库内的时间戳，还是应该是外面的手动记录10条到.ini内</p>
+<h2 id="tag">🌱 tag筛选界面<a class="headerlink" href="#tag" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[x] tag选进去，就把作品给筛选出来，包括封面等</li>
+</ul>
+<h2 id="_12">⏳ 封面显示作品与信息滑动组件<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[ ] UI优化，包括字体大小变化，但是不需要什么响应式的布局了，因为这个屏幕不会缩小到非常的小的。</li>
+<li>[x] 左右按钮滑动图片与信息加载</li>
+<li>[x] 女优与标签的定宽度自动换行的Flowlayout实现</li>
+<li>[x] 女优可点击跳转到对应单个女优页</li>
+<li>[ ] tag可点击跳转到tag筛选界面</li>
+</ul>
+<h2 id="_13">⏳ 封面查找按钮<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[ ] QLineEdit信息模糊匹配显示</li>
+<li>[ ] 搜索后判断到底查了什么东西并跳转，番号跳作品，女优跳女优，精准匹配直接跳转，否则转成多搜索页面</li>
+</ul>
+<h2 id="tag_1">🔥 作品添加/修改tag功能<a class="headerlink" href="#tag_1" title="Permanent link">&para;</a></h2>
+<h3 id="_14">使用场景<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h3>
+<p>一般是看完片后添加tag,一般信息网站的tag非常的不准，几乎没有任何的参考价值，也没有任何的筛选价值</p>
+<h3 id="_15">功能<a class="headerlink" href="#_15" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 选择作品 </li>
+<li>[x] tag左右移动的选择内容器，左边一容器，右边一个toolbox分类标签</li>
+<li>[x] 互斥标签的锁的实现</li>
+<li>[x] 修改的加载与存储</li>
+<li>[x] UI的更改，更加的日式，比如标签是竖向的，然而这个要更改flowlayout,</li>
+<li>[ ] 近期的修改记录显示,这个要改数据库</li>
+</ul>
+<h3 id="_16">技术实现<a class="headerlink" href="#_16" title="Permanent link">&para;</a></h3>
+<p>从数据库加载tag
+自定义flowlayout+toolbox 多分组选择，点击tag后移动，tag内附带数据</p>
+<h2 id="tag_2">🟢 管理tag功能<a class="headerlink" href="#tag_2" title="Permanent link">&para;</a></h2>
+<p>实际上更改tag的比例是非常的低的
+长按进更改模式，所有标签都在抖动，拖动排序tag_type组，点击更改标签内容
+- [x] 单个更改tag的标签内容
+- [ ] 更改标签互斥组-选中一堆，然后更改成一组
+- [x] 更改标签颜色
+- [ ] 更改标签的tag_type组
+- [ ] 添加新的tag_type组
+- [x] tag_type组在toolbox显示前后问题
+- [x] 批量更改标签的颜色，选中一堆，然后更改成一种颜色
+- [ ] 标签重映射问题，还剩下换主标签的功能
+- [x] 取色表盘
+- [ ] 合并标签的问题
+- [ ] 高级标签过滤器支持与或非
+tag模式，语素组成与标准化剧情
+要不要互斥组，感觉这个东西很没用，完整性靠其他的来支持就行了</p>
+<p>连锁tag</p>
+<h2 id="tag_3">修改作品的tag功能 优先级中<a class="headerlink" href="#tag_3" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[ ] 选中作品然后加载对应的标签，然后和添加标签的界面就一样了</li>
+</ul>
+<h2 id="_17">自动获得作品女优信息功能<a class="headerlink" href="#_17" title="Permanent link">&para;</a></h2>
+<p>[[data-collect]]</p>
+<h2 id="_18">自慰记录的添加<a class="headerlink" href="#_18" title="Permanent link">&para;</a></h2>
+<p>一次撸管只记录一部片子
+- [x] 番号搜索器，输入后匹配库作品
+- [ ] 时间输入，额外预测自慰时间,这个没什么用，一般来说撸完添加
+- [x] 评分系统1-5 爱心显示
+- [x] 使用工具，工具库搜索不重复的
+- [x] 事后评价框
+- [x] 提交按钮
+QDialog弹出</p>
+<h2 id="_19">做爱记录的添加<a class="headerlink" href="#_19" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[x] 时间</li>
+<li>[x] 评分</li>
+<li>[x] 事后评价</li>
+<li>[x] 提交</li>
+</ul>
+<h2 id="_20">晨勃记录的添加<a class="headerlink" href="#_20" title="Permanent link">&para;</a></h2>
+<p>这个有个问题，不及时的记录就会忘记，除非有东西一直的提醒你。至少晚上是想不起来早晨有没有晨勃的。
+- [x] 时间
+- [x] 事后评价</p>
+<h2 id="_21">界面美化问题<a class="headerlink" href="#_21" title="Permanent link">&para;</a></h2>
+<p>加载界面的美化，需要日式的一种加载界面
+各种东西需要美化，包括选择器等等</p>
+<h2 id="_22">高分屏适配问题<a class="headerlink" href="#_22" title="Permanent link">&para;</a></h2>
+<p>响应式UI与动态布局</p>
+<h2 id="_23">其他的简单功能<a class="headerlink" href="#_23" title="Permanent link">&para;</a></h2>
+<p>番号黑话生成分享📌
+情趣体位抽签工具📌</p>
+<h2 id="_24">多言语切换<a class="headerlink" href="#_24" title="Permanent link">&para;</a></h2>
+<h2 id="_25">亮暗主题切换<a class="headerlink" href="#_25" title="Permanent link">&para;</a></h2>
+<h2 id="_26">字体设置<a class="headerlink" href="#_26" title="Permanent link">&para;</a></h2>
+<p>找一个比较好的自己弄上去</p>
+<h1 id="_27">测试用例<a class="headerlink" href="#_27" title="Permanent link">&para;</a></h1>
+<p>根目录执行
+pytest</p>
+<p>公共数据
+私密数据
+可成为公共数据的个人数据，比如个人的打标签，这需要每个人来参与</p>
+<p>各种页面的截图分享机制用快捷键C</p>
+<p>控制clash RESTful API  达到爬虫可用的目的
+https://clash.gitbook.io/doc/restful-api</p>
+<p>软件开始时数据库检查，无数据库建立数据库，但是这个是后面的事情，如何启动软件</p>
+<p>软件设计时焦点的细节考虑</p>
+<ul>
+<li>[x] 界面懒加载</li>
+<li>[ ] 绘图迁移，不要用matplotlab,使用QChart绘图，好像交互性更加的好</li>
+<li>[ ] 绘图，横轴近30天，纵轴是24小时，然后绘撸管点图</li>
+<li>
+<p>[ ] 合并姓名链条的问题，有脏数据污染怎么处理，还是规定只能在链条下
+主要随着时间的发展，女优会改名字，所以还要弄一个可视化可以拖动的的界面处理链条问题</p>
+</li>
+<li>
+<p>[ ] 推动UI与操作层分离，每个界面下面专门弄一个initUI的函数，当然UI内部如果要计算的就在内部，一行程度的封装下分离</p>
+</li>
+<li>
+<p>[ ] 增量备份图片的问题</p>
+</li>
+<li>
+<p>[ ] 双模型方案，数据库模型与UI有个问题，如何能在保留用户编辑的情况下，把新的数据同步进来。包括乐观锁与悲观锁的问题。
+在同时修改同一个东西时，没有任何的机制能知道保留哪个，只能提示覆盖，放弃，或者手动合并</p>
+</li>
+<li>
+<p>[ ] 女优，男优，导演，单部作品的.md相互串联的故事，非结构化的数据</p>
+</li>
+</ul>
+<p>作品女优relation 额外内容未实现
+作品的          增删改查          交互UI
+tag的           增删查改          交互UI
+女优与女优姓名   增删查改          交互UI
+男优与男优姓名   增删查改          表视图</p>
+<p>前缀表与公司表的 增删查改         表视图
+单体服饰表       增删查改         表视图
+做爱动作表       增删查改         表视图</p>
+<p>喜欢的作品      增删查改          爱心+过滤作品
+喜欢的女优      增删查改          爱心+过滤女优
+自慰记录表      增删查改           表视图
+做爱记录表      增删查改           表视图
+晨勃记录表      增删查改           表视图</p>
+<p>科普页面就是markdown渲染器+双链跳转功能+node点图</p>
+<p>分层架构</p>
+<p>包括模型类与仓库类，然后在UI层MVVM 专门为UI的模型
+就目前来看直接sqllite读写就行了，不需要专门弄模型类与仓库类，等到表再多些，到20张表后弄成模型类，50张表后上ORM框架</p>
+<h1 id="_28">市场分析<a class="headerlink" href="#_28" title="Permanent link">&para;</a></h1>
+<p>同类产品，开源的，还有各种AV网站，AV网站根本就不会停留，因为老是换，AV网站的盈利模式基本靠赌博广告。</p>
+<p>刮削器https://github.com/Yuukiy/JavSP</p>
+<p>女优头像https://github.com/gfriends/gfriends?tab=readme-ov-file</p>
+<p>管理器https://github.com/4evergaeul/JAV_MovieManager
+https://github.com/elonmusx/avbook?tab=readme-ov-file</p>
+<p>就目前jithub上的项目最多的是刮削器，然后是管理器，但是刮削器有个问题，只搜，不整理，没有形成有用的数据，刮出来的东西对个人来说没有价值</p>
+<p>最后一定要接上各类刮削器，也就是爬虫</p>
+<ul>
+<li>[x]javtext最受欢迎的女优添加</li>
+<li>[ ]复制作品的全部tag到另一部作品中去</li>
+<li>[x]分解标题，添加tag 比如标题中有内射，添加中出标题,用词组分解，就是分解token的东西分解</li>
+<li>[ ]tag的操作，包括分裂，合并，运算，条件运算，等等
+第一层简单的系统
+[ 必须包含 ]   tagA  tagB
+[ 可选满足 ]   tagC  tagD
+[ 必须排除 ]   tagE
+然后是复杂的表达式</li>
+</ul>
+<p>现在的问题是如何处理片子之间的关系？主要是同一个企划的片子怎么分到一起，还有就是大致同样的故事，但是不同片商拍的也分到一起，这一点上missav做的很好</p>
+<p>提纯管道</p>
+<p>如何处理好这个收藏软件与AV网站的关系
+AV网站作为一种热门与信息获取的来源，收藏软件作为一种永久性的，自由的，分享类的。所以需要快速的到达那些AV网站，也就是说爬虫策略与跳转策略需要外挂，可以快速的更新
+作品与作品之间网状结构的可能性，用力导向图，要求力导向图可交互，包括拖动，放大缩小，调整吸力斥力的大小，然后点击可以跳转，</p>
+<h1 id="_29">未来功能<a class="headerlink" href="#_29" title="Permanent link">&para;</a></h1>
+<p>插件化跳转
+插件化爬虫，因为爬虫容易失效，这种事情一定要插件化，可供别人快速使用，包括插件化爬虫的开发问题。</p>
+<p>与各种的刮削器对接，但是很多的刮削器非常的复杂，没有必要弄这么多的东西，简单的裁剪，刮削器就是刮来脏数据</p>
+<p>包括作品，女演员，男演员，标签，导演</p>
+<p>数据完整性问题，如何将不完整的信息给暴露出来，然后人工去修复</p>
+<p>最高完整性，番号-导演-女演员-男演员-剧情-标题</p>
+<p>如果不能上fanza通过第三方网站的爬虫的稳定性有很大的问题</p>
+<p>最终的目的是寻找关系，比如这个片是谁演的，她还演过哪些，题材等等</p>
+<ul>
+<li>[ ] 一个备份系统，包括图片的备份，也就是说需要一个快照实现</li>
+</ul>
+<h3 id="1-architecture">1. 架构层面 (Architecture)<a class="headerlink" href="#1-architecture" title="Permanent link">&para;</a></h3>
+<p>目前项目采用的是 Monolithic (单体) 架构，混合了 MVC 和 MVVM 模式。</p>
+<ul>
+<li>
+<p>问题 1：MainWindow 职责过重 (God Class)</p>
+</li>
+<li>
+<p>现状 ： MainWindow 类（ ui/main_window.py ）承担了过多的职责，包括路由跳转、信号连接、服务初始化（ TaskManager , StatusManager ）、全局快捷键注册等。</p>
+<ul>
+<li>依赖注入 (Dependency Injection) ：目前服务是在 MainWindow 内部直接实例化的。建议引入一个简单的 ServiceLocator 或 Context 类，负责管理 StatusManager 、 TaskManager 、 DatabaseManager 等单例服务， MainWindow 只需向容器请求即可。</li>
+<li>问题 2：数据访问层 (DAL) 耦合</li>
+</ul>
+</li>
+<li>
+<p>现状 ： core/database/query.py 中充斥着大量的原始 SQL 拼接函数，且直接返回 dict 或 tuple 。虽然有 repositories/WorkRepository.py 文件，但似乎为空或未被充分利用。</p>
+</li>
+<li>
+<p>优化建议 ：</p>
+<ul>
+<li>完善 Repository 模式 ：将 query.py 中的函数迁移到对应的 Repository 类中（如 WorkRepository , ActressRepository ）。</li>
+<li>引入实体模型 (Domain Models) ：不要在 UI 层直接操作数据库返回的字典。建立明确的 Python 类（如 class Work , class Actress ）或使用 dataclasses / pydantic ，确保类型安全和代码提示友好。</li>
+</ul>
+</li>
+<li>
+<p>WorkRepository</p>
+</li>
+<li>ActressRepository</li>
+<li>ActorRepository</li>
+</ul>
+<h3 id="3-code-quality">3. 代码质量与规范 (Code Quality)<a class="headerlink" href="#3-code-quality" title="Permanent link">&para;</a></h3>
+<ul>
+<li>规范化配置管理 ：</li>
+<li>代码中存在硬编码的样式和颜色（如 #F7E6B0 , #282c34 ）。建议建立 ui/theme.py 或 resources/styles/theme.json 统一管理颜色和尺寸常量，方便后续支持“暗黑模式”或换肤。</li>
+<li>异常处理 ：</li>
+<li>core/database/query.py 中的 SQL 执行部分虽然使用了 with 语句管理连接，但部分查询缺少细致的 try-except 捕获，一旦 SQL 报错可能会导致程序崩溃或状态异常。</li>
+<li>类型提示 (Type Hinting) ：</li>
+<li>
+<p>部分新代码使用了 Type Hints，建议推广到全项目，特别是核心逻辑部分，有助于减少运行时错误。</p>
+</li>
+<li>
+<p>P1 (中优先级) ： 重构数据层 。停止在 query.py 中写裸 SQL，迁移到 Repository 模式，并返回对象而非字典。</p>
+</li>
+<li>P2 (低优先级) ： UI 样式统一 。提取颜色和样式常量，规范化 QSS 管理。</li>
+</ul>
+<p>你这个要求的关键点其实不是“性能”本身，而是： <br/> 加/减点和边之后，原有布局基本不动，只在局部微调 。 <br/> 这一点决定了我们必须做“增量维护”，而且还要让 SimulationState 里的数据结构支持长期演化，而不是每次重随机化。</p>
+<p>我分三个层次说一个具体、可落地的设计思路（不写代码，只讲结构）。</p>
+<h1 id="_30">图的整体架构<a class="headerlink" href="#_30" title="Permanent link">&para;</a></h1>
+<p>[数据库/文件] 
+      ↓ (加载)
+[GraphManager (总图 G)]  &lt;-- (存储所有节点坐标 pos) &lt;---------+
+      ↓                                                  |
+[过滤逻辑 (Filter)] (例如：剔除孤立点)                     |
+      ↓                                                  |
+[Subgraph (子图 G')] (仅包含可见节点，携带 pos)             | (位置同步)标按原来的，没有位置的坐标随机化                               |
+[ForceView ] -----------------------------------+
+      ↓
+[ 物理引擎 ]
+      ↓ (加载到视图)有位置的坐
+(只对 G' 中的节点进行斥力/引力计算)
+(隐藏的节点不参与任何运算，物理上消失)</p>
+<p>markdown的编辑功能，包括作品的附加信息的编辑，女优的附加信息的编辑
+QTextEdit + QSyntaxHighlighter + 事件过滤器 。</p>
+<p>现在可以做一个类似进度条的功能，用来标记影片的位置干了什么兴奋的事情</p>
+<ul>
+<li>第一步（最重要） ：实现 IPC 接收线程 ，将消息接收从 UI 线程剥离。</li>
+<li>第二步 ：实施 共享内存双缓冲池 ，彻底解决内存安全和重建开销。</li>
+<li>第三步 ： Controller 模式重构 ，将 ForceView 瘦身，逻辑移入 Controller。</li>
+<li>第四步 ： GPU 渲染升级 （如果节点数 &gt; 10,000），否则当前的 CPU 优化（NumPy + Qt）通常足够。</li>
+</ul>
+<p>单进程多视图</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

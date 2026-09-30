@@ -1,0 +1,1952 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="DarkEye C++ documentation">
+      
+      
+      
+      
+        <link rel="prev" href="../usage/">
+      
+      
+        <link rel="next" href="../faq/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>版本更新记录 - DarkEye</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#unreleased" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href=".." title="DarkEye" class="md-header__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DarkEye
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              版本更新记录
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="切换深色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换深色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../develop/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  开发白皮书
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  入门指南
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  版本更新记录
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  常见问题
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../settings/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  软件设置
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  开发准备
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../security/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  数据安全说明
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../architecture/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  整体架构
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="DarkEye" class="md-nav__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    DarkEye
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../develop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开发白皮书
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    入门指南
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    版本更新记录
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    版本更新记录
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#unreleased" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unreleased
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2xx" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.x.x(路线图)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bug" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        已知bug
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#126" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.6(未发布)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#125" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.5(未发布)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2.5(未发布)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        新功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        优化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修bug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#124" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.4
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2.4">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        新功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        优化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修bug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#123" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.3
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2.3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        新功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        优化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修bug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#122" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.2
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2.2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        新功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        优化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修bug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#121" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.1
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2.1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        新功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        改功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修bug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#120" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        新功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        改功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修bug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#112" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.2
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.1.2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        新功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        改功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修bug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#111" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.1
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#110" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.0
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#100" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.0.0
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    常见问题
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    软件设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开发准备
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    数据安全说明
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    整体架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#unreleased" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unreleased
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2xx" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.x.x(路线图)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bug" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        已知bug
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#126" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.6(未发布)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#125" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.5(未发布)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2.5(未发布)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        新功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        优化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修bug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#124" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.4
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2.4">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        新功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        优化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修bug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#123" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.3
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2.3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        新功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        优化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修bug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#122" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.2
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2.2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        新功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        优化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修bug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#121" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.1
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2.1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        新功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        改功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修bug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#120" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        新功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        改功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修bug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#112" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.2
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.1.2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        新功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        改功能
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修bug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#111" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.1
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#110" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.0
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#100" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.0.0
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+  <h1>版本更新记录</h1>
+
+<h2 id="unreleased">Unreleased<a class="headerlink" href="#unreleased" title="Permanent link">&para;</a></h2>
+<ul>
+<li>接入外部信息补充器（Collector/Bridge），爬虫 API 默认使用 <code>127.0.0.1:56790</code>；DarkEye 主程序内部服务仍使用 <code>127.0.0.1:56789</code>。</li>
+<li>设置页支持配置、启动和探测外部信息补充器，并可选择随 DarkEye 自动启动已配置的可执行文件。</li>
+<li>外部信息补充器的源码和构建脚本不在本仓库中，相关启动与打包需要在对应项目中完成。</li>
+</ul>
+<h2 id="2xx">2.x.x(路线图)<a class="headerlink" href="#2xx" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[ ] ai功能，包括cli工具与对话能力</li>
+</ul>
+<p>## 1.x.x(路线图)</p>
+<ul>
+<li>
+<p>[ ] C++重写稳定模块，这简直是不可能的。几乎没有稳定的模块。C++重写需要速度的模块还差不多。</p>
+</li>
+<li>
+<p>[ ] tag计算器，高级tag过滤系统，tag重定向</p>
+</li>
+<li>
+<p>[ ] 重构tag系统，弄成三层tag匹配i18n,加上良好的同步方式</p>
+</li>
+<li>
+<p>[ ] graph系统的更改，关联算法，社区发现算法，过滤，把note互联后的计算上</p>
+</li>
+<li>
+<p>[x] 重绘统计图，改用 QWidget/QPainter 自绘移除 matplotlib 依赖，3D 统计图暂时下线。</p>
+</li>
+<li>
+<p>[ ] 影片长度一长条做复杂的操作</p>
+</li>
+<li>
+<p>[ ] 女优整体状态选择，身份选择，这个是之间预留的，总感觉没有点用</p>
+</li>
+<li>
+<p>[ ] 绿色模式，现在实现了一半，不过貌似没用</p>
+</li>
+<li>
+<p>[ ] 以竖排风格为核心，优化UI的界面</p>
+</li>
+<li>
+<p>[ ] 其他格式的信息导出功能，目前只能导.csv，还没想好怎么导出</p>
+</li>
+<li>
+<p>[ ] 全部后台线程读写数据库</p>
+</li>
+<li>
+<p>[ ] notes互联，通过<code>[[movie:xxxx]] [[actress:xxxx]] [[actor:xxxx]]</code>中种方式实现互联与跳转，包括预览，加入图系统</p>
+</li>
+<li>
+<p>[ ] graph的重构以及C++加速。图计算部分，现在图计算会有点卡。</p>
+</li>
+<li>
+<p>[ ] 附加更多的人工标注信息包括女优的状态，等等。时长进度条标注东西。</p>
+</li>
+<li>
+<p>[ ] 新版编译后至少50个爬虫的测试，包括新爬测试，里面包含的番号要全，正常的就不说了，但是冷门的要包含</p>
+</li>
+<li>
+<p>[ ] dvd展开的重构，包括可以看背面，dvd不同宽度的盒子，更多的动画可以看dvd背面</p>
+</li>
+<li>
+<p>[ ] 显示身材类型，按照身材的类型去筛选</p>
+</li>
+<li>
+<p>[ ] 图参数持久化，有很多的图。</p>
+</li>
+<li>
+<p>[ ] 恢复公库与私库时校对数据库版本，这个看看有没有必要</p>
+</li>
+<li>[ ] 迁移爬虫去浏览器插件，保留设计标准接口，软件仅保留图片下载的功能。</li>
+<li>
+<p>[ ] 项目整理，代码的结构调整</p>
+</li>
+<li>
+<p>[ ] dvd盒子建模优化，更多的细节</p>
+</li>
+<li>[ ] 各种能选的东西的微反馈优化，鼠标移动上去要么鼠标变，要么东西被包裹一层提示</li>
+<li>
+<p>[ ] 鼠标单击与双击的设置，现在比较的混乱，有的需要单击，有的需要双击。</p>
+</li>
+<li>
+<p>[ ] 男优重定向，去某些后缀</p>
+</li>
+<li>
+<p>[ ] 自动更新浏览器插件，至少要下载下来</p>
+</li>
+<li>
+<p>[ ] FC2爬取支持，需要参考javjhs项目里的方法，这个早晚会有问题会被封。</p>
+</li>
+<li>
+<p>[ ] 各种东西导入后，很多数据，关系图没有更新</p>
+</li>
+<li>[ ] 网页上采集添加的爬虫要插队</li>
+<li>[ ] 解决女优随着时间变化的问题</li>
+<li>
+<p>[ ] 女优出生地可视化统计，需要日本地图</p>
+</li>
+<li>
+<p>[ ] 爬虫爬取优化，当连续三个爬取无结果时下一个爬虫不要继续爬这个网站，有冷却时间15分钟。</p>
+</li>
+<li>
+<p>[ ] graph隐式节点，就是还没有添加的节点</p>
+</li>
+<li>[ ] 添加avbase女优信息源</li>
+<li>[ ] fanza大图下载与大图提示，还有就是过fanza的提示。</li>
+<li>[ ] fanza爬虫，对接fanza内部的id</li>
+<li>[x] 女优爬虫带出生地</li>
+<li>
+<p>[ ] 保护作品标志位-需要改数据库</p>
+</li>
+<li>
+<p>[ ] 爬虫错误信息整理，实际上很困难，似乎只能自建数据源</p>
+</li>
+<li>
+<p>[ ] i18n,未来打算支持简体中文，繁体中文，日文，韩文与一切能支持竖排的语言。</p>
+</li>
+<li>[ ] 封面的修复，超分与编辑，制作功能sod只给一半的封面</li>
+<li>[ ] 刮削保存到原视频文件夹里面,这个等后面爬虫功能完善了</li>
+<li>[ ] 组合轨道，时间轴可可以控制时间的片段，时间轴可选开始结束，为某些筛选提供便利，轴上是女优的才有意义，如果像是片商的同一天多部作品似乎意义就不大了，加入各路女优的对比，多路对轴默认对标准时间，可选对齐年龄。</li>
+<li>[ ] 女优时间轴变化，女优拍片组成一个时间轴</li>
+</ul>
+<p>有的是没有cid 的比如蚊香社的作品不在fanza上卖就没有cid</p>
+<p>连续700次爬虫测试，在不触发反爬的情况下成功率约为90%
+ - [ ] NFO数据的导出,参考mdcz</p>
+<ul>
+<li>[ ] 重写fanart展示的模块，现在没有做到完全的手动编辑</li>
+<li>[ ] NFO导入优化问题，男女优判断问题，女优多马甲问题，无番号问题。增加慢速导入与快速导入。慢速是一个一个写利于解决女优的多马甲问题。</li>
+<li>[ ] 图过滤系统C++化</li>
+<li>[ ] S3数据备份</li>
+<li>[ ] 没有收藏到各类的东西，比如我建立一个集合，把一些东西加进去。然后可以有很多这样的集合</li>
+<li>[ ] UI更新，更加拟物化与东亚美学，不唐突，就像是逛影像店的感觉</li>
+<li>
+<p>[ ] ffmpeg给视频截图，或者说做成gif</p>
+</li>
+<li>
+<p>[ ] 日漫桌子主页，然后随意放上一本册子，可更换相册框，花束，便利贴记事，记录接下来还有什么没有办，喝水的马克杯，里面有冒着热气的咖啡，乱堆的资料，女优卡片，能量饮料，电脑，台灯，充电线</p>
+</li>
+<li>[ ] 记录网黄</li>
+<li>[ ] 如果是未发布的片，未来时间提醒，当打开软件的时候提醒</li>
+<li>[ ] 字体
+简中：Noto Sans CJK SC  标准字重
+繁中：Noto Sans CJK TC
+日文：Noto Sans CJK JP
+韩文：Noto Sans CJK KR</li>
+</ul>
+<h2 id="bug">已知bug<a class="headerlink" href="#bug" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[ ] dvd 如果在作品添加了，然后图片没下载好的时候点进去，会导致封面空白的bug。</li>
+<li>[ ] 作品页与书架页第一次加载时有窗口闪过，这个基本修不好了</li>
+<li>[ ] 内存泄露，软件运行久了，尤其是爬虫，然后内存暴涨</li>
+<li>[ ] 9950x核显环境下，书架子的hdr背景加载不出来，这个目前不知道什么问题</li>
+<li>[ ] 作品编辑页面的自由编辑区的跳转有问题，跳到了老的，没有跳到新的</li>
+</ul>
+<h2 id="126">1.2.6(未发布)<a class="headerlink" href="#126" title="Permanent link">&para;</a></h2>
+<h2 id="125">1.2.5(未发布)<a class="headerlink" href="#125" title="Permanent link">&para;</a></h2>
+<h3 id="_1">新功能<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] avwikidb 这个网站弄到作品的cid，把cid也加入数据库，这个网站有男优添加这个作品的查询，这个网站也有cloudflare反爬，这个网站是没有作品的故事介绍的。</li>
+<li>[ ] avbase，这个网站是有作品的故事的
+这个网站只是转fanza上的，也就是说蚊香社的没有</li>
+<li>[ ] 女优详情页旁边的图谱</li>
+<li>[ ] sod的封面超分与拼现有的图片</li>
+<li>[x] llama.cpp更好的辅助启动。</li>
+<li>[x] webdav的数据备份</li>
+<li>[x] 拆分插件，留出接口</li>
+<li>[ ] 自动备份sqlite数据库，在启动软件，和关闭软件前。现在发现sqlite数据库老是坏</li>
+</ul>
+<h3 id="_2">优化<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] 重新整理初始资源</li>
+<li>
+<p>[x] 增加精简备份，备份中文件选择的限制，使用手册加上说明</p>
+</li>
+<li>
+<p>[x] 外部导航加一个打开json的文件夹</p>
+</li>
+<li>[x] 汇总加一列编辑按钮</li>
+<li>[x] 播放视频的按钮遇到单个直接播放，多个可选。</li>
+<li>[x] 男女优页面加上随机顺序</li>
+</ul>
+<h3 id="bug_1">修bug<a class="headerlink" href="#bug_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] LLM延迟与重试设置无效,始终保持12秒与重试3次的bug</li>
+<li>[x] 作品详情页因为缓存加载缓慢导致的图片空白bug</li>
+<li>[x] DVD架子页，当打开一个DVD时，滚动回收展开的DVD时会发现DVD变成边上的DVD的图片，等完全回收后才变成当前的。</li>
+<li>[x] 独立的 info-server 控制台窗口，但启动后默认缩到任务栏</li>
+<li>[ ] 插件过cloudflare</li>
+</ul>
+<h2 id="124">1.2.4<a class="headerlink" href="#124" title="Permanent link">&para;</a></h2>
+<h3 id="_3">新功能<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 女优爬取简单化，中文名接入翻译</li>
+<li>[x] 接入mdcz的nfo导入</li>
+<li>[x] 输入API换爬虫的源</li>
+<li>[x] 更好的提示有没有缺信息，15方格</li>
+<li>[x] 通过时间轴的方式展示作品，这个时间轴可缩放，就像blender音轨一样</li>
+<li>[x] 单独识别一个视频的番号的，然后添加</li>
+<li>[x] 女优介绍栏增加外链跳转 https://avfuuzoku.com/  www.cityheaven.net 出没于哪个风俗店</li>
+<li>[x] 加入csv导入番号，利于测试</li>
+</ul>
+<h3 id="_4">优化<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 略微牺牲图片质量，增加dvd浏览流畅度</li>
+<li>[x] 爬虫搬迁，聚合工作全在浏览器里面完成。留出专门的接口，现在变得比较的稳定了。</li>
+<li>[x] 更新器拉取latest.json，优化，减少被挡</li>
+<li>[x] inbox更好的提示</li>
+</ul>
+<h3 id="bug_2">修bug<a class="headerlink" href="#bug_2" title="Permanent link">&para;</a></h3>
+<h2 id="123">1.2.3<a class="headerlink" href="#123" title="Permanent link">&para;</a></h2>
+<h3 id="_5">新功能<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 以及提示本地是否有视频，涉及到视频搜索的存储。</li>
+<li>[x] 爬虫积压警告，比如堆积到10个后就弹出警告，然后手动处理。</li>
+<li>[x] 汇总查询加上男女优的表</li>
+<li>[x] 视频播放提示，在编辑栏展示，展示通过歪斜</li>
+<li>[x] 科普知识与serverless更新</li>
+<li>[x] 封面非大图提示</li>
+<li>[x] 添加只有喜欢的作品的图过滤</li>
+<li>[x] LLM翻译引擎+教学</li>
+<li>[x] 部分fanza大图的下载</li>
+<li>[x] 编辑界面高级停靠系统的保存，包括高级停靠区的继续开发</li>
+<li>[x] 部分下载fanza大图的能力</li>
+</ul>
+<h3 id="_6">优化<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 作品编辑页的ui改变，更加的自由。</li>
+<li>[x] 男女优编辑界面的ui改变</li>
+<li>[x] 女优修改页，直接爬虫的提示优化</li>
+<li>[x] 项目链接与参考项目展示出的更新</li>
+<li>[x] 过滤栏不够宽滚动与combobox滚动冲突问题</li>
+<li>[x] 迁移部分爬虫到浏览器插件，过反爬</li>
+<li>[x] 图片下载迁移到浏览器插件</li>
+</ul>
+<h3 id="bug_3">修bug<a class="headerlink" href="#bug_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] CoverImage(36-48)这里有时候信号会被销毁，然后软件直接卡住。问题在于正在加载的图片，但是图片的控件没了。反复切换片商等等就会有这个情况</li>
+<li>[x] 打开dvd有概率打开的是前后的，不是当前的</li>
+</ul>
+<h2 id="122">1.2.2<a class="headerlink" href="#122" title="Permanent link">&para;</a></h2>
+<h3 id="_7">新功能<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 软删除与回收站优化，添加新按钮</li>
+<li>[x] 汇总查询表优化，添加排序功能</li>
+<li>[x] 设置视频播放的浏览器地址</li>
+<li>[x] Jvedio提取的外置脚本。</li>
+<li>[x] graph加上series的互联</li>
+</ul>
+<h3 id="_8">优化<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] NFO导入优化，速度优化，添加男优先验知识判断。</li>
+<li>[x] 更新提取视频番号的逻辑，参考mdcz</li>
+</ul>
+<h3 id="bug_4">修bug<a class="headerlink" href="#bug_4" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 爬虫内存泄露</li>
+<li>[x] 特殊番号IBW系列后缀爬取修复</li>
+<li>[x] 女优爬虫失败问题</li>
+<li>[x] 男女优选择器bug，当在编辑区使用爬虫时，如果此次爬虫的女优或者男优是新的，由于顺序问题，导致了没有添加进来，或者说是添加了又被刷到上面去了。</li>
+<li>
+<p>[x] 作品软删除后，关系图没有更新</p>
+</li>
+<li>
+<p>[x] 爬虫失败SMD-001</p>
+</li>
+<li>[x] 剧照图下载更新后刷新作品数据信号，导致的书架刷新</li>
+<li>[x] 男女优选择器bug，当在编辑区使用爬虫时，如果此次爬虫的女优或者男优是新的，由于顺序问题，导致了没有添加进来，或者说是添加了又被刷到上面去了。</li>
+<li>[x] 刷新和清扫按钮在高分屏下显示问题</li>
+</ul>
+<h2 id="121">1.2.1<a class="headerlink" href="#121" title="Permanent link">&para;</a></h2>
+<h3 id="_9">新功能<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] NFO导入加入进度条</li>
+<li>[x] 封面图片存储的时候后缀取消</li>
+<li>[x] 添加随机顺序</li>
+<li>[x] 标签选择器隐藏+持久化</li>
+</ul>
+<h3 id="_10">改功能<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 导入的封面名字改变</li>
+<li>[x] 补充信息的界面合并到添加番号的界面</li>
+</ul>
+<h3 id="bug_5">修bug<a class="headerlink" href="#bug_5" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] NFO导入时速度过慢的问题</li>
+<li>[x] 更新爬虫，之前貌似javdb失效</li>
+</ul>
+<h2 id="120">1.2.0<a class="headerlink" href="#120" title="Permanent link">&para;</a></h2>
+<h3 id="_11">新功能<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] NFO数据的导入</li>
+<li>[x] 男女优加备注与连接-改数据库</li>
+<li>[x] 爬虫抓取的信息修改</li>
+<li>[x] 添加runtime，label series  -改数据库</li>
+<li>[x] 手动添加番号里面添加字母排序与一键移除FC2等东西，因为这些东西暂时不支持。</li>
+<li>[x] 二次处理补充没有爬到的信息</li>
+<li>[x] 展示面板切换可在瀑布流与网格间切换</li>
+<li>[x] 添加剧照爬取与存储</li>
+<li>[x] 增加剧照的展示功能，包括点击自动下载</li>
+<li>[x] 增加批量删除的界面</li>
+</ul>
+<h3 id="_12">改功能<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 侧边栏的选中颜色变得更鲜艳</li>
+<li>[x] 暂时取消爬虫调度能力，包括停止，删除，减少复杂度，后面等爬虫系统重做后再加，现在只能手动关闭软件后重新添加了。</li>
+<li>[x] 添加女优后自动调用爬虫去更新女优</li>
+</ul>
+<h3 id="bug_6">修bug<a class="headerlink" href="#bug_6" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 瀑布流单个页面大小问题，刷新时不正常无论有无maker全变半页大小，后面刷一下后正常</li>
+<li>[x]bug dvd架子那一页，如果在展开的时候切换范围和顺序，然后再点击展开，后面如果切换路由导航打开某个dvd时就会出现左侧信息换了，但是dvd的贴图没有换的bug。这个要操作几次后才会出问题</li>
+</ul>
+<h2 id="112">1.1.2<a class="headerlink" href="#112" title="Permanent link">&para;</a></h2>
+<h3 id="_13">新功能<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 下载提示Inbox开发显示</li>
+<li>[x] 插件教学,文档，视频</li>
+<li>[x] 自动更新机制，可选本地更新，现在更新本体更加的方便。</li>
+<li>[x] 手动更新女优数据选择，遇到多目标可手动选择</li>
+</ul>
+<h3 id="_14">改功能<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 存储位置的改变，从原来的<code>resources/public,resources/private</code>移动到了<code>data/public</code>和<code>data/private</code>,<code>data</code>在自动更新的时候将不会被覆盖。</li>
+<li>[x] 边栏修改为折叠的</li>
+<li>[x] 视频文件夹路径管理现在自动保存</li>
+<li>[x] 移动管理-&gt;批量操作-&gt;查找本地的时候录入数据库 的位置的到 设置-&gt;视频-&gt;查找本地的时候录入数据库</li>
+<li>[x] 设置最下面添加网站、文档、discord</li>
+<li>[x] 更改数据库的位置，之前太不专业了，把系统资源和数据库放一个位置了</li>
+<li>[x] 私有数据库备份方式修改成选择文件夹</li>
+<li>[x] dvd封面与模型一起出现</li>
+<li>[x] 男女优选择器位置互换</li>
+<li>[x] 添加版本记录</li>
+</ul>
+<h3 id="bug_7">修bug<a class="headerlink" href="#bug_7" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 标签选择器的边tab很挤</li>
+<li>[x] 修改页面封面变化后橙色框提示</li>
+<li>[x] 修复了修改作品页面，封面变更时不变色的bug</li>
+<li>[x] 批量更新女优修复</li>
+<li>[x] 修复了当书架有过滤时，路由无法到dvd完全展开状态</li>
+<li>[x] 优化了打开切换opengl时的上下的闪烁问题</li>
+</ul>
+<h2 id="111">1.1.1<a class="headerlink" href="#111" title="Permanent link">&para;</a></h2>
+<p>添加了更多的排序选项，包括按番号排序与按片商排序d</p>
+<h2 id="110">1.1.0<a class="headerlink" href="#110" title="Permanent link">&para;</a></h2>
+<ul>
+<li>更改私有数据库的unique要求，取消唯一性要求</li>
+<li>备份数据库功能的完善，可以拿私库对另外一个公共数据库重建连接</li>
+</ul>
+<h2 id="100">1.0.0<a class="headerlink" href="#100" title="Permanent link">&para;</a></h2>
+<p>初版软件发布</p>
+<p>除了增删查改的功能，力导向图的图谱与3D收藏</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

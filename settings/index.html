@@ -1,0 +1,1694 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="DarkEye C++ documentation">
+      
+      
+      
+      
+        <link rel="prev" href="../faq/">
+      
+      
+        <link rel="next" href="../development/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>软件设置 - DarkEye</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#_1" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href=".." title="DarkEye" class="md-header__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DarkEye
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              软件设置
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="切换深色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换深色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../develop/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  开发白皮书
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  入门指南
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../CHANGELOG/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  版本更新记录
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  常见问题
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  软件设置
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  开发准备
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../security/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  数据安全说明
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../architecture/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  整体架构
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="DarkEye" class="md-nav__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    DarkEye
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../develop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开发白皮书
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    入门指南
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    版本更新记录
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    常见问题
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    软件设置
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    软件设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启动与通用说明
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        首页
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        三、管理模块
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="三、管理模块">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 添加 / 修改作品
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 作品标签管理
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 番号制作商管理
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 批量操作
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 汇总查询表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. 综合管理
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. 回收站
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        作品筛选过滤/书架
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        统计
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="统计">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        信息面板
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        统计
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        女优
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="女优">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        女优编辑页
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        女优详情页
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        男优
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="男优">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        男优编辑页
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        关系图
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        暗黑界
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        设置
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        采集与浏览器插件
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="采集与浏览器插件">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        女优数据采集与更新
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        浏览器插件
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        备份与迁移（版本更新相关）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        六、快捷键
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开发准备
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    数据安全说明
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    整体架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启动与通用说明
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        首页
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        三、管理模块
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="三、管理模块">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 添加 / 修改作品
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 作品标签管理
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 番号制作商管理
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 批量操作
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 汇总查询表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. 综合管理
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. 回收站
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        作品筛选过滤/书架
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        统计
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="统计">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        信息面板
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        统计
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        女优
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="女优">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        女优编辑页
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        女优详情页
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        男优
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="男优">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        男优编辑页
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        关系图
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        暗黑界
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        设置
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        采集与浏览器插件
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="采集与浏览器插件">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        女优数据采集与更新
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        浏览器插件
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        备份与迁移（版本更新相关）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        六、快捷键
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="_1">使用说明（帮助）<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<p>本说明基于当前版本功能（详见 <code>docs/CHANGELOG.md</code> 与 <code>README.md</code>），会随着软件更新逐步完善。</p>
+<hr />
+<h2 id="_2">启动与通用说明<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<ul>
+<li>启动 <code>DarkEye</code> 后若界面闪一下属于正常现象：需要加载 OpenGL 环境，目前无法完全消除。</li>
+<li>所有数据<strong>默认只保存在本地</strong>：</li>
+<li>公库在 <code>resources/public</code></li>
+<li>私库在 <code>resources/private</code></li>
+<li>详细的数据结构与安全说明可参考 <code>docs/security.md</code></li>
+</ul>
+<hr />
+<h2 id="_3">首页<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<ul>
+<li>首页展示已收藏的作品卡片，目前主要按<strong>制作商排序</strong>：</li>
+<li>在 <code>1.1.1</code> 版本以后，列表支持<strong>更多排序方式</strong>，包括：<ul>
+<li>按番号排序</li>
+<li>按片商排序</li>
+</ul>
+</li>
+<li>后续如增加更多排序条件，会在这里一并体现。</li>
+<li>点击作品卡片可以进入详细信息界面，查看封面、基本信息、标签、出演者等。</li>
+</ul>
+<hr />
+<h2 id="_4">三、管理模块<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>管理模块负责对作品、标签、制作商等基础数据进行维护，并提供批量操作与导出。</p>
+<h3 id="1">1. 添加 / 修改作品<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>入口：<code>管理 -&gt; 添加/修改作品</code></li>
+<li>主要功能：</li>
+<li>手动添加新作品：填入番号、标题、制作商、女优、男优、标签等信息。</li>
+<li>修改已存在作品：修正爬虫信息、补充缺失字段。</li>
+<li>爬虫辅助修改信息</li>
+<li>修改变色提醒</li>
+</ul>
+<h3 id="2">2. 作品标签管理<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<ul>
+<li>入口：<code>管理 -&gt; 作品标签管理</code></li>
+<li>主要功能：</li>
+<li>添加、修改、删除标签(删除标签需要这个标签不存在于任何的作品中)。</li>
+<li>给标签设置说明，用于后续筛选和分析。</li>
+<li>未来会逐步配合“tag 计算器 / 高级过滤”功能增强（见 <code>README.md</code> 中 roadmap）。</li>
+</ul>
+<h3 id="3">3. 番号制作商管理<a class="headerlink" href="#3" title="Permanent link">&para;</a></h3>
+<ul>
+<li>入口：<code>管理 -&gt; 番号制作商管理</code></li>
+<li>主要功能：</li>
+<li>维护制作商 / 厂牌列表。</li>
+<li>对自动识别不准的制作商进行手动补全或修正。</li>
+<li>对无法从爬虫中直接获得制作商信息的番号进行补录。</li>
+</ul>
+<h3 id="4">4. 批量操作<a class="headerlink" href="#4" title="Permanent link">&para;</a></h3>
+<ul>
+<li>入口：<code>管理 -&gt; 批量操作</code></li>
+<li>当前常用能力：</li>
+<li><strong>查找本地视频并录入添加</strong>：<ul>
+<li>前提：在 <code>设置 -&gt; 视频</code> 中添加了本地视频所在路径。</li>
+<li>功能：扫描本地视频文件，并尝试根据文件名中的番号，自动在数据库中创建/关联作品。</li>
+<li>注意：</li>
+<li>会配合爬虫慢慢启动爬取信息，默认约 <strong>20s 一次请求</strong>，速度较慢。</li>
+<li>当前识别准确度有限，可能需要手动修正。</li>
+</ul>
+</li>
+<li>其他批量操作（如批量更新字段、批量打标签等）会在后续版本中逐步增强。</li>
+</ul>
+<h3 id="5">5. 汇总查询表<a class="headerlink" href="#5" title="Permanent link">&para;</a></h3>
+<ul>
+<li>入口：<code>管理 -&gt; 汇总查询表</code></li>
+<li>主要用途：</li>
+<li>对作品数据进行汇总查看与筛选。</li>
+<li>提供<strong>导出功能</strong>，目前主要用于导出为 <code>.csv</code> 等格式，方便在 Excel / 其他工具中继续分析。</li>
+</ul>
+<h3 id="6">6. 综合管理<a class="headerlink" href="#6" title="Permanent link">&para;</a></h3>
+<ul>
+<li>用于集中查看与维护多类数据（作品 / 演员 / 标签等）。</li>
+<li>后续版本会继续补充更多高级管理视图（例如：更复杂的过滤、批量编辑等）。</li>
+</ul>
+<h3 id="7">7. 回收站<a class="headerlink" href="#7" title="Permanent link">&para;</a></h3>
+<ul>
+<li>删除作品、标签等数据后会进入回收站。</li>
+<li>可以在这里进行：</li>
+<li>恢复误删的数据。</li>
+<li>彻底删除不再需要的记录。</li>
+</ul>
+<hr />
+<h2 id="_5">作品筛选过滤/书架<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<p>这两个页面的筛选过滤是一样的，唯一的区别就是显示的方式不一样，一个是瀑布流的平铺，一个是dvd拟物。
+- [x] tag过滤，只支持与过滤与搜索tag
+- [x] 番号过滤，文本过滤
+- [x] 女优过滤，文本过滤
+- [x] 标题包含，文本过滤
+- [x] 简短故事包含，文本过滤
+- [x] 导演，文本过滤
+- [x] 男优，文本过滤
+- [x] 片商，文本过滤</p>
+<h2 id="_6">统计<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<h3 id="_7">信息面板<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 数据库信息显示，包括作品总数、女优总数、男优总数、tag总数、近30天新增作品、收藏作品总数、收藏女优总数</li>
+<li>[x] 过去30/180/365天最喜欢的女优</li>
+<li>[x] 收藏作品中未观看去化周期</li>
+<li>[x] 撸管/晨勃/做爱热力图显示，多年份</li>
+</ul>
+<h3 id="_8">统计<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
+<p>图表的绘制
+对四大统计范围，公共数据库，收藏库，撸过，撸过加权
+- [x] 作品拍摄时女优年龄分布直方图，带分布曲线与90%分布线
+- [x] 作品发行年份分布直方图
+- [x] 女优出道年份分布直方图
+- [x] 女优身高分布直方图
+- [x] 女优身材腰臀比气泡图，由于前中后期实际上女优身材是有变化的，胖了或者瘦了，这个就图一乐看看
+- [x] 女优罩杯分布饼图，由于女优会填充胸部，这个也不准，图一乐
+- [x] 导演统计柱状图
+- [x] 制作商统计柱状图
+- [x] Tag词云生成</p>
+<ul>
+<li>[x] 女优身材3D分布图，这个没什么用，后面删掉</li>
+<li>[x] 最喜欢的女优柱状图</li>
+<li>[x] 作品增长曲线图</li>
+<li>[x] 女优出道年龄直方图</li>
+<li>[ ] 撸管年回忆录</li>
+</ul>
+<h2 id="_9">女优<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[x] 过滤与排序系统</li>
+<li>[x] 展示系统，左键点击头像是跳到详情页，右键点击头像是跳到编辑页</li>
+</ul>
+<h3 id="_10">女优编辑页<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 基础信息的编辑，多艺名的编辑，多艺名的排序现在的问题是不能显示重复使用艺名，比如河北彩花的艺名变成河北彩伽后又变成河北彩花。</li>
+<li>[ ] 自定义补充说明+联系</li>
+<li>[ ] 更改提示</li>
+<li>[x] 爬虫直接更新</li>
+<li>[x] 跳转minnao-av</li>
+<li>[x] 浏览器插件更新</li>
+</ul>
+<h3 id="_11">女优详情页<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 女优信息卡片功能</li>
+<li>[x] 显示女优作品</li>
+</ul>
+<h2 id="_12">男优<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[x] 过滤与排序系统</li>
+<li>[x] 展示系统，左键点击头像是跳到详情页，右键点击头像是跳到编辑页</li>
+</ul>
+<h3 id="_13">男优编辑页<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] 基础信息的编辑</li>
+</ul>
+<h2 id="_14">关系图<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[x] 支持1w节点60帧率的力导向图模拟</li>
+<li>[ ] 文字msdf预计算优化，现在文字需要延迟出现，汉字越多，出现的时间越晚</li>
+<li>[ ] 手感优化，换积分器</li>
+<li>[x] 点击跳转</li>
+<li>[x] 悬浮显示图片与文字</li>
+<li>[x] 悬浮与邻居高亮</li>
+<li>[x] 渐变过度</li>
+<li>[x] 各种可调的菜单</li>
+<li>[ ] 菜单的属性持久化</li>
+</ul>
+<h2 id="_15">暗黑界<a class="headerlink" href="#_15" title="Permanent link">&para;</a></h2>
+<p>里面可以看，但是不要编辑，后面为UGC公共知识库准备的</p>
+<h2 id="_16">设置<a class="headerlink" href="#_16" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[x] 主题设置，包括亮色与暗色主题，这个可以换主色，其他色主题</li>
+<li>[x] 绿色模式</li>
+<li>[x] 视频，添加本地的av的地址的文件夹地址，这个要随着版本迁移</li>
+<li>[ ] 数据库相关设置</li>
+<li>[x] 备份还原公共私有数据库，数据库清理碎片，图片一致性检查</li>
+<li>[x] 重建私有库与公有库的连接</li>
+<li>[x] 导出片商到json,从json导入片商</li>
+</ul>
+<h2 id="_17">采集与浏览器插件<a class="headerlink" href="#_17" title="Permanent link">&para;</a></h2>
+<p>目前主要有三种方式采集/收藏作品数据：</p>
+<ol>
+<li><strong>浏览器插件采集（推荐）</strong></li>
+<li>安装 Firefox 插件（详见 <code>README.md</code> 中“插件安装”章节）。</li>
+<li>启动软件后，打开 <code>javdb</code> / <code>javlibrary</code> / <code>javtxt</code> 等网站。</li>
+<li>在页面中点击插件提供的“收藏/收录”按钮开始采集。</li>
+<li>
+<p>采集时会弹出 Firefox 窗口：</p>
+<ul>
+<li>访问 <code>javlibrary</code> 第一次需要手动过一次 Cloudflare 盾，大约能维持约 20 分钟。</li>
+</ul>
+</li>
+<li>
+<p><strong>从本地视频反向识别</strong></p>
+</li>
+<li>在 <code>设置 -&gt; 视频</code> 中配置本地视频目录。</li>
+<li>打开 <code>管理 -&gt; 批量操作 -&gt; 查找本地视频并录入添加</code>。</li>
+<li>程序会：<ul>
+<li>扫描本地视频文件。</li>
+<li>按文件名推断番号。</li>
+<li>将结果加入爬虫列表，定时（约 20s 一次）尝试自动爬取信息。</li>
+</ul>
+</li>
+<li>
+<p>提示：目前识别与匹配仍然比较不准，建议后续在管理界面中进行人工核对与修正。</p>
+</li>
+<li>
+<p><strong>手动添加番号</strong></p>
+</li>
+<li>任何时候都可以使用快捷键 <strong><code>W</code></strong> 直接打开“快速添加作品”窗口。</li>
+<li>手动输入番号与关键信息，适合针对性补录或特殊需求。</li>
+</ol>
+<h3 id="_18">女优数据采集与更新<a class="headerlink" href="#_18" title="Permanent link">&para;</a></h3>
+<ul>
+<li>女优信息自动化采集目前<strong>准确度有限</strong>：</li>
+<li>右键点击女优栏进入编辑界面，可以点击“爬虫”按钮尝试自动更新。</li>
+<li>此方式仅适用于<strong>无同名女优</strong>的情况。</li>
+<li>对于重名女优，建议通过浏览器插件手动选择正确的条目再更新。</li>
+</ul>
+<h2 id="_19">浏览器插件<a class="headerlink" href="#_19" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[ ] 端口冲突切换的问题没有解决，包括浏览器插件端与软件服务端</li>
+<li>[x] 在javlib,javdb,javtxt上沉浸式采集</li>
+<li>[ ] 未来添加更多网站</li>
+<li>[ ] 女优的序号的采集，不过现在没有提示，同时应该是直采信息，应该是优先弄的</li>
+</ul>
+<hr />
+<h2 id="_20">备份与迁移（版本更新相关）<a class="headerlink" href="#_20" title="Permanent link">&para;</a></h2>
+<p>软件升级或更换版本时，建议<strong>先做好备份</strong>，避免数据丢失。当前有两种方式：</p>
+<ol>
+<li><strong>手动迁移（旧版本 / 无迁移工具时）</strong></li>
+<li>直接复制旧版本中的：<ul>
+<li><code>resources/public</code></li>
+<li><code>resources/private</code></li>
+</ul>
+</li>
+<li>
+<p>覆盖到新版本的同名目录，即可沿用原有数据库。</p>
+</li>
+<li>
+<p><strong>使用内置备份/还原工具（新版本推荐方式）</strong></p>
+</li>
+<li>在软件中使用：<ul>
+<li>“备份私库” / “备份公库” 功能，将数据库导出到你选择的位置。</li>
+</ul>
+</li>
+<li>在新版本中：<ul>
+<li>使用“还原”功能，选择之前备份生成的 <code>meta.json</code> 和对应的 <code>.db</code> 文件。</li>
+<li>完成还原后<strong>重启软件</strong>。</li>
+</ul>
+</li>
+<li>说明：目前仍无法做到完全无感迁移，部分情况下可能会有小问题，遇到异常可手动检查 <code>resources/public</code> / <code>resources/private</code> 中的数据文件。</li>
+</ol>
+<blockquote>
+<p>更多关于数据库结构、安全与隐私的说明，请参考 <a href="docs/security.md">Security</a>。</p>
+</blockquote>
+<hr />
+<h2 id="_21">六、快捷键<a class="headerlink" href="#_21" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>快捷键</th>
+<th>功能说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>C</code></td>
+<td>在女优界面或详细女优界面进行局部截图</td>
+</tr>
+<tr>
+<td><code>Shift+C</code></td>
+<td>对整个软件界面进行截图</td>
+</tr>
+<tr>
+<td><code>M</code></td>
+<td>快速添加自慰记录</td>
+</tr>
+<tr>
+<td><code>W</code></td>
+<td>快速添加作品 / 番号</td>
+</tr>
+<tr>
+<td><code>A</code></td>
+<td>快速添加晨勃记录</td>
+</tr>
+<tr>
+<td><code>L</code></td>
+<td>快速添加做爱记录</td>
+</tr>
+</tbody>
+</table>
+<p>后续若增加新的快捷键，会在这里同步更新。</p>
+<hr />
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

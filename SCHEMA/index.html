@@ -1,0 +1,2128 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="DarkEye C++ documentation">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>DarkEye 数据库 Schema - DarkEye</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#darkeye-schema" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href=".." title="DarkEye" class="md-header__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DarkEye
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              DarkEye 数据库 Schema
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="切换深色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换深色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../develop/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  开发白皮书
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  入门指南
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../CHANGELOG/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  版本更新记录
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  常见问题
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../settings/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  软件设置
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  开发准备
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../security/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  数据安全说明
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../architecture/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  整体架构
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="DarkEye" class="md-nav__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    DarkEye
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../develop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开发白皮书
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    入门指南
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    版本更新记录
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    常见问题
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    软件设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开发准备
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    数据安全说明
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    整体架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        一、概览
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#publicdb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        二、公共库 (public.db)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="二、公共库 (public.db)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 work — 作品表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-actress" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 actress — 女优表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-actress_name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 actress_name — 女优姓名表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-work_actress_relation-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 work_actress_relation — 作品-女优关系表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-manufacturer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.5 manufacturer — 制作商表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#26-label" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.6 label — 厂牌表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#27-tag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.7 tag — 标签表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#28-work_tag_relation-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.8 work_tag_relation — 作品-标签关系表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#29-actor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.9 actor — 男优表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#210-actor_name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.10 actor_name — 男优姓名表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#211-work_actor_relation-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.11 work_actor_relation — 作品-男优关系表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#212-prefix_maker_relation-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.12 prefix_maker_relation — 番号前缀-片商关系表
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#privatedb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        三、私有库 (private.db)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="三、私有库 (private.db)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-db_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 db_version — 数据库版本表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-favorite_actress" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 favorite_actress — 收藏女优表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-favorite_work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 favorite_work — 收藏作品表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-love_making" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 love_making — 做爱记录表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#35-masturbation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5 masturbation — 撸管记录表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#36-sexual_arousal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6 sexual_arousal — 晨勃记录表
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#init" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        四、依赖表（未在上述 init 脚本中定义）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="四、依赖表（未在上述 init 脚本中定义）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tag_type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        tag_type — 标签类型表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#maker-manufacturer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        maker — 制作商表（由 manufacturer 迁移而来）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        五、实体关系简图
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        六、跨库查询说明
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="darkeye-schema">DarkEye 数据库 Schema<a class="headerlink" href="#darkeye-schema" title="Permanent link">&para;</a></h1>
+<p>采用sqlite，主要是零配置。</p>
+<p>设计的ERD图片见excalidraw，整个数据库的架构就是那样子，还是非常的完善的，但是有很多的东西信息非常的难获取</p>
+<p>使用SQLite来存储，文本使用utf8来处理
+从excel导出的时候要导utf8
+SQLite要设置utf8
+因为涉及到日文的问题</p>
+<p>状态分类
+- 主动(身心主动)
+- 半推半就(身心平常，但是也能接受做爱)
+- 反抗(身心都强烈抗拒)
+- 沉伦(心理上的放纵，但是身体要做爱，背德感，表现出享受与放纵，没有羞耻或抵抗，前置条件是被动)，
+- 羞耻(心理上的抗拒 + 快感中混杂着道德负担或社交焦虑，动作含蓄遮掩身体、夹腿、蜷缩，被强制，脸红，前置条件是被动)
+- 受虐快感(高强度，受虐但是渴望做爱，前置条件是被动)
+- 冷漠(做爱无表情无状态，前置条件是被动)</p>
+<blockquote>
+<p>基于 <code>resources/sql/initTABLE.sql</code>（公共库）与 <code>resources/sql/initPrivateTable.sql</code>（私有库）整理。</p>
+</blockquote>
+<hr />
+<h2 id="_1">一、概览<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>数据库</th>
+<th>文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>public.db</strong></td>
+<td>initTABLE.sql</td>
+<td>作品、女优、男优、标签、制作商等公共元数据</td>
+</tr>
+<tr>
+<td><strong>private.db</strong></td>
+<td>initPrivateTable.sql</td>
+<td>收藏、撸管、做爱、晨勃等个人行为数据</td>
+</tr>
+</tbody>
+</table>
+<p><strong>注意</strong>：<code>tag</code> 表依赖 <code>tag_type</code>，<code>prefix_maker_relation</code> 依赖 <code>maker</code>。<code>tag_type</code> 与 <code>maker</code> 可能在种子数据或迁移脚本中创建。</p>
+<hr />
+<h2 id="publicdb">二、公共库 (public.db)<a class="headerlink" href="#publicdb" title="Permanent link">&para;</a></h2>
+<h3 id="21-work">2.1 work — 作品表<a class="headerlink" href="#21-work" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>work_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>serial_number</td>
+<td>TEXT</td>
+<td>NOT NULL, UNIQUE</td>
+<td>番号</td>
+</tr>
+<tr>
+<td>director</td>
+<td>TEXT</td>
+<td></td>
+<td>导演</td>
+</tr>
+<tr>
+<td>story</td>
+<td>TEXT</td>
+<td></td>
+<td>自定义剧情</td>
+</tr>
+<tr>
+<td>release_date</td>
+<td>TEXT</td>
+<td></td>
+<td>发布时间</td>
+</tr>
+<tr>
+<td>image_url</td>
+<td>TEXT</td>
+<td></td>
+<td>封面图片路径</td>
+</tr>
+<tr>
+<td>video_url</td>
+<td>TEXT</td>
+<td></td>
+<td>视频路径</td>
+</tr>
+<tr>
+<td>cn_title</td>
+<td>TEXT</td>
+<td></td>
+<td>中文标题</td>
+</tr>
+<tr>
+<td>jp_title</td>
+<td>TEXT</td>
+<td></td>
+<td>日文标题</td>
+</tr>
+<tr>
+<td>cn_story</td>
+<td>TEXT</td>
+<td></td>
+<td>中文剧情</td>
+</tr>
+<tr>
+<td>jp_story</td>
+<td>TEXT</td>
+<td></td>
+<td>日文剧情</td>
+</tr>
+<tr>
+<td>create_time</td>
+<td>TEXT</td>
+<td>DEFAULT now</td>
+<td>创建时间</td>
+</tr>
+<tr>
+<td>update_time</td>
+<td>TEXT</td>
+<td>DEFAULT now</td>
+<td>更新时间</td>
+</tr>
+<tr>
+<td>is_deleted</td>
+<td>INTEGER</td>
+<td>DEFAULT 0</td>
+<td>软删除标记</td>
+</tr>
+<tr>
+<td>javtxt_id</td>
+<td>INTEGER</td>
+<td></td>
+<td>JavTxt 关联 ID</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Trigger</strong>: <code>update_work_timestamp</code> — 更新时自动刷新 <code>update_time</code></p>
+<hr />
+<h3 id="22-actress">2.2 actress — 女优表<a class="headerlink" href="#22-actress" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>actress_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>birthday</td>
+<td>TEXT</td>
+<td></td>
+<td>出生日期</td>
+</tr>
+<tr>
+<td>height</td>
+<td>INTEGER</td>
+<td></td>
+<td>身高 (cm)</td>
+</tr>
+<tr>
+<td>bust</td>
+<td>INTEGER</td>
+<td></td>
+<td>胸围</td>
+</tr>
+<tr>
+<td>waist</td>
+<td>INTEGER</td>
+<td></td>
+<td>腰围</td>
+</tr>
+<tr>
+<td>hip</td>
+<td>INTEGER</td>
+<td></td>
+<td>臀围</td>
+</tr>
+<tr>
+<td>cup</td>
+<td>TEXT</td>
+<td></td>
+<td>罩杯</td>
+</tr>
+<tr>
+<td>debut_date</td>
+<td>TEXT</td>
+<td></td>
+<td>出道日期</td>
+</tr>
+<tr>
+<td>need_update</td>
+<td>INTEGER</td>
+<td>DEFAULT 1</td>
+<td>1=需爬虫更新, 0=不需</td>
+</tr>
+<tr>
+<td>create_time</td>
+<td>TEXT</td>
+<td>DEFAULT now</td>
+<td>创建时间</td>
+</tr>
+<tr>
+<td>update_time</td>
+<td>TEXT</td>
+<td>DEFAULT now</td>
+<td>更新时间</td>
+</tr>
+<tr>
+<td>image_urlA</td>
+<td>TEXT</td>
+<td></td>
+<td>头像 A</td>
+</tr>
+<tr>
+<td>image_urlB</td>
+<td>TEXT</td>
+<td></td>
+<td>头像 B</td>
+</tr>
+<tr>
+<td>minnano_url</td>
+<td>TEXT</td>
+<td></td>
+<td>Minnano 链接</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Trigger</strong>: <code>update_actress_timestamp</code> — 更新时自动刷新 <code>update_time</code></p>
+<hr />
+<h3 id="23-actress_name">2.3 actress_name — 女优姓名表<a class="headerlink" href="#23-actress_name" title="Permanent link">&para;</a></h3>
+<p>支持多艺名与名字变更链。</p>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>actress_name_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>actress_id</td>
+<td>INTEGER</td>
+<td>FK → actress</td>
+<td>女优 ID</td>
+</tr>
+<tr>
+<td>name_type</td>
+<td>INTEGER</td>
+<td></td>
+<td>1=主名, 0=非主名</td>
+</tr>
+<tr>
+<td>cn</td>
+<td>TEXT</td>
+<td></td>
+<td>中文名</td>
+</tr>
+<tr>
+<td>jp</td>
+<td>TEXT</td>
+<td></td>
+<td>日文名</td>
+</tr>
+<tr>
+<td>en</td>
+<td>TEXT</td>
+<td></td>
+<td>英文名</td>
+</tr>
+<tr>
+<td>kana</td>
+<td>TEXT</td>
+<td></td>
+<td>假名</td>
+</tr>
+<tr>
+<td>redirect_actress_name_id</td>
+<td>INTEGER</td>
+<td>FK → actress_name</td>
+<td>名字变更链，NULL 表示最新名</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="24-work_actress_relation-">2.4 work_actress_relation — 作品-女优关系表<a class="headerlink" href="#24-work_actress_relation-" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>work_actress_relation_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>work_id</td>
+<td>INTEGER</td>
+<td>FK → work, NOT NULL</td>
+<td>作品 ID</td>
+</tr>
+<tr>
+<td>actress_id</td>
+<td>INTEGER</td>
+<td>FK → actress, NOT NULL</td>
+<td>女优 ID</td>
+</tr>
+<tr>
+<td>job</td>
+<td>TEXT</td>
+<td></td>
+<td>角色/职业（如职员、上司）</td>
+</tr>
+<tr>
+<td>age</td>
+<td>TEXT</td>
+<td></td>
+<td>年龄段（如年轻）</td>
+</tr>
+<tr>
+<td>married</td>
+<td>TEXT</td>
+<td></td>
+<td>人设（如人妻、女友）</td>
+</tr>
+<tr>
+<td>state</td>
+<td>TEXT</td>
+<td></td>
+<td>状态（如主动）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="25-manufacturer">2.5 manufacturer — 制作商表<a class="headerlink" href="#25-manufacturer" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>manufacturer_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>cn_name</td>
+<td>TEXT</td>
+<td></td>
+<td>中文名</td>
+</tr>
+<tr>
+<td>jp_name</td>
+<td>TEXT</td>
+<td></td>
+<td>日文名</td>
+</tr>
+<tr>
+<td>aliases</td>
+<td>TEXT</td>
+<td></td>
+<td>别名</td>
+</tr>
+<tr>
+<td>detail</td>
+<td>TEXT</td>
+<td></td>
+<td>其他信息</td>
+</tr>
+<tr>
+<td>logo_url</td>
+<td>TEXT</td>
+<td></td>
+<td>Logo 路径</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>注：迁移脚本中会迁移为 <code>maker</code> 表，<code>prefix_maker_relation</code> 引用 <code>maker</code>。</p>
+</blockquote>
+<hr />
+<h3 id="26-label">2.6 label — 厂牌表<a class="headerlink" href="#26-label" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>label_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>cn_name</td>
+<td>TEXT</td>
+<td></td>
+<td>中文名</td>
+</tr>
+<tr>
+<td>jp_name</td>
+<td>TEXT</td>
+<td></td>
+<td>日文名</td>
+</tr>
+<tr>
+<td>detail</td>
+<td>TEXT</td>
+<td></td>
+<td>其他信息</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="27-tag">2.7 tag — 标签表<a class="headerlink" href="#27-tag" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tag_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>tag_name</td>
+<td>TEXT</td>
+<td>NOT NULL, UNIQUE</td>
+<td>标签名</td>
+</tr>
+<tr>
+<td>tag_type_id</td>
+<td>INTEGER</td>
+<td>FK → tag_type</td>
+<td>标签类型 ID</td>
+</tr>
+<tr>
+<td>color</td>
+<td>TEXT</td>
+<td>DEFAULT '#cccccc'</td>
+<td>颜色（hex）</td>
+</tr>
+<tr>
+<td>redirect_tag_id</td>
+<td>INTEGER</td>
+<td>FK → tag</td>
+<td>重定向目标 tag_id</td>
+</tr>
+<tr>
+<td>detail</td>
+<td>TEXT</td>
+<td></td>
+<td>说明</td>
+</tr>
+<tr>
+<td>group_id</td>
+<td>INTEGER</td>
+<td></td>
+<td>互斥组标记</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="28-work_tag_relation-">2.8 work_tag_relation — 作品-标签关系表<a class="headerlink" href="#28-work_tag_relation-" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>work_tag_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>work_id</td>
+<td>INTEGER</td>
+<td>FK → work</td>
+<td>作品 ID</td>
+</tr>
+<tr>
+<td>tag_id</td>
+<td>INTEGER</td>
+<td>FK → tag</td>
+<td>标签 ID</td>
+</tr>
+</tbody>
+</table>
+<p><strong>UNIQUE</strong>(work_id, tag_id) — 防止重复关联</p>
+<hr />
+<h3 id="29-actor">2.9 actor — 男优表<a class="headerlink" href="#29-actor" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>actor_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>birthday</td>
+<td>TEXT</td>
+<td></td>
+<td>出生年份</td>
+</tr>
+<tr>
+<td>height</td>
+<td>INTEGER</td>
+<td></td>
+<td>身高</td>
+</tr>
+<tr>
+<td>handsome</td>
+<td>INTEGER</td>
+<td></td>
+<td>颜值 0/1/2</td>
+</tr>
+<tr>
+<td>fat</td>
+<td>INTEGER</td>
+<td></td>
+<td>胖瘦 0/1/2</td>
+</tr>
+<tr>
+<td>need_update</td>
+<td>INTEGER</td>
+<td>DEFAULT 1</td>
+<td>是否需更新</td>
+</tr>
+<tr>
+<td>create_time</td>
+<td>TEXT</td>
+<td>DEFAULT now</td>
+<td>创建时间</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="210-actor_name">2.10 actor_name — 男优姓名表<a class="headerlink" href="#210-actor_name" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>actor_name_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>actor_id</td>
+<td>INTEGER</td>
+<td>FK → actor</td>
+<td>男优 ID</td>
+</tr>
+<tr>
+<td>name_type</td>
+<td>INTEGER</td>
+<td></td>
+<td>1=主名, 0=非主名</td>
+</tr>
+<tr>
+<td>cn</td>
+<td>TEXT</td>
+<td></td>
+<td>中文名</td>
+</tr>
+<tr>
+<td>jp</td>
+<td>TEXT</td>
+<td></td>
+<td>日文名</td>
+</tr>
+<tr>
+<td>en</td>
+<td>TEXT</td>
+<td></td>
+<td>英文名</td>
+</tr>
+<tr>
+<td>kana</td>
+<td>TEXT</td>
+<td></td>
+<td>假名</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="211-work_actor_relation-">2.11 work_actor_relation — 作品-男优关系表<a class="headerlink" href="#211-work_actor_relation-" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>work_actor_relation_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>work_id</td>
+<td>INTEGER</td>
+<td>FK → work, NOT NULL</td>
+<td>作品 ID</td>
+</tr>
+<tr>
+<td>actor_id</td>
+<td>INTEGER</td>
+<td>FK → actor, NOT NULL</td>
+<td>男优 ID</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="212-prefix_maker_relation-">2.12 prefix_maker_relation — 番号前缀-片商关系表<a class="headerlink" href="#212-prefix_maker_relation-" title="Permanent link">&para;</a></h3>
+<p>通过番号前缀映射到制作商。</p>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>prefix_maker_relation_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>prefix</td>
+<td>TEXT</td>
+<td></td>
+<td>番号前缀（如 SSIS）</td>
+</tr>
+<tr>
+<td>maker_id</td>
+<td>INTEGER</td>
+<td>FK → maker</td>
+<td>片商 ID</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="privatedb">三、私有库 (private.db)<a class="headerlink" href="#privatedb" title="Permanent link">&para;</a></h2>
+<h3 id="31-db_version">3.1 db_version — 数据库版本表<a class="headerlink" href="#31-db_version" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>version</td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>版本号</td>
+</tr>
+<tr>
+<td>applied_at</td>
+<td>DATETIME</td>
+<td>DEFAULT now</td>
+<td>应用时间</td>
+</tr>
+<tr>
+<td>description</td>
+<td>TEXT</td>
+<td></td>
+<td>说明</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="32-favorite_actress">3.2 favorite_actress — 收藏女优表<a class="headerlink" href="#32-favorite_actress" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>favorite_actress_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>actress_id</td>
+<td>INTEGER</td>
+<td>UNIQUE, NOT NULL</td>
+<td>公共库 actress_id</td>
+</tr>
+<tr>
+<td>jp_name</td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>日文名备份</td>
+</tr>
+<tr>
+<td>added_time</td>
+<td>TEXT</td>
+<td>NOT NULL, DEFAULT now</td>
+<td>收藏时间</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="33-favorite_work">3.3 favorite_work — 收藏作品表<a class="headerlink" href="#33-favorite_work" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>favorite_work_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>work_id</td>
+<td>INTEGER</td>
+<td>UNIQUE, NOT NULL</td>
+<td>公共库 work_id</td>
+</tr>
+<tr>
+<td>serial_number</td>
+<td>TEXT</td>
+<td>UNIQUE, NOT NULL</td>
+<td>番号备份</td>
+</tr>
+<tr>
+<td>added_time</td>
+<td>TEXT</td>
+<td>NOT NULL, DEFAULT now</td>
+<td>收藏时间</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="34-love_making">3.4 love_making — 做爱记录表<a class="headerlink" href="#34-love_making" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>love_making_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>event_time</td>
+<td>TEXT</td>
+<td></td>
+<td>时间（精确到小时）</td>
+</tr>
+<tr>
+<td>rating</td>
+<td>INTEGER</td>
+<td>NOT NULL, CHECK(1-5)</td>
+<td>满意度 1–5</td>
+</tr>
+<tr>
+<td>comment</td>
+<td>TEXT</td>
+<td></td>
+<td>评价</td>
+</tr>
+<tr>
+<td>create_time</td>
+<td>TEXT</td>
+<td>DEFAULT now</td>
+<td>创建时间</td>
+</tr>
+<tr>
+<td>update_time</td>
+<td>TEXT</td>
+<td>DEFAULT now</td>
+<td>更新时间</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Trigger</strong>: <code>update_love_making_timestamp</code> — 更新时自动刷新 <code>update_time</code></p>
+<hr />
+<h3 id="35-masturbation">3.5 masturbation — 撸管记录表<a class="headerlink" href="#35-masturbation" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>masturbation_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>work_id</td>
+<td>INTEGER</td>
+<td></td>
+<td>关联作品 ID</td>
+</tr>
+<tr>
+<td>serial_number</td>
+<td>TEXT</td>
+<td></td>
+<td>番号冗余</td>
+</tr>
+<tr>
+<td>start_time</td>
+<td>TEXT</td>
+<td></td>
+<td>起飞时间（精确到分钟）</td>
+</tr>
+<tr>
+<td>tool_name</td>
+<td>TEXT</td>
+<td></td>
+<td>工具（手/飞机杯等）</td>
+</tr>
+<tr>
+<td>rating</td>
+<td>INTEGER</td>
+<td>NOT NULL, CHECK(1-5)</td>
+<td>满意度 1–5</td>
+</tr>
+<tr>
+<td>comment</td>
+<td>TEXT</td>
+<td></td>
+<td>评论</td>
+</tr>
+<tr>
+<td>create_time</td>
+<td>TEXT</td>
+<td>DEFAULT now</td>
+<td>创建时间</td>
+</tr>
+<tr>
+<td>update_time</td>
+<td>TEXT</td>
+<td>DEFAULT now</td>
+<td>更新时间</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="36-sexual_arousal">3.6 sexual_arousal — 晨勃记录表<a class="headerlink" href="#36-sexual_arousal" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>约束</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sexual_arousal_id</td>
+<td>INTEGER</td>
+<td>PK, AUTOINCREMENT</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>arousal_time</td>
+<td>TEXT</td>
+<td></td>
+<td>晨勃时间（精确到小时）</td>
+</tr>
+<tr>
+<td>comment</td>
+<td>TEXT</td>
+<td></td>
+<td>评论（可含梦境）</td>
+</tr>
+<tr>
+<td>create_time</td>
+<td>TEXT</td>
+<td>DEFAULT now</td>
+<td>创建时间</td>
+</tr>
+<tr>
+<td>update_time</td>
+<td>TEXT</td>
+<td>DEFAULT now</td>
+<td>更新时间</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Trigger</strong>: <code>update_sexual_arousal_timestamp</code> — 更新时自动刷新 <code>update_time</code></p>
+<hr />
+<h2 id="init">四、依赖表（未在上述 init 脚本中定义）<a class="headerlink" href="#init" title="Permanent link">&para;</a></h2>
+<p>以下表被引用，但未在 <code>initTABLE.sql</code> / <code>initPrivateTable.sql</code> 中定义，可能来自种子数据或迁移脚本：</p>
+<h3 id="tag_type">tag_type — 标签类型表<a class="headerlink" href="#tag_type" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tag_type_id</td>
+<td>INTEGER</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>tag_type_name</td>
+<td>TEXT</td>
+<td>类型名称</td>
+</tr>
+<tr>
+<td>tag_order</td>
+<td>INTEGER</td>
+<td>排序</td>
+</tr>
+</tbody>
+</table>
+<h3 id="maker-manufacturer">maker — 制作商表（由 manufacturer 迁移而来）<a class="headerlink" href="#maker-manufacturer" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>列名</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>maker_id</td>
+<td>INTEGER</td>
+<td>主键</td>
+</tr>
+<tr>
+<td>cn_name</td>
+<td>TEXT</td>
+<td>中文名</td>
+</tr>
+<tr>
+<td>jp_name</td>
+<td>TEXT</td>
+<td>日文名</td>
+</tr>
+<tr>
+<td>aliases</td>
+<td>TEXT</td>
+<td>别名</td>
+</tr>
+<tr>
+<td>detail</td>
+<td>TEXT</td>
+<td>说明</td>
+</tr>
+<tr>
+<td>logo_url</td>
+<td>TEXT</td>
+<td>Logo 路径</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_2">五、实体关系简图<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<pre><code>┌─────────┐       ┌──────────────────────┐       ┌─────────┐
+│  work   │───────│ work_actress_relation│───────│ actress │
+└────┬────┘       └──────────────────────┘       └────┬────┘
+     │                                                 │
+     │            ┌──────────────────────┐            │
+     └────────────│ work_tag_relation    │            │
+     │            └──────────┬───────────┘            │
+     │                       │                        │
+     │            ┌──────────▼───────────┐            │
+     │            │        tag           │            │
+     │            └──────────┬───────────┘            │
+     │                       │                        │
+     │            ┌──────────▼───────────┐     ┌──────▼──────┐
+     │            │     tag_type         │     │ actress_name│
+     │            └──────────────────────┘     └─────────────┘
+     │
+     │            ┌──────────────────────┐       ┌─────────┐
+     └────────────│ work_actor_relation  │───────│  actor  │
+                  └──────────────────────┘       └────┬────┘
+                                                      │
+                                               ┌──────▼──────┐
+     ┌──────────────────────┐                  │ actor_name │
+     │ prefix_maker_relation│──────────────────└─────────────┘
+     └──────────┬───────────┘
+                │
+     ┌──────────▼───────────┐
+     │       maker          │
+     └──────────────────────┘
+
+【私有库 - 引用公共库 ID】
+┌─────────────────┐     actress_id     ┌─────────┐
+│ favorite_actress│───────────────────→│ actress │
+└─────────────────┘                    └─────────┘
+
+┌─────────────────┐     work_id        ┌─────┐
+│ favorite_work   │───────────────────→│work │
+└─────────────────┘                    └─────┘
+
+┌──────────────┐    work_id (软引用)
+│ masturbation │ ────────────────────→ work
+└──────────────┘
+</code></pre>
+<hr />
+<h2 id="_3">六、跨库查询说明<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>私有库通过 <code>ATTACH DATABASE</code> 挂载为 <code>priv</code>，公共库为主库。查询示例：</p>
+<pre><code class="language-sql">-- 跨库：撸管记录关联作品
+SELECT m.*, w.serial_number
+FROM priv.masturbation m
+LEFT JOIN work w ON m.work_id = w.work_id;
+</code></pre>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

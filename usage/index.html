@@ -1,0 +1,1675 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="DarkEye C++ documentation">
+      
+      
+      
+      
+        <link rel="prev" href="../develop/">
+      
+      
+        <link rel="next" href="../CHANGELOG/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>入门指南 - DarkEye</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#_1" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href=".." title="DarkEye" class="md-header__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DarkEye
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              入门指南
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="切换深色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换深色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../develop/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  开发白皮书
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  入门指南
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../CHANGELOG/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  版本更新记录
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  常见问题
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../settings/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  软件设置
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  开发准备
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../security/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  数据安全说明
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../architecture/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  整体架构
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="DarkEye" class="md-nav__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    DarkEye
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../develop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开发白皮书
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    入门指南
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    入门指南
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        下载软件
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        安装浏览器插件
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="安装浏览器插件">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#firefox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Firefox 插件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#chrome" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chrome 插件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#edge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Edge 插件
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        如何添加新作品信息
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="如何添加新作品信息">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方式一：用浏览器插件采集（推荐）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方式二：从本地视频反向识别
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方式三：纯手动添加番号
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mdcz-nfo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        导入 mdcz nfo文件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jedio-nfo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        导入jedio NFO文件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jvedio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        从Jvedio把数据转过来
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        作品信息不完整？
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        如何补充快速缺失的信息？
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        如何修改作品信息？
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        如何修改女优信息？
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        女优爬虫后还是灰色的？
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        男优是灰的？
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        自定义外部链接
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM翻译的使用
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="LLM翻译的使用">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        外购API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        本地搭建（推荐）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="本地搭建（推荐）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#llamacpp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        llama.cpp
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据备份
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="数据备份">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#webdav-windows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebDAV 云备份（Windows）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    版本更新记录
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    常见问题
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    软件设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开发准备
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    数据安全说明
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    整体架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        下载软件
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        安装浏览器插件
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="安装浏览器插件">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#firefox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Firefox 插件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#chrome" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chrome 插件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#edge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Edge 插件
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        如何添加新作品信息
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="如何添加新作品信息">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方式一：用浏览器插件采集（推荐）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方式二：从本地视频反向识别
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方式三：纯手动添加番号
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mdcz-nfo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        导入 mdcz nfo文件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jedio-nfo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        导入jedio NFO文件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jvedio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        从Jvedio把数据转过来
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        作品信息不完整？
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        如何补充快速缺失的信息？
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        如何修改作品信息？
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        如何修改女优信息？
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        女优爬虫后还是灰色的？
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        男优是灰的？
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        自定义外部链接
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM翻译的使用
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="LLM翻译的使用">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        外购API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        本地搭建（推荐）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="本地搭建（推荐）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#llamacpp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        llama.cpp
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据备份
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="数据备份">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#webdav-windows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebDAV 云备份（Windows）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+  <h1>入门指南</h1>
+
+<h2 id="_1">下载软件<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p><img alt="下载软件" src="../assets/%E4%B8%8B%E8%BD%BD%E8%BD%AF%E4%BB%B6.JPG" /> 把下面的插件也下载了。</p>
+<h2 id="_2">安装浏览器插件<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>这里以「本地加载已解压扩展」为主，不需要商店账号。三种浏览器可以同时安装，但<strong>建议只启用一种进行自动采集</strong>，避免重复打开页面。</p>
+<h3 id="firefox">Firefox 插件<a class="headerlink" href="#firefox" title="Permanent link">&para;</a></h3>
+<ol>
+<li>打开 Firefox，地址栏输入：<code>about:debugging#/runtime/this-firefox</code></li>
+<li>点击页面中的 <strong>「临时加载附加组件」</strong>（或「Load Temporary Add-on」）。</li>
+<li>在文件选择对话框中，定位到仓库目录下：<code>extensions/firefox_capture/manifest.json</code>，选中并打开。</li>
+<li>右上角会出现 <code>DarkEye Capture</code> 图标：</li>
+<li>看到图标说明加载成功。</li>
+<li>关闭浏览器或重启后需要<strong>重新临时加载</strong></li>
+</ol>
+<p><img alt="" src="../assets/firefox.JPG" />
+<img alt="" src="../assets/choosefile_firefox.JPG" /></p>
+<h3 id="chrome">Chrome 插件<a class="headerlink" href="#chrome" title="Permanent link">&para;</a></h3>
+<ol>
+<li>打开 Chrome，地址栏输入：<code>chrome://extensions/</code></li>
+<li>右上角开启 <strong>「开发者模式」</strong>。</li>
+<li>点击左上角 <strong>「加载已解压的扩展程序」</strong>（Load unpacked）。</li>
+<li>在文件选择对话框中，选择目录：<code>extensions/chrome_capture</code>，然后确认。</li>
+<li>在扩展列表中确认：</li>
+<li>出现 <code>DarkEye Capture</code>，且开关为开启状态。</li>
+<li>点击「详情」可以看到：<ul>
+<li>背景页类型为 <em>Service Worker</em>；</li>
+<li>有一个 Offscreen 文档在运行（用于接收软件端下发的自动采集指令）。</li>
+</ul>
+</li>
+</ol>
+<p><img alt="" src="../assets/chrome.JPG" />
+<img alt="" src="../assets/choosefile.JPG" /></p>
+<h3 id="edge">Edge 插件<a class="headerlink" href="#edge" title="Permanent link">&para;</a></h3>
+<p>Edge 基于 Chromium，可以直接复用 <code>extensions/chrome_capture</code> 目录：</p>
+<ol>
+<li>打开 Edge，地址栏输入：<code>edge://extensions/</code></li>
+<li>左下角开启 <strong>「开发人员模式」</strong>（Developer mode）。</li>
+<li>点击 <strong>「加载解压缩的扩展」</strong>（Load unpacked）。</li>
+<li>在文件选择对话框中，选择目录：<code>extensions/chrome_capture</code>，然后确认。</li>
+<li>在扩展列表中确认 <code>DarkEye Capture</code> 已启用。</li>
+</ol>
+<blockquote>
+<p>提示：<br />
+- 若你只想让 <strong>Firefox 自动采集</strong>，可以在 Chrome / Edge 中关闭 <code>DarkEye Capture</code> 扩展的开关；<br />
+- 若只想用 <strong>Chrome/Edge 自动采集</strong>，可以在 Firefox 的附加组件管理中禁用 <code>DarkEye Capture</code>，避免多个浏览器同时响应同一条爬虫指令。</p>
+</blockquote>
+<p><img alt="" src="../assets/edge.JPG" />
+<img alt="" src="../assets/choosefile.JPG" /></p>
+<h2 id="_3">如何添加新作品信息<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>目前有 三种主要方式，普通用户推荐第 1 种。</p>
+<h3 id="_4">方式一：用浏览器插件采集（推荐）<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<p>适合：你平时在 javdb / javlibrary / javtxt 上逛片子。</p>
+<p>步骤：</p>
+<p>确保：
+DarkEye 软件已启动
+Firefox 插件已加载（上一节的步骤）
+在 Firefox 打开其中任意一个网站，例如 javdb</p>
+<p><img alt="" src="../assets/javdb.JPG" />
+在网页上浏览某个作品详情页</p>
+<p><img alt="" src="../assets/javdb_detail.JPG" />
+如果插件与软件都正常启动，软件有收藏按钮悬浮于作品上，点击收藏开始开始爬取该作品的信息，写入本地数据库。</p>
+<p>现在爬虫采用浏览器爬虫，会弹出javlib，需要先手动过反爬。第一次访问 javlibrary 时，可能会被 Cloudflare 挡一下，手动点一次通过即可，之后约 20 分钟内都不需要再过盾。采集的内容包括：发布时间、导演、中/日文标题、剧情简介、女优、男优、标签、封面等。</p>
+<h3 id="_5">方式二：从本地视频反向识别<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<p>适合：你本地已经有大量视频，希望让软件尽量自动识别番号并入库。</p>
+<p>在软件中打开：设置 -&gt; 视频
+添加你存放影片的文件夹路径（可以多个）
+旧版打开：管理 -&gt; 批量操作 -&gt; 查找本地视频并录入添加</p>
+<p>新版直接在设置路径下面点击查找本地视频并录入添加</p>
+<p><img alt="" src="../assets/%E6%89%AB%E6%8F%8F%E8%A7%86%E9%A2%91.jpg" />
+软件会：</p>
+<p>扫描你设置的文件夹</p>
+<p>从文件名中尝试提取番号,把识别到的结果放入爬虫队列，慢慢去网上补全信息（约 20 秒一次请求）</p>
+<p>重要提示：</p>
+<p>测试下来大概连续100次爬虫会触发javdb的反爬，然后就不行了。如果有上千部片子，挂半小时休息半小时，然后慢慢爬。</p>
+<p>这一步的识别准确度目前不高，只是帮你省一点力气。</p>
+<p>建议在「管理 -&gt; 添加/修改作品」里，后面手动检查和修正关键信息。</p>
+<h3 id="_6">方式三：纯手动添加番号<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
+<p>适合：看到一个想记下来的番号，或者需要补录特别的作品。</p>
+<p>在软件任何地方按下快捷键：W
+会弹出「快速添加作品」窗口
+<img alt="" src="../assets/add_work.JPG" />
+输入标准的番号一定要大写，然后点击添加，爬虫会自动的去整理</p>
+<h3 id="mdcz-nfo">导入 mdcz nfo文件<a class="headerlink" href="#mdcz-nfo" title="Permanent link">&para;</a></h3>
+<p><img alt="" src="../assets/mdcznfo%E5%AF%BC%E5%85%A5.jpg" />
+在设置的这个界面，可以现在视频地址上加入，然后扫描导入就行。</p>
+<h3 id="jedio-nfo">导入jedio NFO文件<a class="headerlink" href="#jedio-nfo" title="Permanent link">&para;</a></h3>
+<p>标准NFO文件的格式参考 https://kodi.wiki/view/NFO_files/Templates 其中的movie</p>
+<p>举例单个的nfo的格式要是这个样子</p>
+<pre><code>&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot; standalone=&quot;yes&quot;?&gt;
+&lt;movie&gt;
+  &lt;source&gt;https://javdb.com/v/zkAxQ&lt;/source&gt;
+  &lt;plot&gt;
+  &lt;/plot&gt;
+  &lt;title&gt;神回！神回！！神回！！！…ハリウッドか！って位の世界観！！！雨のネオン街を颯爽と歩く謎のフルフェイス全身ラバー美女！！！…ブレードランナーか！！！これが激レアなんです！！！そしてこんな格好で外歩く様な女はアッチ(セックス)の方もスゲーに決まってるんです！！！年初めにこんな〝どエロい〟女見たらもぉ普通のAV見れなくなっちゃうから気をつけて！！！マジ半端ないエロさです！！！：夜の巷を徘徊する〝激レア素人〟！！ 11&lt;/title&gt;
+  &lt;director&gt;
+  &lt;/director&gt;
+  &lt;rating&gt;0&lt;/rating&gt;
+  &lt;criticrating&gt;
+  &lt;/criticrating&gt;
+  &lt;year&gt;2019&lt;/year&gt;
+  &lt;mpaa&gt;
+  &lt;/mpaa&gt;
+  &lt;customrating&gt;
+  &lt;/customrating&gt;
+  &lt;countrycode&gt;
+  &lt;/countrycode&gt;
+  &lt;premiered&gt;2019-01-03&lt;/premiered&gt;
+  &lt;release&gt;2019-01-03&lt;/release&gt;
+  &lt;runtime&gt;94&lt;/runtime&gt;
+  &lt;country&gt;
+  &lt;/country&gt;
+  &lt;studio&gt;プレステージプレミアム(PRESTIGE PREMIUM)&lt;/studio&gt;
+  &lt;id&gt;MIUM-359&lt;/id&gt;
+  &lt;num&gt;MIUM-359&lt;/num&gt;
+  &lt;genre&gt;HDTV&lt;/genre&gt;
+  &lt;genre&gt;苗條&lt;/genre&gt;
+  &lt;genre&gt;蕩婦&lt;/genre&gt;
+  &lt;genre&gt;巨乳&lt;/genre&gt;
+  &lt;genre&gt;美臀&lt;/genre&gt;
+  &lt;genre&gt;女優按摩棒&lt;/genre&gt;
+  &lt;tag&gt;夜の巷を徘徊する激レア素人&lt;/tag&gt;
+  &lt;thumb&gt;C:\Users\yin\Desktop\BigPic\MIUM-359.jpg&lt;/thumb&gt;
+  &lt;thumb&gt;E:\Jvedio-5.3.1\data\Daxoel\pic\SmallPic\MIUM-359.jpg&lt;/thumb&gt;
+  &lt;fanart&gt;
+    &lt;thumb preview=&quot;https://c0.jdbstatic.com/samples/zk/zkAxQ_l_0.jpg&quot;&gt;https://c0.jdbstatic.com/samples/zk/zkAxQ_l_0.jpg&lt;/thumb&gt;
+    &lt;thumb preview=&quot;https://c0.jdbstatic.com/samples/zk/zkAxQ_l_1.jpg&quot;&gt;https://c0.jdbstatic.com/samples/zk/zkAxQ_l_1.jpg&lt;/thumb&gt;
+    &lt;thumb preview=&quot;https://c0.jdbstatic.com/samples/zk/zkAxQ_l_2.jpg&quot;&gt;https://c0.jdbstatic.com/samples/zk/zkAxQ_l_2.jpg&lt;/thumb&gt;
+    &lt;thumb preview=&quot;https://c0.jdbstatic.com/samples/zk/zkAxQ_l_3.jpg&quot;&gt;https://c0.jdbstatic.com/samples/zk/zkAxQ_l_3.jpg&lt;/thumb&gt;
+  &lt;/fanart&gt;
+  &lt;actor&gt;
+    &lt;name&gt;二宮和香&lt;/name&gt;
+    &lt;thumb&gt;https://www.javsee.in/pics/actress/p37_a.jpg&lt;/thumb&gt;
+  &lt;/actor&gt;
+  &lt;actor&gt;
+    &lt;name&gt;森林原人&lt;/name&gt;
+    &lt;thumb&gt;https://c0.jdbstatic.com/avatars/pp/PpQ0.jpg&lt;/thumb&gt;
+  &lt;/actor&gt;
+&lt;/movie&gt;
+</code></pre>
+<p>这样子就可以导入进来。</p>
+<p>在设置-&gt;导入单个NFO数据</p>
+<h3 id="jvedio">从Jvedio把数据转过来<a class="headerlink" href="#jvedio" title="Permanent link">&para;</a></h3>
+<p>目前感谢<a href="https://github.com/4965898">4965898</a>老哥写了脚本，通过运行脚本可以把Jvedio的数据导出nfo，然后导入本软件</p>
+<p>https://raw.githubusercontent.com/de4321/darkeye/refs/heads/main/scripts/jvideo2nfo.py</p>
+<p>浏览器打开后右键保存py文件</p>
+<p>或者打开仓库位置在scripts/jvideo2fno.py 下载下来</p>
+<p>修改下面的两个位置
+<img alt="" src="../assets/jvedio2nfo.jpg" /></p>
+<p>使用Python运行脚本，产生一个包含nfo的闻文件夹</p>
+<p>然后通过方式四导入本软件就行了。</p>
+<h2 id="_7">作品信息不完整？<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
+<p>比如没有封面的，没有标题的，还有fc2那种啥都没有的，因为爬虫的网站没有对应的信息。此时可以右键点击进入编辑区
+<img alt="" src="../assets/%E4%BD%9C%E5%93%81%E4%BF%A1%E6%81%AF%E4%B8%8D%E5%AE%8C%E6%95%B4.JPG" /></p>
+<p>点击下面的四个链接看看有没有信息，如果没有就代表爬虫无这部作品的信息源，如果有代表爬虫有问题或者是网络问题，此时可以在左边的爬虫区补数据。
+<img alt="" src="../assets/%E5%A4%96%E9%83%A8%E9%93%BE%E6%8E%A5%E5%8C%BA.JPG" /></p>
+<h2 id="_8">如何补充快速缺失的信息？<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<p>这里缺失的信息是目标网站有的，但是因为网络问题没有爬到，然后可以补充，网站上没有的东西只能手动修改。</p>
+<p>按W键，弹出下面的界面
+<img alt="" src="../assets/%E8%A1%A5%E5%85%85%E7%BC%BA%E5%A4%B1%E4%BF%A1%E6%81%AF.jpg" /></p>
+<p>在右侧选择要补充的信息，然后点击漏斗就行了，注意建议左侧排除那些没有信息的，比如FC2等等。</p>
+<p>会判断哪个字段是缺少的，然后爬虫爬好后只覆盖缺少的字段。字段之间的关系是或。比如影片A只缺少了时长，影片B只缺少了片商，如果此时选了时长和片商，则会把A和B都添加到爬虫里面去，然后最后只更新A的时长和B的片商，其他原本有的不会被覆盖。</p>
+<p>如果要覆盖原来的，那么就只能点击到作品编辑页，通过这个爬虫去爬取，会覆盖，供你确认。</p>
+<h2 id="_9">如何修改作品信息？<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
+<p><img alt="" src="../assets/%E4%BD%9C%E5%93%81%E9%A1%B5.jpg" />
+- 点击番号可复制</p>
+<ul>
+<li>
+<p>左键点击是跳转作品详情页</p>
+</li>
+<li>
+<p>右键点击是跳转作品修改页</p>
+</li>
+</ul>
+<p><img alt="" src="../assets/%E4%BD%9C%E5%93%81%E4%BF%AE%E6%94%B9%E9%A1%B5.jpg" />
+1. 封面栏可点击找本地的图片或者直接把javlib的图片拖进来，右键可以打开本地的图片位置</p>
+<ol>
+<li>
+<p>外部导航可以导航到不同的网站</p>
+</li>
+<li>
+<p>可选爬虫，爬后会更新这个页面，更新后有橙框提示并可提交修改</p>
+</li>
+<li>
+<p>女优选择器</p>
+</li>
+<li>
+<p>男优选择器</p>
+</li>
+<li>
+<p>基础信息</p>
+</li>
+<li>
+<p>可跳转到详情页</p>
+</li>
+<li>
+<p>提交按钮</p>
+</li>
+<li>
+<p>标签选择器，左栏是标签</p>
+</li>
+<li>
+<p>关系图，可点击跳转</p>
+</li>
+<li>
+<p>编辑区，可写感受，影评，然后可通过<code>[[ ]]</code> 链接到其他的作品，并在力导向图区中显示。</p>
+</li>
+</ol>
+<p>修改可以自由的编辑，主要是这个爬虫区</p>
+<p><img alt="" src="../assets/%E7%88%AC%E8%99%AB%E5%8C%BA.JPG" />
+这个爬虫区可以补充信息，如果这个信息是网上有的只是因为网络问题没下来，选合适的，然后点击下载。更新后会有橙色的提示。然后可以提交并修改。</p>
+<h2 id="_10">如何修改女优信息？<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h2>
+<p>当你看见大量的灰色按钮时？不要慌，点击<code>管理-&gt;批量操作-&gt;更新标记需要更新的女优</code>。爬虫会自动处理，但是爬虫不是万能的会有问题，比如遇到下面的奇怪的情况。左键进入
+<img alt="" src="../assets/%E5%A5%B3%E4%BC%98%E5%8C%BA.jpg" /></p>
+<p>右键进入作品编辑区
+<img alt="" src="../assets/%E6%9B%B4%E6%96%B0%E5%A5%B3%E4%BC%982.jpg" /></p>
+<p>在下面的女优选择区把奇怪的东西全移出，然后保存。
+<img alt="" src="../assets/%E6%9B%B4%E6%96%B0%E5%A5%B3%E4%BC%983.jpg" /></p>
+<p>然后回到这个奇怪的女优区，右键进入编辑
+<img alt="" src="../assets/%E6%9B%B4%E6%96%B0%E5%A5%B3%E4%BC%984.jpg" /></p>
+<p>点击删除按钮，把女优删除
+<img alt="" src="../assets/%E6%9B%B4%E6%96%B0%E5%A5%B3%E4%BC%985.jpg" /></p>
+<h2 id="_11">女优爬虫后还是灰色的？<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h2>
+<p>说明要么是错误爬虫，要么是遇到搜索结果很多的情况了，右键点击编辑
+<img alt="" src="../assets/%E7%88%AC%E8%99%AB%E5%90%8E%E7%81%B0%E8%89%B2%E5%A5%B3%E4%BC%98.jpg" /></p>
+<p>点击跳转
+<img alt="" src="../assets/%E6%89%8B%E5%8A%A8%E9%80%89%E6%8B%A9%E5%A5%B3%E4%BC%981.jpg" /></p>
+<p>选择正确的女优，点击
+<img alt="" src="../assets/%E6%89%8B%E5%8A%A8%E9%80%89%E6%8B%A9%E5%A5%B3%E4%BC%982.jpg" /></p>
+<p>如果装了插件，右下角会有一个采集按钮，点击
+<img alt="" src="../assets/%E6%89%8B%E5%8A%A8%E9%80%89%E6%8B%A9%E5%A5%B3%E4%BC%983.jpg" /></p>
+<p>采集后信息会更新到面板上，然后点击提交就行，右边的中文需要自己慢慢编辑，最顶上的就是有优先显示的。现在默认显示的名字是cn最上面一栏，现在就是白石もも
+<img alt="" src="../assets/%E6%89%8B%E5%8A%A8%E9%80%89%E6%8B%A9%E5%A5%B3%E4%BC%984.jpg" /></p>
+<h2 id="_12">男优是灰的？<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h2>
+<p>这个没有办法，只能手动收集信息。</p>
+<h2 id="_13">自定义外部链接<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h2>
+<p>现在的外部链接是json驱动的</p>
+<p><img alt="" src="../assets/%E8%87%AA%E5%AE%9A%E4%B9%89%E7%BC%96%E8%BE%91%E5%A4%96%E9%93%BE1.JPG" /></p>
+<p>要自定义，就打开<code>data/crawler_nav_buttons.json</code>这个json文件
+<img alt="" src="../assets/%E8%87%AA%E5%AE%9A%E4%B9%89%E7%BC%96%E8%BE%91%E5%A4%96%E9%93%BE2.JPG" /></p>
+<p>单个的例子，包括名字，要跳转的url与description,包括{serial}特殊记号，有了这个记号，就会从当前页面中取出这个番号输入</p>
+<pre><code>  {
+    &quot;name&quot;: &quot;javtxt&quot;,
+    &quot;url&quot;: &quot;https://javtxt.com/search?type=id&amp;q={serial}&quot;,
+    &quot;description&quot;: &quot;获得故事与标题，但是没有封面&quot;
+  },
+</code></pre>
+<p>下一个例子,有的网站只接受fanza的那个id比如ipx00247查询的，就多加一行<code>"serial_transform": "fanza",</code></p>
+<pre><code>  {
+    &quot;name&quot;: &quot;fanza&quot;,
+    &quot;url&quot;: &quot;https://www.dmm.co.jp/search/=/searchstr={serial}/limit=30/sort=rankprofile&quot;,
+    &quot;serial_transform&quot;: &quot;fanza&quot;,
+    &quot;description&quot;: &quot;fanza售卖网站，非日本本土，需日本vpn且特殊插件才能访问&quot;
+  },
+</code></pre>
+<p>强烈建议把这个例子加上可以更好的帮你定位大图，老用户需要手动添加。</p>
+<pre><code>  {
+    &quot;name&quot;: &quot;fanza大图封面&quot;,
+    &quot;url&quot;: &quot;https://awsimgsrc.dmm.co.jp/pics_dig/digital/video/{serial}/{serial}pl.jpg&quot;,
+    &quot;serial_transform&quot;: &quot;fanza&quot;,
+    &quot;description&quot;: &quot;fanza大图封面可能链接&quot;
+  },
+</code></pre>
+<h2 id="llm">LLM翻译的使用<a class="headerlink" href="#llm" title="Permanent link">&para;</a></h2>
+<p>当选择LLM翻译时，爬虫会自动抛弃中文标题与故事，根据日文标题与故事自动翻译，而且不会降级成Google，失败就是空的，这一点后面补充就行了。</p>
+<h3 id="api">外购API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h3>
+<p>这个有钱就可以现在是兼容OpenAi的</p>
+<h3 id="_14">本地搭建（推荐）<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h3>
+<p>以本地有张5060(8G)为例。
+使用llama.cpp或者ollama
+下载已经编译好的版本，没有显卡的选择纯cpu推理，有显卡的选择对应cuda版本或者vulkan</p>
+<p>https://github.com/ggml-org/llama.cpp/releases</p>
+<p>下载gguf模型</p>
+<p>https://huggingface.co/SakuraLLM/Sakura-7B-Qwen2.5-v1.0-GGUF/tree/main
+或者下面的这个，下面的模型更大更新，效果更好。
+https://huggingface.co/SakuraLLM/Sakura-14B-Qwen3-v1.5-GGUF</p>
+<p>下载q4量化的gguf文件，或者其他的LLM大模型，现在更强可以下载更大的。小的下载更好的</p>
+<h4 id="llamacpp">llama.cpp<a class="headerlink" href="#llamacpp" title="Permanent link">&para;</a></h4>
+<p>先打开软件中的 <code>设置 -&gt; 翻译</code>，使用 <strong>llama.cpp 辅助启动</strong>：</p>
+<ol>
+<li>点击 <code>打开 llama.cpp Releases</code> 下载对应平台的 <code>llama-server.exe</code></li>
+<li>填写 <code>llama-server.exe</code> 与 <code>GGUF 模型</code> 路径</li>
+<li>选择模式与预设（推荐先用 <code>自动(推荐)</code> 或 <code>8G 显卡预设</code>）</li>
+<li>点击 <code>启动 llama-server</code></li>
+<li>点击 <code>测试 /v1/models</code>，确认服务可用后会自动回填翻译配置</li>
+<li>回到上方点 <code>测试翻译</code> 验证效果</li>
+</ol>
+<p>排障建议：</p>
+<ul>
+<li>显存不足：先降低 <code>gpu-layers</code>，或改用 <code>低显存预设/CPU 预设</code></li>
+<li>端口占用：改 <code>port</code> 或关闭占用程序</li>
+<li>本地模式 <code>API Key</code> 可以随便填（例如 <code>local</code>）</li>
+</ul>
+<p>如果你习惯命令行，继续看下面的手动命令方式。</p>
+<p>运行参数</p>
+<p>在powershell中，定位到编译好的llama-server.exe的位置，修改下面<code>E:\LLM\sakura-7b-qwen2.5-v1.0-iq4xs.gguf</code>这个具体模型的位置，然后运行</p>
+<pre><code>llama-server.exe --host 0.0.0.0 --port 8080 --model E:\LLM\sakura-7b-qwen2.5-v1.0-iq4xs.gguf -c 2048  -n 512 --gpu-layers 99 --batch-size 512 --ubatch-size 256 --threads 6 --cache-type-k q8_0  --cache-type-v q8_0  --no-mmap --mlock --flash-attn 'on' 
+</code></pre>
+<p>按照入下设置</p>
+<p>BaseURL输入</p>
+<pre><code>http://127.0.0.1:8080/v1
+</code></pre>
+<p>模型的名字一般就是本地那个gguf的名字
+或者可以在浏览器输入<code>http://127.0.0.1:8080/v1/models</code>查看模型的名字</p>
+<p><img alt="" src="../assets/LLM%E8%AE%BE%E7%BD%AE.jpg" /></p>
+<p>其中本地运行时没密码，随便输入一个，然后测试一下翻译的好坏。</p>
+<p>在<code>管理</code>-&gt;<code>批量操作</code>-&gt;<code>一键翻译标题/简介</code>或者<code>覆盖翻译标题/简介</code></p>
+<h2 id="_15">数据备份<a class="headerlink" href="#_15" title="Permanent link">&para;</a></h2>
+<p>数据备份分全量数据与精简备份</p>
+<h3 id="webdav-windows">WebDAV 云备份（Windows）<a class="headerlink" href="#webdav-windows" title="Permanent link">&para;</a></h3>
+<p>在 <code>设置 -&gt; 数据库</code> 页面新增了 WebDAV 云备份配置区。</p>
+<ul>
+<li>先配置 <code>Base URL</code>、<code>Remote Root</code>、<code>Profile</code>、<code>超时秒数</code> 并保存。</li>
+<li>点击 <code>保存凭据</code>，输入 WebDAV 用户名和密码。</li>
+<li>凭据不会写入 <code>settings.ini</code>，而是写入 Windows Credential Manager。</li>
+<li>可通过 <code>测试连接</code> 验证可用性。</li>
+<li>勾选 <code>备份后自动上传</code> 后，本地备份成功会自动尝试上传到 WebDAV。</li>
+<li>上传失败不会影响本地备份文件的成功生成。</li>
+<li>可使用 <code>浏览云端备份</code> 查看远端备份，或通过 <code>从云端下载并恢复</code> 执行恢复。</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
