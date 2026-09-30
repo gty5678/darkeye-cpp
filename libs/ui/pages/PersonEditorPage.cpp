@@ -190,10 +190,10 @@ void PersonEditorPage::buildUi()
     actionsLayout->setContentsMargins(0, 0, 0, 0);
     m_saveButton = new DesignButton(QStringLiteral("提交修改"), actionsPanel);
     m_saveButton->setProperty("testId", QStringLiteral("PersonSaveButton"));
-    auto *cancel = new DesignButton(QStringLiteral("取消"), actionsPanel);
-    cancel->setProperty("testId", QStringLiteral("PersonCancelButton"));
+    m_cancelButton = new DesignButton(QStringLiteral("取消"), actionsPanel);
+    m_cancelButton->setProperty("testId", QStringLiteral("PersonCancelButton"));
     actionsLayout->addWidget(m_saveButton);
-    actionsLayout->addWidget(cancel);
+    actionsLayout->addWidget(m_cancelButton);
     actionsLayout->addStretch();
 
     // Match the Python ModifyActor/ModifyActress workspace: avatar and
@@ -240,7 +240,7 @@ void PersonEditorPage::buildUi()
             emit namesChanged();
     });
     connect(m_saveButton, &QPushButton::clicked, this, [this] { savePerson(); });
-    connect(cancel, &QPushButton::clicked, this, &PersonEditorPage::closeRequested);
+    connect(m_cancelButton, &QPushButton::clicked, this, &PersonEditorPage::closeRequested);
     resetDirtyState();
 }
 
@@ -270,11 +270,17 @@ void PersonEditorPage::setAvatarImagePath(const QString &path)
     updateDirtyState();
 }
 
-void PersonEditorPage::addActionButton(QPushButton *button)
+void PersonEditorPage::addActionButton(QWidget *widget)
 {
-    if (button == nullptr || m_actionsLayout == nullptr)
+    if (widget == nullptr || m_actionsLayout == nullptr)
         return;
-    m_actionsLayout->insertWidget(m_actionsLayout->count() - 1, button);
+    m_actionsLayout->insertWidget(m_actionsLayout->count() - 1, widget);
+}
+
+void PersonEditorPage::setCancelButtonVisible(bool visible)
+{
+    if (m_cancelButton != nullptr)
+        m_cancelButton->setVisible(visible);
 }
 
 bool PersonEditorPage::deleteCurrentPerson(QString *errorMessage)

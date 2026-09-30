@@ -245,6 +245,13 @@ QRadioButton#DesignRadioButton::indicator:checked {
     background-color: @PRIMARY@;
 }
 
+/* Python's TokenCheckBox represents a selection as a solid theme-colour
+ * square.  Suppress the platform checkmark so the C++ control has the same
+ * visual language. */
+QCheckBox#DesignCheckBox::indicator:checked {
+    image: none;
+}
+
 QSpinBox#DesignSpinBox {
     background-color: @BACKGROUND@;
     border: 2px solid @BORDER@;

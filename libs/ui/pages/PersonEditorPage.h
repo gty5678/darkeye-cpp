@@ -48,7 +48,8 @@ protected:
     void configureAvatar(const QString &purpose, const QString &placeholder);
     void setAvatarImagePath(const QString &path);
     void applyActressCaptureFields(const QJsonObject &capture);
-    void addActionButton(QPushButton *button);
+    void addActionButton(QWidget *widget);
+    void setCancelButtonVisible(bool visible);
     bool deleteCurrentPerson(QString *errorMessage = nullptr);
     [[nodiscard]] QString primaryJapaneseName() const;
     [[nodiscard]] QString primaryChineseName() const;
@@ -96,6 +97,7 @@ private:
     myads::PaneWidget *m_notesPane = nullptr;
     QVBoxLayout *m_actionsLayout = nullptr;
     QPushButton *m_saveButton = nullptr;
+    QPushButton *m_cancelButton = nullptr;
 };
 
 } // namespace darkeye

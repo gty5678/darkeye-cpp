@@ -128,6 +128,7 @@ struct WorkSearch final
     QList<qint64> tagIds;
     QList<qint64> includedWorkIds;
     bool restrictToIncludedWorkIds = false;
+    bool requireLocalVideo = false;
     quint32 randomSeed = 1;
     quint32 randomSeed2 = 1;
     WorkSortOrder order = WorkSortOrder::UpdatedDescending;

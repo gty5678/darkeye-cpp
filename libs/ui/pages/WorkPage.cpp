@@ -247,9 +247,10 @@ void WorkPage::buildUi()
     m_scopeSelector = new DesignComboBox(filterBar);
     m_scopeSelector->setProperty("workControlId", QStringLiteral("WorkScopeSelector"));
     m_scopeSelector->addItems({QStringLiteral("公共库范围"), QStringLiteral("收藏库范围"),
-                               QStringLiteral("收藏未观看"), QStringLiteral("已撸过")});
+                               QStringLiteral("收藏未观看"), QStringLiteral("已撸过"),
+                               QStringLiteral("本地有视频")});
     m_scopeSelector->setCurrentIndex(0);
-    m_scopeSelector->setToolTip(QStringLiteral("选择公共库、收藏或观看记录范围"));
+    m_scopeSelector->setToolTip(QStringLiteral("选择公共库、收藏、观看记录或本地视频范围"));
     m_viewButton = new IconButton(m_largeCoverView ? QStringLiteral("layout_grid")
                                                    : QStringLiteral("layout_waterfall"),
                                    &m_themeService, filterBar);
@@ -774,6 +775,9 @@ WorkSearch WorkPage::currentSearch() const
                 search.includedWorkIds = repository.masturbationWorkIds(&privateError);
             }
         }
+        break;
+    case 4:
+        search.requireLocalVideo = true;
         break;
     default:
         break;

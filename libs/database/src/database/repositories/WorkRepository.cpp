@@ -122,6 +122,10 @@ WorkSearchClause buildSearchClause(const darkeye::WorkSearch &search)
             }
         }
     }
+    if (search.requireLocalVideo)
+    {
+        clause.sql += QStringLiteral(" AND COALESCE(TRIM(work.video_url), '')<>''");
+    }
     if (search.order == darkeye::WorkSortOrder::ReleaseDateAscending
         || search.order == darkeye::WorkSortOrder::ReleaseDateDescending)
     {

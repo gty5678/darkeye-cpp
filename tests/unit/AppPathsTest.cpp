@@ -4,6 +4,9 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -89,6 +92,29 @@ void AppPathsTest::createsEveryRuntimeDirectory()
         QVERIFY2(QFileInfo::exists(QDir(paths.dataDirectory()).filePath(relativeDirectory)),
                  qPrintable(relativeDirectory));
     }
+
+    const auto readNavigationExample = [&paths](const QString &fileName) {
+        QFile file(QDir(paths.dataDirectory()).filePath(fileName));
+        if (!file.open(QIODevice::ReadOnly)) return QJsonArray{};
+        return QJsonDocument::fromJson(file.readAll()).array();
+    };
+    const QJsonArray workNavigation = readNavigationExample(QStringLiteral("crawler_nav_buttons.json"));
+    QCOMPARE(workNavigation.size(), 1);
+    QCOMPARE(workNavigation.constFirst().toObject().value(QStringLiteral("url")).toString(),
+             QStringLiteral("https://www.google.com/search?q={serial}"));
+    const QJsonArray actressNavigation = readNavigationExample(QStringLiteral("actress_nav_buttons.json"));
+    QCOMPARE(actressNavigation.size(), 1);
+    QCOMPARE(actressNavigation.constFirst().toObject().value(QStringLiteral("url")).toString(),
+             QStringLiteral("https://www.google.com/search?q={jp_name}"));
+
+    // 用户自定义的导航配置不可被后续启动覆盖。
+    QFile customFile(paths.crawlerNavButtonsFile());
+    QVERIFY(customFile.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    QVERIFY(customFile.write("[]") == 2);
+    customFile.close();
+    QVERIFY(paths.ensureRuntimeDirectories());
+    QVERIFY(customFile.open(QIODevice::ReadOnly));
+    QCOMPARE(customFile.readAll(), QByteArray("[]"));
 }
 
 void AppPathsTest::initializesMissingSettingsFile()

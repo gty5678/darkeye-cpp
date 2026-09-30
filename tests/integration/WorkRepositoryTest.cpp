@@ -17,6 +17,7 @@ private slots:
     void completeInsertCommitsRelationsAtomically();
     void searchesAndUpdatesWorkDetails();
     void filtersRelationsAndPaginates();
+    void filtersWorksWithLocalVideo();
 };
 
 void WorkRepositoryTest::insertsFindsAndSoftDeletesWork()
@@ -283,6 +284,40 @@ void WorkRepositoryTest::filtersRelationsAndPaginates()
     const auto thirdPage = repository.search(paged, &errorMessage);
     QCOMPARE(thirdPage.size(), 1);
     QCOMPARE(thirdPage.first().serialNumber, QStringLiteral("FILTER-002"));
+}
+
+void WorkRepositoryTest::filtersWorksWithLocalVideo()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    darkeye::SqliteConnection connection;
+    QString errorMessage;
+    QVERIFY2(connection.open(QDir(temporaryDirectory.path()).filePath("public.db"), false,
+                             &errorMessage),
+             qPrintable(errorMessage));
+    QVERIFY2(darkeye::SchemaManager::initializeEmptyDatabase(
+                 connection, darkeye::DatabaseKind::Public, &errorMessage),
+             qPrintable(errorMessage));
+
+    darkeye::WorkRepository repository(connection.database());
+    darkeye::Work withVideo;
+    withVideo.serialNumber = QStringLiteral("VIDEO-001");
+    withVideo.videoUrl = QStringLiteral("C:/videos/VIDEO-001.mp4");
+    QVERIFY2(repository.insertComplete(withVideo, {}, {}, {}, &errorMessage).has_value(),
+             qPrintable(errorMessage));
+    darkeye::Work withoutVideo;
+    withoutVideo.serialNumber = QStringLiteral("VIDEO-002");
+    withoutVideo.videoUrl = QStringLiteral("   ");
+    QVERIFY2(repository.insertComplete(withoutVideo, {}, {}, {}, &errorMessage).has_value(),
+             qPrintable(errorMessage));
+
+    darkeye::WorkSearch search;
+    search.requireLocalVideo = true;
+    search.order = darkeye::WorkSortOrder::SerialAscending;
+    QCOMPARE(repository.count(search, &errorMessage), std::optional<int>(1));
+    const QList<darkeye::WorkSummary> results = repository.search(search, &errorMessage);
+    QCOMPARE(results.size(), 1);
+    QCOMPARE(results.first().serialNumber, QStringLiteral("VIDEO-001"));
 }
 
 QTEST_MAIN(WorkRepositoryTest)

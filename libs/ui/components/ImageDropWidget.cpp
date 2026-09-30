@@ -148,7 +148,33 @@ bool ImageDropWidget::persistAsJpeg(const QString &fileName, QString *relativePa
     if (m_imagePath.isEmpty())
         return true;
 
-    QImageReader reader(resolvedImagePath());
+    QString safeName = fileName.trimmed();
+    for (const QChar character : QStringLiteral("\\/:*?\"<>|"))
+        safeName.replace(character, QChar('_'));
+    if (!safeName.endsWith(QStringLiteral(".jpg"), Qt::CaseInsensitive))
+        safeName += QStringLiteral(".jpg");
+    if (safeName == QStringLiteral(".jpg"))
+    {
+        if (errorMessage != nullptr)
+            *errorMessage = QStringLiteral("%1文件名不能为空").arg(m_purpose);
+        return false;
+    }
+
+    const QString targetPath = QDir(m_managedDirectory).filePath(safeName);
+    const QFileInfo sourceInfo(resolvedImagePath());
+    const QFileInfo targetInfo(targetPath);
+    // Match Python's rename_save_image(): submitting metadata or name edits must not
+    // rewrite an avatar that is already stored under the requested managed path.  Apart
+    // from doing unnecessary lossy JPEG recompression, replacing the file can fail with
+    // "Access is denied" on Windows while the preview still has the image open.
+    if (sourceInfo.exists() && targetInfo.exists() &&
+        sourceInfo.canonicalFilePath() == targetInfo.canonicalFilePath())
+    {
+        *relativePath = safeName;
+        return true;
+    }
+
+    QImageReader reader(sourceInfo.absoluteFilePath());
     reader.setAutoTransform(true);
     QImage image = reader.read();
     if (image.isNull())
@@ -164,19 +190,6 @@ bool ImageDropWidget::persistAsJpeg(const QString &fileName, QString *relativePa
         return false;
     }
 
-    QString safeName = fileName.trimmed();
-    for (const QChar character : QStringLiteral("\\/:*?\"<>|"))
-        safeName.replace(character, QChar('_'));
-    if (!safeName.endsWith(QStringLiteral(".jpg"), Qt::CaseInsensitive))
-        safeName += QStringLiteral(".jpg");
-    if (safeName == QStringLiteral(".jpg"))
-    {
-        if (errorMessage != nullptr)
-            *errorMessage = QStringLiteral("%1文件名不能为空").arg(m_purpose);
-        return false;
-    }
-
-    const QString targetPath = QDir(m_managedDirectory).filePath(safeName);
     QSaveFile target(targetPath);
     if (!target.open(QIODevice::WriteOnly))
     {

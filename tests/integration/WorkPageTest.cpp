@@ -71,9 +71,11 @@ class WorkPageTest final : public QObject
     void matchesPythonControlAndRoutingContract();
     void loadsOneDatabasePageAtATime();
     void filtersByPrivateScope();
+    void filtersByLocalVideoScope();
     void persistsViewPreferences();
     void groupsAndSelectsTags();
     void importsCoverAndRollsBackOnDatabaseFailure();
+    void loadingCrLfStoriesDoesNotMarkWorkModified();
     void workCardCopiesSerialAndActivatesOnlyCover();
     void matchesPythonWorkListSqlContract();
     void loadsConfiguredRealDatabaseWhenAvailable();
@@ -348,6 +350,46 @@ void WorkPageTest::filtersByPrivateScope()
     QCOMPARE(serial->text(), QStringLiteral("SCOPE-001"));
 }
 
+void WorkPageTest::filtersByLocalVideoScope()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    darkeye::SqliteConnection connection;
+    QString errorMessage;
+    QVERIFY2(connection.open(QDir(temporaryDirectory.path()).filePath("public.db"), false,
+                             &errorMessage),
+             qPrintable(errorMessage));
+    QVERIFY2(darkeye::SchemaManager::initializeEmptyDatabase(
+                 connection, darkeye::DatabaseKind::Public, &errorMessage),
+             qPrintable(errorMessage));
+
+    darkeye::WorkRepository repository(connection.database());
+    darkeye::Work withVideo;
+    withVideo.serialNumber = QStringLiteral("PAGE-VIDEO-001");
+    withVideo.videoUrl = QStringLiteral("C:/videos/PAGE-VIDEO-001.mp4");
+    QVERIFY2(repository.insertComplete(withVideo, {}, {}, {}, &errorMessage).has_value(),
+             qPrintable(errorMessage));
+    darkeye::Work withoutVideo;
+    withoutVideo.serialNumber = QStringLiteral("PAGE-VIDEO-002");
+    QVERIFY2(repository.insertComplete(withoutVideo, {}, {}, {}, &errorMessage).has_value(),
+             qPrintable(errorMessage));
+
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    QVERIFY(application != nullptr);
+    darkeye::ThemeService themeService(*application);
+    darkeye::WorkPage page(connection.database(), themeService);
+    page.initialize();
+    auto *scope = findWorkControl<QComboBox>(&page, QStringLiteral("WorkScopeSelector"));
+    QVERIFY(scope != nullptr);
+    QCOMPARE(scope->findText(QStringLiteral("本地有视频")), 4);
+    scope->setCurrentText(QStringLiteral("本地有视频"));
+    QTRY_COMPARE(page.findChildren<darkeye::WorkCard *>().size(), 1);
+    const auto *serial = page.findChild<darkeye::ClickableLabel *>(
+        QStringLiteral("WorkCardSerialNumber"));
+    QVERIFY(serial != nullptr);
+    QCOMPARE(serial->text(), QStringLiteral("PAGE-VIDEO-001"));
+}
+
 void WorkPageTest::persistsViewPreferences()
 {
     QTemporaryDir temporaryDirectory;
@@ -481,6 +523,58 @@ void WorkPageTest::groupsAndSelectsTags()
     selector.reloadTags();
     QCOMPARE(tabs->count(), 1);
     QCOMPARE(tabs->tabText(0), QStringLiteral("新类型"));
+}
+
+void WorkPageTest::loadingCrLfStoriesDoesNotMarkWorkModified()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    darkeye::SqliteConnection connection;
+    QString errorMessage;
+    QVERIFY(connection.open(QDir(temporaryDirectory.path()).filePath("public.db"), false,
+                             &errorMessage));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        connection, darkeye::DatabaseKind::Public, &errorMessage));
+
+    darkeye::Work work;
+    work.serialNumber = QStringLiteral("IPZZ-729");
+    work.chineseStory = QStringLiteral("第一行\r\n第二行");
+    work.japaneseStory = QStringLiteral("一行目\r\n二行目");
+    darkeye::WorkRepository repository(connection.database());
+    const auto workId = repository.insertComplete(work, {}, {}, {}, &errorMessage);
+    QVERIFY2(workId.has_value(), qPrintable(errorMessage));
+
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    QVERIFY(application != nullptr);
+    darkeye::ThemeService themeService(*application);
+    darkeye::CrawlerScheduler crawlerScheduler(
+        QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/work")));
+    darkeye::AddWorkTabPage3 editor(connection.database(), themeService, crawlerScheduler,
+                                    QDir(temporaryDirectory.path()).filePath("covers"),
+                                    QDir(temporaryDirectory.path()).filePath("fanart"));
+
+    QVERIFY(editor.loadWork(*workId));
+    auto *save = editor.findChild<QPushButton *>(QStringLiteral("WorkSaveButton"));
+    QVERIFY(save != nullptr);
+    QVERIFY(!save->isEnabled());
+
+    bool checkedChineseStory = false;
+    bool checkedJapaneseStory = false;
+    for (QPlainTextEdit *edit : editor.findChildren<QPlainTextEdit *>())
+    {
+        if (edit->toPlainText() == QStringLiteral("第一行\n第二行"))
+        {
+            checkedChineseStory = true;
+            QVERIFY(!edit->property("addWorkModified").toBool());
+        }
+        if (edit->toPlainText() == QStringLiteral("一行目\n二行目"))
+        {
+            checkedJapaneseStory = true;
+            QVERIFY(!edit->property("addWorkModified").toBool());
+        }
+    }
+    QVERIFY(checkedChineseStory);
+    QVERIFY(checkedJapaneseStory);
 }
 
 void WorkPageTest::importsCoverAndRollsBackOnDatabaseFailure()

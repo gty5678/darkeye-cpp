@@ -18,6 +18,10 @@ CrawlerFieldSelector::CrawlerFieldSelector(QWidget *parent) : QWidget(parent)
     m_layout->setHorizontalSpacing(12);
     m_layout->setVerticalSpacing(6);
 
+    // This pane may be docked into a narrow workspace column.  Keep the
+    // requested two-column layout so a third intrinsic column cannot force
+    // the entire workspace wider.
+    constexpr int columns = 2;
     const QList<CrawlerFieldDefinition> fields = availableFields();
     for (int index = 0; index < fields.size(); ++index)
     {
@@ -26,7 +30,7 @@ CrawlerFieldSelector::CrawlerFieldSelector(QWidget *parent) : QWidget(parent)
         checkBox->setObjectName(QStringLiteral("CrawlerField_%1").arg(field.key));
         checkBox->setProperty("fieldKey", field.key);
         m_checkBoxes.insert(field.key, checkBox);
-        m_layout->addWidget(checkBox, index / 3, index % 3);
+        m_layout->addWidget(checkBox, index / columns, index % columns);
         connect(checkBox, &QCheckBox::toggled, this,
                 [this](bool) { emit selectionChanged(selectedFields()); });
     }
@@ -129,5 +133,3 @@ void CrawlerFieldSelector::applySelection(const QSet<QString> &fields)
 }
 
 } // namespace darkeye
-
-

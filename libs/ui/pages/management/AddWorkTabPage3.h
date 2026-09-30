@@ -56,6 +56,8 @@ public:
     void beginCreate();
     void beginCreateAndCrawl(const QString &serialNumber);
     bool loadWork(qint64 workId);
+    /// Mirrors Python's asynchronous editor load used by route-based work editing.
+    void loadWorkAsync(qint64 workId);
     void refreshReferences();
     void refreshAssociations();
     [[nodiscard]] QString currentSerialNumber() const;
@@ -72,6 +74,8 @@ protected:
     void showEvent(QShowEvent *event) override;
 
 private:
+    void applyLoadedWork(std::optional<WorkDetails> details, QString errorMessage,
+                         quint64 requestSequence);
     void applyWork(const Work &work);
     [[nodiscard]] Work editorWork() const;
     void save();
@@ -119,6 +123,7 @@ private:
     bool m_associationsLoaded = false;
     bool m_fanartDirty = false;
     bool m_loadingEditor = false;
+    quint64 m_loadRequestSequence = 0;
     QList<qint64> m_loadedActressIds;
     QList<qint64> m_loadedActorIds;
     QList<qint64> m_loadedTagIds;

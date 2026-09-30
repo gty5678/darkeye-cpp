@@ -1,17 +1,7 @@
 [
   {
-    "name": "金鸡儿奖",
-    "url": "https://jinjier.art/",
-    "description": "金鸡儿奖网站，挺有意思的"
-  },
-  {
-    "name": "平假名",
-    "url": "https://zh.wikipedia.org/wiki/%E5%B9%B3%E5%81%87%E5%90%8D",
-    "description": "平假名"
-  },
-  {
-    "name": "片假名",
-    "url": "https://zh.wikipedia.org/wiki/%E7%89%87%E5%81%87%E5%90%8D",
-    "description": "片假名"
+    "name": "Google 搜索",
+    "url": "https://www.google.com/search?q={serial}",
+    "description": "按作品番号搜索"
   }
 ]

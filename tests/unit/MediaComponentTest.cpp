@@ -7,6 +7,7 @@
 #include "ui/components/ImageDropWidget.h"
 
 #include <QApplication>
+#include <QFile>
 #include <QImage>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -23,6 +24,7 @@ private slots:
     void asyncImageCanDeferOffscreenWork();
     void clearedImageRejectsStaleResult();
     void imageDropPurposeIsConfigurable();
+    void imageDropDoesNotRewriteManagedSource();
     void imageDropRendersDashedPlaceholderBorder();
     void fanartPreservesJsonOrderAndRemoteState();
     void fanartFinalizesPendingLocalImages();
@@ -147,6 +149,34 @@ void MediaComponentTest::imageDropPurposeIsConfigurable()
     darkeye::ImageDropWidget imageDrop(directory.path());
     imageDrop.setPurpose(QStringLiteral("作品封面"));
     QCOMPARE(imageDrop.purpose(), QStringLiteral("作品封面"));
+}
+
+void MediaComponentTest::imageDropDoesNotRewriteManagedSource()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString fileName = QStringLiteral("42-已有头像.jpg");
+    const QString path = directory.filePath(fileName);
+    QImage source(48, 64, QImage::Format_RGB32);
+    source.fill(QColor(60, 100, 140));
+    QVERIFY(source.save(path, "JPEG", 61));
+
+    QFile original(path);
+    QVERIFY(original.open(QIODevice::ReadOnly));
+    const QByteArray originalBytes = original.readAll();
+    original.close();
+
+    darkeye::ImageDropWidget imageDrop(directory.path());
+    imageDrop.setImagePath(fileName);
+    QString storedPath;
+    QString errorMessage;
+    QVERIFY2(imageDrop.persistAsJpeg(fileName, &storedPath, &errorMessage),
+             qPrintable(errorMessage));
+    QCOMPARE(storedPath, fileName);
+
+    QFile persisted(path);
+    QVERIFY(persisted.open(QIODevice::ReadOnly));
+    QCOMPARE(persisted.readAll(), originalBytes);
 }
 
 void MediaComponentTest::imageDropRendersDashedPlaceholderBorder()

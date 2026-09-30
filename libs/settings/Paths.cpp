@@ -4,7 +4,39 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+
+namespace
+{
+
+bool createNavigationExampleIfMissing(const QString &filePath, const QJsonObject &example,
+                                      QString *errorMessage)
+{
+    if (QFileInfo::exists(filePath)) return true;
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly))
+    {
+        if (errorMessage != nullptr)
+            *errorMessage = QStringLiteral("无法创建导航配置文件：%1").arg(filePath);
+        return false;
+    }
+
+    const QJsonDocument document(QJsonArray{example});
+    if (file.write(document.toJson(QJsonDocument::Indented)) < 0)
+    {
+        if (errorMessage != nullptr)
+            *errorMessage = QStringLiteral("无法写入导航配置文件：%1").arg(filePath);
+        return false;
+    }
+    return true;
+}
+
+} // namespace
 
 //主要是给软件各种需要路径的地方提供路径
 
@@ -75,6 +107,21 @@ bool Paths::ensureRuntimeDirectories(QString *errorMessage) const
             *errorMessage = QStringLiteral("无法创建运行数据目录：%1").arg(dataRoot.filePath(directory));
         return false;
     }
+
+    // 首次运行时提供可直接使用、也便于用户照着扩展的外部导航样例。已有文件始终保留。
+    if (!createNavigationExampleIfMissing(
+            crawlerNavButtonsFile(),
+            {{QStringLiteral("name"), QStringLiteral("Google 搜索")},
+             {QStringLiteral("url"), QStringLiteral("https://www.google.com/search?q={serial}")},
+             {QStringLiteral("description"), QStringLiteral("按作品番号搜索")}}, errorMessage))
+        return false;
+    if (!createNavigationExampleIfMissing(
+            actressNavButtonsFile(),
+            {{QStringLiteral("name"), QStringLiteral("Google 搜索")},
+             {QStringLiteral("url"), QStringLiteral("https://www.google.com/search?q={jp_name}")},
+             {QStringLiteral("quote"), QJsonArray{QStringLiteral("jp_name")}},
+             {QStringLiteral("description"), QStringLiteral("按女优日文名搜索")}}, errorMessage))
+        return false;
     return true;
 }
 

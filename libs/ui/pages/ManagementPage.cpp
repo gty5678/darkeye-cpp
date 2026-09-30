@@ -185,8 +185,11 @@ bool ManagementPage::loadWork(qint64 workId)
 {
     initialize();
     ensureTabLoaded(WorkEditorTab);
-    if (m_workEditor == nullptr || !m_workEditor->loadWork(workId))
+    if (m_workEditor == nullptr)
         return false;
+    // Python's ManagementPage delegates work hydration to AddWorkTabPage3's
+    // thread-pool loader.  Keep the route responsive while its details load.
+    m_workEditor->loadWorkAsync(workId);
     m_tabs->setCurrentIndex(WorkEditorTab);
     return true;
 }

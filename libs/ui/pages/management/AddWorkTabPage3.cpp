@@ -44,6 +44,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QPushButton>
 #include <QSet>
 #include <QShowEvent>
@@ -51,6 +52,8 @@
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QStyle>
+#include <QThreadPool>
+#include <QTimer>
 #include <QUrl>
 #include <QTemporaryDir>
 #include <QTextEdit>
@@ -62,9 +65,7 @@ namespace darkeye
 {
 namespace
 {
-constexpr int kFormControlMinimumWidth = 160;
 constexpr int kFormControlMinimumHeight = 32;
-constexpr int kBasicPaneMinimumWidth = 360;
 constexpr int kBasicPaneMinimumHeight = 360;
 constexpr int kWorkspaceAuxiliaryMinimumHeight = 200;
 
@@ -77,6 +78,17 @@ bool sameRuntime(const std::optional<int> &first, const std::optional<int> &seco
     return first == second
         || (!first.has_value() && second.has_value() && *second == 0)
         || (!second.has_value() && first.has_value() && *first == 0);
+}
+
+// QPlainTextEdit stores every line break as LF.  Existing databases may still
+// contain CRLF (or CR) text from the Python application, so comparing the raw
+// database value after loading would make an untouched multi-line field look
+// modified.  Compare using the editor's line-ending representation instead.
+bool samePlainText(const QString &editorValue, QString storedValue)
+{
+    storedValue.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
+    storedValue.replace(QChar('\r'), QChar('\n'));
+    return editorValue == storedValue;
 }
 
 template <typename Callback>
@@ -183,24 +195,28 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
     m_maker = new DesignComboBox(this);
     m_label = new DesignComboBox(this);
     m_series = new DesignComboBox(this);
-    // The Python page keeps a usable minimum field width while its workspace
-    // panes are resized.  Let long reference names elide instead of using
-    // their contents to enlarge the pane, but do not allow the fields to
-    // collapse to a few pixels.
+    // Keep long reference names from determining the combo box width.  The
+    // Python fields have no explicit minimum width, so the dock decides it.
     for (QComboBox *combo : {m_maker, m_label, m_series})
     {
         combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
         combo->setMinimumContentsLength(0);
-        combo->setMinimumSize(kFormControlMinimumWidth, kFormControlMinimumHeight);
+        combo->setMinimumHeight(kFormControlMinimumHeight);
         combo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     }
     m_notes = new WikiTextEdit(this);
     m_notes->setProperty("workControlId", QStringLiteral("WorkNotesInput"));
-    QString completionError;
-    m_notes->setCompleterList(
-        withShortDatabase(m_database.databaseName(), true, &completionError,
-                          [](QSqlDatabase connection)
-                          { return WorkRepository(connection).serialSuggestions(); }));
+    // Python's WikiTextEdit starts completion loading on QThreadPool.  Use the
+    // C++ equivalent rather than creating the full serial-number model while
+    // the management page is still building its first frame.
+    m_notes->setCompleterLoader(
+        [this]
+        {
+            QString errorMessage;
+            return withShortDatabase(m_database.databaseName(), true, &errorMessage,
+                                     [](QSqlDatabase connection)
+                                     { return WorkRepository(connection).serialSuggestions(); });
+        });
     m_notes->setWorkIdResolver([this](const QString &serial) {
         QString errorMessage;
         return withShortDatabase(m_database.databaseName(), true, &errorMessage,
@@ -228,7 +244,7 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
     m_chineseStory = new DesignPlainTextEdit(this);
     m_japaneseStory = new DesignPlainTextEdit(this);
     const auto configureFormField = [](QWidget *widget) {
-        widget->setMinimumSize(kFormControlMinimumWidth, kFormControlMinimumHeight);
+        widget->setMinimumHeight(kFormControlMinimumHeight);
         widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     };
     for (QWidget *field : {static_cast<QWidget *>(m_serialNumber),
@@ -325,8 +341,13 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
     m_fanart->setProperty("workControlId", QStringLiteral("WorkFanartStrip"));
     m_fanart->setCanAdd(true);
     m_crawlerFields = new CrawlerFieldSelector(this);
-    auto *crawlButton = new DesignButton(QStringLiteral("采集所选字段"), m_crawlerFields);
+    // Python uses a compact 32 px IconPushButton here.  A text button makes
+    // the second grid column determine the crawler pane's minimum width.
+    auto *crawlButton = new IconButton(QStringLiteral("arrow_down_to_line"), &m_themes,
+                                       m_crawlerFields);
     crawlButton->setToolTip(QStringLiteral("通过信息补充器采集当前番号；插队并立即执行。"));
+    crawlButton->setIconPixelSize(24);
+    crawlButton->setButtonPixelSize(32);
     m_crawlerFields->appendRowWidget(crawlButton, 1);
     m_saveButton = new DesignButton({}, this);
     auto *saveButton = m_saveButton;
@@ -407,8 +428,7 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
     coverLayout->addWidget(m_imageDrop, 1);
     auto *basicLayout = container(QStringLiteral("basic"), QStringLiteral("基础信息"));
     QWidget *basicPane = m_slotWidgets.value(QStringLiteral("basic"));
-    basicPane->setMinimumSize(kBasicPaneMinimumWidth, kBasicPaneMinimumHeight);
-    basicPane->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    basicPane->setMinimumHeight(kBasicPaneMinimumHeight);
     form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     form->setRowWrapPolicy(QFormLayout::WrapLongRows);
     basicLayout->addLayout(form);
@@ -507,7 +527,10 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
     clearEditor();
     m_serialNumber->setReadOnly(false);
     updateEditorActions();
-    initializeRelationGraph();
+    // Match Python's QTimer.singleShot(0, self._init_forceview): defer the
+    // expensive RHI/font-atlas setup until after the management page can show
+    // its first frame instead of blocking the route switch.
+    QTimer::singleShot(0, this, &AddWorkTabPage3::initializeRelationGraph);
 }
 
 AddWorkTabPage3::~AddWorkTabPage3() = default;
@@ -707,10 +730,7 @@ void AddWorkTabPage3::addManualNavigation(QVBoxLayout *layout)
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setMinimumSize(0, 0);
-    scroll->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     auto *gridHost = new QWidget(scroll);
-    gridHost->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     auto *grid = new QGridLayout(gridHost);
     grid->setContentsMargins(0, 0, 0, 0);
     constexpr int columns = 2;
@@ -823,6 +843,74 @@ bool AddWorkTabPage3::loadWork(qint64 workId)
     return true;
 }
 
+void AddWorkTabPage3::loadWorkAsync(qint64 workId)
+{
+    if (!m_associationsLoaded)
+        refreshAssociations();
+
+    const quint64 requestSequence = ++m_loadRequestSequence;
+    const QString databasePath = m_database.databaseName();
+    QPointer<AddWorkTabPage3> target(this);
+    QThreadPool::globalInstance()->start(
+        [target, databasePath, workId, requestSequence]
+        {
+            QString errorMessage;
+            const std::optional<WorkDetails> details = withShortDatabase(
+                databasePath, true, &errorMessage,
+                [workId, &errorMessage](QSqlDatabase connection)
+                { return WorkRepository(connection).findDetailsById(workId, &errorMessage); });
+            if (!target)
+                return;
+            QMetaObject::invokeMethod(
+                target.data(),
+                [target, details, errorMessage = std::move(errorMessage), requestSequence]() mutable
+                {
+                    if (target)
+                        target->applyLoadedWork(std::move(details), std::move(errorMessage),
+                                                requestSequence);
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void AddWorkTabPage3::applyLoadedWork(std::optional<WorkDetails> details, QString errorMessage,
+                                      quint64 requestSequence)
+{
+    if (requestSequence != m_loadRequestSequence)
+        return;
+    if (!details.has_value())
+    {
+        Toast::showError(window(),
+                         errorMessage.isEmpty() ? QStringLiteral("作品不存在") : errorMessage,
+                         &m_themes);
+        return;
+    }
+
+    m_loadingEditor = true;
+    m_currentWork = details->work;
+    m_serialLookupWorkId.reset();
+    applyWork(details->work);
+    QList<qint64> actressIds;
+    for (const WorkPersonReference &person : details->actresses)
+        actressIds.append(person.id);
+    QList<qint64> actorIds;
+    for (const WorkPersonReference &person : details->actors)
+        actorIds.append(person.id);
+    QList<qint64> tagIds;
+    for (const TagOption &tag : details->tags)
+        tagIds.append(tag.id);
+    m_actresses->setSelectedIds(actressIds);
+    m_actors->setSelectedIds(actorIds);
+    m_tags->setSelectedIds(tagIds);
+    m_loadedActressIds = actressIds;
+    m_loadedActorIds = actorIds;
+    m_loadedTagIds = tagIds;
+    m_loadingEditor = false;
+    m_serialNumber->setReadOnly(true);
+    updateEditorActions();
+    updateRelationGraph();
+}
+
 void AddWorkTabPage3::refreshAssociations()
 {
     const auto loadPeople = [this](PersonKind kind)
@@ -849,7 +937,12 @@ void AddWorkTabPage3::refreshAssociations()
     };
     m_actresses->setOptions(loadPeople(PersonKind::Actress));
     m_actors->setOptions(loadPeople(PersonKind::Actor));
-    m_tags->reloadTags();
+    // The constructor has already populated the tag selector.  Python keeps
+    // that initial population when opening an editor, so avoid constructing
+    // every tag scene twice on the first visit.  Later refreshes still reload
+    // tags after a tag/person change signal.
+    if (m_associationsLoaded)
+        m_tags->reloadTags();
     m_associationsLoaded = true;
 }
 
@@ -965,7 +1058,10 @@ void AddWorkTabPage3::initializeRelationGraph()
     // Python AddWorkTabPage3 keeps this as an ego graph only.  The favorite
     // filter belongs to the standalone relationship page, not this editor pane.
     m_relationGraph->setFavoriteFilterToggleVisible(false);
-    m_relationGraph->showEmptyGraph();
+    if (m_currentWork.has_value() && m_currentWork->id > 0)
+        updateRelationGraph();
+    else
+        m_relationGraph->showEmptyGraph();
 }
 
 void AddWorkTabPage3::updateRelationGraph()
@@ -1430,15 +1526,15 @@ void AddWorkTabPage3::updateEditorActions()
     // changed.  Its disabled state deliberately has no action label.
     const Work editedWork = editorWork();
     const bool changed = editedWork.serialNumber != m_currentWork->serialNumber
-        || editedWork.chineseTitle != m_currentWork->chineseTitle
-        || editedWork.japaneseTitle != m_currentWork->japaneseTitle
+        || !samePlainText(editedWork.chineseTitle, m_currentWork->chineseTitle)
+        || !samePlainText(editedWork.japaneseTitle, m_currentWork->japaneseTitle)
         || editedWork.director != m_currentWork->director
         || editedWork.releaseDate != m_currentWork->releaseDate
         || !sameRuntime(editedWork.runtime, m_currentWork->runtime)
         || editedWork.imageUrl != m_currentWork->imageUrl
-        || editedWork.notes != m_currentWork->notes
-        || editedWork.chineseStory != m_currentWork->chineseStory
-        || editedWork.japaneseStory != m_currentWork->japaneseStory
+        || !samePlainText(editedWork.notes, m_currentWork->notes)
+        || !samePlainText(editedWork.chineseStory, m_currentWork->chineseStory)
+        || !samePlainText(editedWork.japaneseStory, m_currentWork->japaneseStory)
         || editedWork.makerId != m_currentWork->makerId
         || editedWork.labelId != m_currentWork->labelId
         || editedWork.seriesId != m_currentWork->seriesId
@@ -1491,17 +1587,21 @@ void AddWorkTabPage3::updateModifiedFieldHighlights()
         std::sort(second.begin(), second.end());
         return first == second;
     };
-    setModified(m_chineseTitle, editedWork.chineseTitle != m_currentWork->chineseTitle);
-    setModified(m_japaneseTitle, editedWork.japaneseTitle != m_currentWork->japaneseTitle);
+    setModified(m_chineseTitle,
+                !samePlainText(editedWork.chineseTitle, m_currentWork->chineseTitle));
+    setModified(m_japaneseTitle,
+                !samePlainText(editedWork.japaneseTitle, m_currentWork->japaneseTitle));
     setModified(m_director, editedWork.director != m_currentWork->director);
     setModified(m_releaseDate, editedWork.releaseDate != m_currentWork->releaseDate);
     setModified(m_runtime, !sameRuntime(editedWork.runtime, m_currentWork->runtime));
     setModified(m_maker, editedWork.makerId != m_currentWork->makerId);
     setModified(m_label, editedWork.labelId != m_currentWork->labelId);
     setModified(m_series, editedWork.seriesId != m_currentWork->seriesId);
-    setModified(m_notes, editedWork.notes != m_currentWork->notes);
-    setModified(m_chineseStory, editedWork.chineseStory != m_currentWork->chineseStory);
-    setModified(m_japaneseStory, editedWork.japaneseStory != m_currentWork->japaneseStory);
+    setModified(m_notes, !samePlainText(editedWork.notes, m_currentWork->notes));
+    setModified(m_chineseStory,
+                !samePlainText(editedWork.chineseStory, m_currentWork->chineseStory));
+    setModified(m_japaneseStory,
+                !samePlainText(editedWork.japaneseStory, m_currentWork->japaneseStory));
     setModified(m_imageDrop, m_imageDrop->isDirty());
     setModified(m_actresses, !sameIds(m_actresses->selectedIds(), m_loadedActressIds));
     setModified(m_actors, !sameIds(m_actors->selectedIds(), m_loadedActorIds));

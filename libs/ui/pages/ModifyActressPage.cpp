@@ -1,6 +1,7 @@
 #include "ui/pages/ModifyActressPage.h"
 
 #include "darkeye_ui/components/DesignButton.h"
+#include "darkeye_ui/components/IconButton.h"
 #include "darkeye_ui/components/ToastNotification.h"
 #include "services/ActressSyncService.h"
 #include "services/ImageFetchService.h"
@@ -12,6 +13,7 @@
 #include <QDir>
 #include <QLabel>
 #include <QMessageBox>
+#include <QHBoxLayout>
 #include <QScrollArea>
 #include <QStandardPaths>
 #include <QUrl>
@@ -82,40 +84,49 @@ ModifyActressPage::ModifyActressPage(QSqlDatabase database, ThemeService &themes
     contentLayout->setContentsMargins(8, 8, 8, 8);
     m_navPage = new ActressNavPage(std::move(navConfigFile), content);
     contentLayout->addWidget(m_navPage);
-    auto *minnano = new DesignButton(QStringLiteral("Minnano AV"), content);
-    minnano->setProperty("testId", QStringLiteral("ActressMinnanoLinkButton"));
-    minnano->setToolTip(QStringLiteral("采集 Minnano AV 资料并合并到当前女优"));
-    minnano->setText(QStringLiteral("采集 Minnano AV 资料"));
-    connect(minnano, &QPushButton::clicked, this, [this, &themes]
-    {
-        if (!m_sync->fetchCapture(personId()))
-            Toast::showWarning(window(), QStringLiteral("无法开始女优采集：请确认日文名或稍后重试"),
-                               &themes);
-    });
-    contentLayout->addWidget(minnano);
     contentLayout->addStretch();
     scroll->setWidget(content);
     linksLayout->addWidget(scroll);
     addActressExternalLinksPanel(links);
 
-    auto *translateMissing = new DesignButton(QStringLiteral("补全中文名（翻译）"), this);
+    // Keep the operation pane in the exact order and roles of Python's
+    // ModifyActressPage.  The crawler action is deliberately not an external
+    // link: it fills this form and still requires an explicit submit.
+    setCancelButtonVisible(false);
+    auto *crawlerUpdate = new DesignButton(QStringLiteral("爬虫尝试更新(需手动提交)"), this);
+    crawlerUpdate->setProperty("testId", QStringLiteral("ActressCrawlerUpdateButton"));
+    crawlerUpdate->setToolTip(QStringLiteral("从 Minnano AV 采集资料并填入当前表单；需要手动提交"));
+    auto *translateMissing = new DesignButton(QStringLiteral("补全中文名(翻译)"), this);
     translateMissing->setProperty("testId", QStringLiteral("ActressTranslateMissingButton"));
     auto *translateOverwrite = new DesignButton(QStringLiteral("覆盖翻译中文名"), this);
     translateOverwrite->setProperty("testId", QStringLiteral("ActressTranslateOverwriteButton"));
-    auto *openMinnano = new DesignButton(QStringLiteral("跳转手动选择（需手动提交）"), this);
+    auto *openMinnano = new DesignButton(QStringLiteral("跳转手动选择(需手动提交)"), this);
     openMinnano->setProperty("testId", QStringLiteral("ActressManualMinnanoButton"));
     openMinnano->setToolTip(QStringLiteral("当搜索结果有多名女优时，打开 Minnano 手动确认"));
-    auto *show = new DesignButton(QStringLiteral("查看女优详情"), this);
+    auto *smallActions = new QWidget(this);
+    auto *smallActionsLayout = new QHBoxLayout(smallActions);
+    smallActionsLayout->setContentsMargins(0, 0, 0, 0);
+    auto *show = new IconButton(QStringLiteral("eye"), &themes, smallActions);
+    show->setToolTip(QStringLiteral("查看女优详情"));
     show->setProperty("testId", QStringLiteral("ActressShowButton"));
-    auto *remove = new DesignButton(QStringLiteral("删除女优"), this);
+    auto *remove = new IconButton(QStringLiteral("trash_2"), &themes, smallActions);
+    remove->setToolTip(QStringLiteral("删除女优"));
     remove->setProperty("testId", QStringLiteral("ActressDeleteButton"));
+    smallActionsLayout->addWidget(show);
+    smallActionsLayout->addWidget(remove);
+    smallActionsLayout->addStretch();
+    addActionButton(crawlerUpdate);
     addActionButton(translateMissing);
     addActionButton(translateOverwrite);
     addActionButton(openMinnano);
-    addActionButton(show);
-    addActionButton(remove);
+    addActionButton(smallActions);
     m_translateMissingButton = translateMissing;
     m_translateOverwriteButton = translateOverwrite;
+    connect(crawlerUpdate, &QPushButton::clicked, this, [this, &themes] {
+        if (!m_sync->fetchCapture(personId()))
+            Toast::showWarning(window(), QStringLiteral("无法开始女优采集：请确认日文名或稍后重试"),
+                               &themes);
+    });
     connect(translateMissing, &QPushButton::clicked, this, [this] { translateChineseNames(false); });
     connect(translateOverwrite, &QPushButton::clicked, this, [this] { translateChineseNames(true); });
     connect(openMinnano, &QPushButton::clicked, this, [this] {
@@ -173,7 +184,7 @@ bool ModifyActressPage::loadActress(qint64 actressId)
     {
         m_translateMissingButton->setEnabled(true);
         m_translateOverwriteButton->setEnabled(true);
-        m_translateMissingButton->setText(QStringLiteral("补全中文名（翻译）"));
+        m_translateMissingButton->setText(QStringLiteral("补全中文名(翻译)"));
         m_translateOverwriteButton->setText(QStringLiteral("覆盖翻译中文名"));
     }
     const bool loaded = loadPerson(PersonKind::Actress, actressId);
@@ -271,7 +282,7 @@ void ModifyActressPage::translateNextName()
         m_translationRows.clear();
         m_translateMissingButton->setEnabled(true);
         m_translateOverwriteButton->setEnabled(true);
-        m_translateMissingButton->setText(QStringLiteral("补全中文名（翻译）"));
+        m_translateMissingButton->setText(QStringLiteral("补全中文名(翻译)"));
         m_translateOverwriteButton->setText(QStringLiteral("覆盖翻译中文名"));
         Toast::showSuccess(window(),
                            QStringLiteral("中文名翻译完成：已回填 %1 条，请核对后提交修改")

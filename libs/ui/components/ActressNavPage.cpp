@@ -3,14 +3,16 @@
 #include "darkeye_ui/components/DesignButton.h"
 
 #include <QDesktopServices>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QGridLayout>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QProcess>
+#include <QRegularExpression>
 #include <QUrl>
-#include <QUrlQuery>
 
 #include <algorithm>
 
@@ -54,11 +56,18 @@ void ActressNavPage::loadButtons(QGridLayout *layout)
         connect(button, &QPushButton::clicked, this, [this, config] { openLink(config); });
         layout->addWidget(button, index / columns, index % columns);
     }
-    auto *reveal = new DesignButton(QStringLiteral("打开 JSON 配置文件夹"), this);
+    auto *reveal = new DesignButton(QStringLiteral("定位 JSON 配置文件"), this);
     reveal->setProperty("testId", QStringLiteral("ActressNavConfigButton"));
-    reveal->setToolTip(QStringLiteral("打开 actress_nav_buttons.json 所在文件夹"));
+    reveal->setToolTip(QStringLiteral("在文件管理器中选中 actress_nav_buttons.json；其他系统则打开其所在文件夹"));
     connect(reveal, &QPushButton::clicked, this, [this] {
+#ifdef Q_OS_WIN
+        // Keep the Python page's reveal-in-file-manager behavior: show the
+        // configuration file itself, instead of merely opening its directory.
+        QProcess::startDetached(QStringLiteral("explorer.exe"),
+                                {QStringLiteral("/select,%1").arg(QDir::toNativeSeparators(m_configFile))});
+#else
         QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(m_configFile).absolutePath()));
+#endif
     });
     layout->addWidget(reveal, (buttons.size() + columns - 1) / columns, 0, 1, columns);
 }
@@ -70,6 +79,15 @@ void ActressNavPage::openLink(const QJsonObject &config) const
         return;
     if (url.startsWith(QStringLiteral("www."), Qt::CaseInsensitive))
         url.prepend(QStringLiteral("https://"));
+    static const QRegularExpression tokenPattern(QStringLiteral("\\{([^{}]+)\\}"));
+    QRegularExpressionMatchIterator matches = tokenPattern.globalMatch(url);
+    while (matches.hasNext())
+    {
+        const QString token = matches.next().captured(1);
+        if (token != QStringLiteral("jp_name") && token != QStringLiteral("cn_name"))
+            return;
+    }
+
     const QJsonArray quoted = config.value(QStringLiteral("quote")).toArray();
     const auto replace = [&url, &quoted](const QString &token, const QString &value) {
         if (url.contains(QStringLiteral("{%1}").arg(token)) && value.isEmpty())
@@ -83,7 +101,7 @@ void ActressNavPage::openLink(const QJsonObject &config) const
     if (!replace(QStringLiteral("jp_name"), m_japaneseName) ||
         !replace(QStringLiteral("cn_name"), m_chineseName))
         return;
-    QDesktopServices::openUrl(QUrl(url));
+    QDesktopServices::openUrl(QUrl::fromEncoded(url.toUtf8()));
 }
 
 } // namespace darkeye

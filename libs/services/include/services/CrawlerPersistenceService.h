@@ -30,6 +30,9 @@ public:
                  const QSet<QString> &selectedFields);
 
 signals:
+    /// Cover downloads begin only after the metadata transaction succeeds.
+    /// This lets the Inbox distinguish persistence from the final download stage.
+    void coverDownloadStarted(const QString &serialNumber, int total);
     void finished(const QString &serialNumber, bool succeeded, const QString &errorMessage);
     void workPersisted(qint64 workId, const QString &serialNumber);
     void completenessChanged(const QString &serialNumber, const QMap<QString, bool> &flags);

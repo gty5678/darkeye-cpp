@@ -281,6 +281,7 @@ void CrawlerPersistenceService::persistTranslatedPayload()
     m_activeSerial = serial;
     m_activeWorkId = workId;
     m_coverIndex = 0;
+    emit coverDownloadStarted(serial, m_coverUrls.size());
     fetchNextCover();
 }
 
