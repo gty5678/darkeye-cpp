@@ -14,7 +14,8 @@
 ![Qt 6.10][badge-qt]
 ![C++][badge-cpp]
 ![CMake][badge-cmake]
-![MSVC][badge-msvc]
+![MSVC 2022][badge-msvc]
+[![SQLite][badge-sqlite]](https://sqlite.org/)
 ![Platform][badge-platform]
 ![License][badge-license]
 ![GitHub last commit][badge-last-commit]
@@ -284,8 +285,9 @@
 [badge-qt]: https://img.shields.io/badge/Qt-6.10.3-41CD52?logo=qt&logoColor=white
 [badge-cpp]: https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus
 [badge-cmake]: https://img.shields.io/badge/CMake-CMake-064F8C?logo=cmake
-[badge-msvc]: https://img.shields.io/badge/MSVC-2022-5C2D91?logo=visualstudio
-[badge-platform]: https://img.shields.io/badge/Platform-Windows-blue
+[badge-msvc]: https://img.shields.io/badge/MSVC-2022-5C2D91?logo=visualstudio&logoColor=white
+[badge-sqlite]: https://img.shields.io/badge/SQLite-local%20storage-003B57?logo=sqlite&logoColor=white
+[badge-platform]: https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows&logoColor=white
 [badge-license]: https://img.shields.io/github/license/gty5678/darkeye-cpp
 [badge-last-commit]: https://img.shields.io/github/last-commit/gty5678/darkeye-cpp
 [badge-release]: https://img.shields.io/github/v/release/gty5678/darkeye-cpp
