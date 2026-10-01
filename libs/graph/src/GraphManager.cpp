@@ -340,4 +340,14 @@ QSet<QString> GraphManager::favoriteWorkNodeIds(QString *errorMessage) const
     return m_repository.favoriteWorkNodeIds(errorMessage);
 }
 
+QString GraphManager::imagePathForNode(const QString &nodeId) const
+{
+    return m_repository.imagePathForNode(nodeId);
+}
+
+QString GraphManager::publicDatabasePath() const
+{
+    return m_publicDatabaseName;
+}
+
 } // namespace darkeye::graph

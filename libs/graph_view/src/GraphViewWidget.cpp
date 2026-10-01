@@ -4,6 +4,11 @@
 #include "graph_view/ForceViewRhiWidget.h"
 
 #include <QShowEvent>
+#include <QDir>
+#include <QFileInfo>
+#include <QImageReader>
+#include <QLabel>
+#include <QPixmap>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -18,12 +23,34 @@ GraphViewWidget::GraphViewWidget(graph::GraphManager &manager, QWidget *parent)
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(m_view);
+    const QDir publicDataDirectory(QFileInfo(m_manager.publicDatabasePath()).absolutePath());
+    m_actressImageDirectory = publicDataDirectory.filePath(QStringLiteral("actressimages"));
+    m_workCoverDirectory = publicDataDirectory.filePath(QStringLiteral("workcovers"));
+    m_nodeImage = new QLabel(this);
+    m_nodeImage->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_nodeImage->setAlignment(Qt::AlignCenter);
+    m_nodeImage->setStyleSheet(QStringLiteral("background: transparent;"));
+    m_nodeImage->hide();
+    m_nodeImagePositionTimer = new QTimer(this);
+    m_nodeImagePositionTimer->setInterval(16);
+    connect(m_nodeImagePositionTimer, &QTimer::timeout, this,
+            &GraphViewWidget::updateNodeImagePosition);
     connect(m_view, &ForceViewRhiWidget::nodeLeftClicked, this,
             &GraphViewWidget::nodeLeftClicked);
+    connect(m_view, &ForceViewRhiWidget::nodeHoveredWithInfo, this,
+            [this](const QString &nodeId, float, float, float radius, float, bool dragging) {
+                showNodeImage(nodeId, radius, dragging);
+            });
     connect(&m_manager, &graph::GraphManager::graphChanged, this,
             &GraphViewWidget::applyManagerChange);
     connect(&m_manager, &graph::GraphManager::loadFailed, this,
             &GraphViewWidget::loadFailed);
+}
+
+void GraphViewWidget::setImageDirectories(QString actressDirectory, QString workCoverDirectory)
+{
+    m_actressImageDirectory = std::move(actressDirectory);
+    m_workCoverDirectory = std::move(workCoverDirectory);
 }
 
 void GraphViewWidget::setFavoriteOnly(bool enabled)
@@ -172,6 +199,7 @@ void GraphViewWidget::reloadView()
 
 void GraphViewWidget::applyManagerChange()
 {
+    hideNodeImage();
     if (m_showingTestGraph) return;
     if (m_session.filterMode() == graph::GraphFilterMode::FavoriteWorks) {
         QString error;
@@ -201,6 +229,70 @@ void GraphViewWidget::applyManagerChange()
         return;
     }
     m_presenter.apply(m_session.refresh(), m_style);
+}
+
+QString GraphViewWidget::imageFilePath(const QString &nodeId) const
+{
+    const QString imageName = m_manager.imagePathForNode(nodeId);
+    if (imageName.isEmpty()) return {};
+    if (QFileInfo(imageName).isAbsolute()) return imageName;
+    const QString directory = nodeId.startsWith(QLatin1Char('a'))
+        ? m_actressImageDirectory : m_workCoverDirectory;
+    return QDir(directory).filePath(imageName);
+}
+
+void GraphViewWidget::showNodeImage(const QString &nodeId, float radius, bool dragging)
+{
+    if (dragging || nodeId.isEmpty()
+        || (nodeId.front() != QLatin1Char('a') && nodeId.front() != QLatin1Char('w'))) {
+        hideNodeImage();
+        return;
+    }
+    const QString path = imageFilePath(nodeId);
+    QImage image = QImageReader(path).read();
+    if (image.isNull()) {
+        hideNodeImage();
+        return;
+    }
+
+    const bool actress = nodeId.startsWith(QLatin1Char('a'));
+    const QSize targetSize = actress ? QSize(180, 180) : QSize(140, 200);
+    if (!actress) {
+        const int cropWidth = qRound(image.height() * 0.7);
+        if (cropWidth > 0 && image.width() > cropWidth)
+            image = image.copy(image.width() - cropWidth, 0, cropWidth, image.height());
+        image = image.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    } else {
+        image = image.scaled(targetSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    }
+    m_nodeImage->setFixedSize(targetSize);
+    m_nodeImage->setPixmap(QPixmap::fromImage(image));
+    m_hoveredNodeId = nodeId;
+    m_hoveredNodeRadius = radius;
+    updateNodeImagePosition();
+    m_nodeImage->show();
+    m_nodeImage->raise();
+    m_nodeImagePositionTimer->start();
+}
+
+void GraphViewWidget::updateNodeImagePosition()
+{
+    if (m_hoveredNodeId.isEmpty() || m_nodeImage == nullptr) return;
+    const QPointF position = m_view->getNodePosition(m_hoveredNodeId);
+    if (position.isNull()) return;
+    const float zoom = m_view->getZoom();
+    const qreal screenX = (position.x() - m_view->getPanX()) * zoom + m_view->width() / 2.0;
+    const qreal screenY = (position.y() - m_view->getPanY()) * zoom + m_view->height() / 2.0;
+    m_nodeImage->move(qRound(screenX - m_nodeImage->width() / 2.0),
+                      qRound(screenY - m_hoveredNodeRadius * zoom
+                             - m_nodeImage->height() - 20.0));
+}
+
+void GraphViewWidget::hideNodeImage()
+{
+    m_hoveredNodeId.clear();
+    if (m_nodeImage != nullptr) m_nodeImage->hide();
+    if (m_nodeImagePositionTimer != nullptr) m_nodeImagePositionTimer->stop();
 }
 
 void GraphViewWidget::loadVisibleSnapshot()

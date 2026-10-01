@@ -16,6 +16,8 @@ public:
     /** Synchronize one work and its derived relationship edges without rebuilding the graph. */
     bool syncWork(GraphStore &store, qint64 workId, QString *errorMessage = nullptr) const;
     [[nodiscard]] QSet<QString> favoriteWorkNodeIds(QString *errorMessage = nullptr) const;
+    /** Return the database image filename for an actress/work graph node. */
+    [[nodiscard]] QString imagePathForNode(const QString &nodeId) const;
 
 private:
     QSqlDatabase m_publicDatabase;

@@ -327,4 +327,24 @@ QSet<QString> GraphRepository::favoriteWorkNodeIds(QString *errorMessage) const
     return result;
 }
 
+QString GraphRepository::imagePathForNode(const QString &nodeId) const
+{
+    if (!m_publicDatabase.isOpen() || nodeId.size() < 2) return {};
+
+    bool ok = false;
+    const qint64 id = nodeId.mid(1).toLongLong(&ok);
+    if (!ok || id <= 0) return {};
+
+    QSqlQuery query(m_publicDatabase);
+    if (nodeId.startsWith(QLatin1Char('a'))) {
+        query.prepare(QStringLiteral("SELECT image_urlA FROM actress WHERE actress_id=?"));
+    } else if (nodeId.startsWith(QLatin1Char('w'))) {
+        query.prepare(QStringLiteral("SELECT image_url FROM work WHERE work_id=?"));
+    } else {
+        return {};
+    }
+    query.addBindValue(id);
+    return query.exec() && query.next() ? query.value(0).toString().trimmed() : QString();
+}
+
 } // namespace darkeye::graph

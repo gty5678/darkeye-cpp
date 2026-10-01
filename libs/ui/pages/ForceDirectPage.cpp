@@ -26,7 +26,8 @@
 namespace darkeye {
 
 ForceDirectPage::ForceDirectPage(ThemeService &themeService, graph::GraphManager &graphManager,
-                                 QWidget *parent)
+                                 QWidget *parent, QString actressImageDirectory,
+                                 QString workCoverDirectory)
     : LazyWidget(parent), m_themeService(themeService), m_graphManager(graphManager)
 {
     // QRhiWidget must already belong to the top-level widget tree when that
@@ -36,6 +37,10 @@ ForceDirectPage::ForceDirectPage(ThemeService &themeService, graph::GraphManager
     layout->setContentsMargins(0, 0, 0, 0);
 
     m_graphView = new graph_view::GraphViewWidget(m_graphManager, this);
+    if (!actressImageDirectory.isEmpty() || !workCoverDirectory.isEmpty()) {
+        m_graphView->setImageDirectories(std::move(actressImageDirectory),
+                                         std::move(workCoverDirectory));
+    }
     layout->addWidget(m_graphView, 1);
 
     // The first QRhi render target is not ready when this stacked page first

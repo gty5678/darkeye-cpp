@@ -44,6 +44,10 @@ public:
     [[nodiscard]] bool isInitialized() const noexcept;
     [[nodiscard]] const GraphStore &store() const noexcept;
     [[nodiscard]] QSet<QString> favoriteWorkNodeIds(QString *errorMessage = nullptr) const;
+    /** Resolve the database image filename for a graph node on the UI thread. */
+    [[nodiscard]] QString imagePathForNode(const QString &nodeId) const;
+    /** Public database file path, used to locate the adjacent image directories. */
+    [[nodiscard]] QString publicDatabasePath() const;
 
 signals:
     void initialized();

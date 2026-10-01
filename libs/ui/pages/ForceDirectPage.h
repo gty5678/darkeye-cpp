@@ -25,7 +25,8 @@ class ForceDirectPage final : public LazyWidget
 
 public:
     explicit ForceDirectPage(ThemeService &themeService, graph::GraphManager &graphManager,
-                             QWidget *parent = nullptr);
+                             QWidget *parent = nullptr, QString actressImageDirectory = {},
+                             QString workCoverDirectory = {});
     void refreshGraph();
     void setEgoGraph(const QString &centerId, int radius = 3);
     void showEmptyGraph();
