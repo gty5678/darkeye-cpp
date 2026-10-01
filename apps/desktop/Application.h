@@ -30,6 +30,7 @@ private:
     void applyInitialTheme();
     void prewarmGraphRenderer();
     void startBackgroundServices();
+    void checkForUpdatesAutomatically();
     void stopLlamaServer();
 
     QApplication m_application;

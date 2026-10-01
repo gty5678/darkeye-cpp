@@ -424,11 +424,28 @@ void AboutSettingsPage::lazyLoad()
     layout->addLayout(versionRow);
 
     auto *updateOptions = new QHBoxLayout;
-    auto *automaticUpdate = new TokenRadioButton(QStringLiteral("自动更新"), this);
-    automaticUpdate->setEnabled(false);
+    const AppSettings appSettings = settings::app();
+    auto *automaticUpdate = new TokenCheckBox(QStringLiteral("自动检查更新（每周一次）"), this);
+    automaticUpdate->setChecked(appSettings.update.automaticCheck);
     auto *updateNotification =
-        new TokenRadioButton(QStringLiteral("有新版本时提醒我"), this);
-    updateNotification->setEnabled(false);
+        new TokenCheckBox(QStringLiteral("有新版本时提醒我"), this);
+    updateNotification->setChecked(appSettings.update.updateNotification);
+    connect(automaticUpdate, &QCheckBox::toggled, this, [updateNotification](bool enabled) {
+        updateNotification->setEnabled(enabled);
+        if (!enabled)
+            updateNotification->setChecked(false);
+        AppSettings saved = settings::app();
+        saved.update.automaticCheck = enabled;
+        if (!enabled)
+            saved.update.updateNotification = false;
+        settings::saveApp(saved);
+    });
+    connect(updateNotification, &QCheckBox::toggled, this, [](bool enabled) {
+        AppSettings saved = settings::app();
+        saved.update.updateNotification = enabled;
+        settings::saveApp(saved);
+    });
+    updateNotification->setEnabled(appSettings.update.automaticCheck);
     updateOptions->addWidget(automaticUpdate);
     updateOptions->addWidget(updateNotification);
     updateOptions->addStretch();

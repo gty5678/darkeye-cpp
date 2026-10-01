@@ -6,20 +6,61 @@
 #include "http/LocalApiServer.h"
 #include "MainWindow.h"
 #include "graph_view/ForceViewRhiWidget.h"
+#include "services/UpdateService.h"
 #include "ui/dialogs/TermsDialog.h"
 
 #include <QColor>
+#include <QDate>
+#include <QDir>
 #include <QEventLoop>
 #include <QIcon>
 #include <QMessageBox>
 #include <QFileInfo>
 #include <QProcess>
+#include <QSettings>
 #include <QStackedWidget>
 #include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
 
 namespace darkeye {
+
+namespace
+{
+
+QString latestManifestUrl()
+{
+    const QString configPath = QDir(QCoreApplication::applicationDirPath())
+                                   .filePath(QStringLiteral("resources/config/update.ini"));
+    QSettings config(configPath, QSettings::IniFormat);
+    const QString configured = config.value(QStringLiteral("Update/LatestJsonUrl")).toString().trimmed();
+    return configured.isEmpty() ? QStringLiteral("https://darkeye.win/latest.json") : configured;
+}
+
+QString currentIsoWeek()
+{
+    int year = 0;
+    const int week = QDate::currentDate().weekNumber(&year);
+    return QStringLiteral("%1-%2").arg(year).arg(week, 2, 10, QLatin1Char('0'));
+}
+
+bool startUpdater()
+{
+    const QString updater = QDir(QCoreApplication::applicationDirPath())
+                                .filePath(QStringLiteral("DarkEyeUpdater.exe"));
+    if (!QFileInfo::exists(updater))
+        return false;
+    const QStringList arguments = {
+        QStringLiteral("--install-dir"), QCoreApplication::applicationDirPath(),
+        QStringLiteral("--current-version"), QStringLiteral(DARKEYE_VERSION),
+        QStringLiteral("--main-exe"), QStringLiteral("DarkEye.exe"),
+        QStringLiteral("--latest-json-url"), latestManifestUrl(),
+        QStringLiteral("--keep"), QStringLiteral("data"),
+        QStringLiteral("--pid"), QString::number(QCoreApplication::applicationPid())};
+    return QProcess::startDetached(updater, arguments, QCoreApplication::applicationDirPath());
+}
+
+} // namespace
 
 Application::Application(int &argc, char **argv)
     : m_application(argc, argv), m_themeService(m_application)
@@ -149,6 +190,8 @@ void Application::startBackgroundServices()
         && !m_managedCollector->start(crawlerSettings.collectorExecutable, &errorMessage))
         qWarning() << "Collector did not start:" << errorMessage;
 
+    checkForUpdatesAutomatically();
+
     const TranslationSettings translation = settings::translation();
     const LlamaCppSettings &llama = translation.llama;
     if (!llama.autoStart) return;
@@ -174,6 +217,51 @@ void Application::startBackgroundServices()
         qWarning() << "llama-server auto start failed:" << m_llamaServer->errorString();
     else
         qInfo() << "llama-server started with PID" << m_llamaServer->processId();
+}
+
+void Application::checkForUpdatesAutomatically()
+{
+    AppSettings appSettings = settings::app();
+    if (!appSettings.update.automaticCheck)
+        return;
+
+    const QString week = currentIsoWeek();
+    if (appSettings.update.lastAutoCheckWeek == week)
+        return;
+
+    // Persist the attempt before issuing the request. This matches the Python
+    // client's once-per-week policy and avoids a network failure delaying startup
+    // with another check on every launch.
+    appSettings.update.lastAutoCheckWeek = week;
+    settings::saveApp(appSettings);
+
+    auto *service = new UpdateService(&m_application);
+    QObject::connect(service, &UpdateService::finished, &m_application,
+                     [this, service, showNotification = appSettings.update.updateNotification]
+                     (const utils::UpdateCheckResult &result)
+                     {
+                service->deleteLater();
+                if (!result.success) {
+                    qWarning() << "Automatic update check failed:" << result.message;
+                    return;
+                }
+                if (!result.updateAvailable || !showNotification || m_mainWindow == nullptr)
+                    return;
+
+                const QString prompt = result.message
+                    + QStringLiteral("\n\n是否立即更新？软件将退出以完成更新。");
+                if (QMessageBox::question(m_mainWindow.get(), QStringLiteral("发现新版本"), prompt,
+                                          QMessageBox::Yes | QMessageBox::No,
+                                          QMessageBox::Yes) != QMessageBox::Yes)
+                    return;
+                if (!startUpdater()) {
+                    QMessageBox::critical(m_mainWindow.get(), QStringLiteral("更新失败"),
+                                          QStringLiteral("无法启动更新程序。"));
+                    return;
+                }
+                QCoreApplication::quit();
+                     });
+    service->check(QUrl::fromUserInput(latestManifestUrl()), QStringLiteral(DARKEYE_VERSION));
 }
 
 void Application::stopLlamaServer()

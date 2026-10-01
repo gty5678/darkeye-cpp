@@ -171,6 +171,12 @@ AppSettings app(QString settingsFile)
     settings.videoPaths = readVideoPaths(m_store.value(QStringLiteral("Paths/Videos")).toString());
     settings.update.lastAutoCheckWeek =
         m_store.value(QStringLiteral("Update/LastAutoCheckWeek")).toString().trimmed();
+    settings.update.automaticCheck =
+        m_store.value(QStringLiteral("Update/AutomaticCheck"),
+                      settings.update.automaticCheck).toBool();
+    settings.update.updateNotification =
+        m_store.value(QStringLiteral("Update/UpdateNotification"),
+                      settings.update.updateNotification).toBool();
     return settings;
 }
 
@@ -300,6 +306,8 @@ void saveApp(const AppSettings &settings, QString settingsFile)
         {QStringLiteral("Video/LocalPlayerExe"), settings.localVideoPlayer.trimmed()},
         {QStringLiteral("Paths/Videos"), normalizedVideoPaths(settings.videoPaths).join(u',')},
         {QStringLiteral("Update/LastAutoCheckWeek"), settings.update.lastAutoCheckWeek.trimmed()},
+        {QStringLiteral("Update/AutomaticCheck"), settings.update.automaticCheck},
+        {QStringLiteral("Update/UpdateNotification"), settings.update.updateNotification},
     });
 }
 
