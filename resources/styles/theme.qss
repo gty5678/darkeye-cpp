@@ -322,6 +322,10 @@ QTabWidget#DesignTabWidget::pane {
     border-radius: 8px;
     background-color: @BACKGROUND@;
 }
+QTabWidget#StatisticsTabs::pane {
+    border: none;
+    background-color: transparent;
+}
 QTabBar#DesignTabBar::tab {
     color: @TEXT_PLACEHOLDER@;
     background-color: transparent;

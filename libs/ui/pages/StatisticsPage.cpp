@@ -23,6 +23,9 @@ void StatisticsPage::lazyLoad()
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     auto *tabs = new TokenTabWidget(this);
+    // The shared TokenTabWidget draws a framed pane.  Statistics uses full-page
+    // content, so that frame only creates a visually broken outline below tabs.
+    tabs->setObjectName(QStringLiteral("StatisticsTabs"));
     m_personalData = new PersonalDataPage(m_publicDatabase, m_privateDatabase,
                                           m_themeService, m_actressImageDirectory, tabs);
     m_plots = new PlotTabPage(m_publicDatabase, m_privateDatabase, tabs);
