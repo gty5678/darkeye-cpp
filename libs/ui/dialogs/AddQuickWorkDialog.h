@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDialog>
+#include <QStringList>
 
 class QTableWidget;
 
@@ -19,6 +20,10 @@ class AddQuickWorkDialog final : public QDialog
 public:
     explicit AddQuickWorkDialog(CrawlerScheduler &crawlerScheduler, ThemeService &themes,
                                 QWidget *parent = nullptr);
+
+    /// Replaces the editable list with serials discovered elsewhere in the app.
+    /// Entries are normalized and selected so callers can immediately submit them.
+    void loadSerials(const QStringList &serials);
 
 private:
     void addRow(const QString &serial = {});

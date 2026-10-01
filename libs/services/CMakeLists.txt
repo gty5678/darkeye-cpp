@@ -3,6 +3,7 @@ file(GLOB_RECURSE DARKEYE_SERVICE_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 
 set(DARKEYE_SERVICE_QOBJECT_HEADERS
     include/services/ActressSyncService.h
+    include/services/AvwikiUpdateService.h
     include/services/BatchTranslationService.h
     include/services/UpdateService.h
 )
@@ -19,5 +20,5 @@ set_property(TARGET darkeye_services PROPERTY AUTOMOC ON)
 target_include_directories(darkeye_services PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
 )
-target_link_libraries(darkeye_services PUBLIC darkeye::core darkeye::database darkeye::settings)
+target_link_libraries(darkeye_services PUBLIC darkeye::core darkeye::database darkeye::settings Qt6::Network)
 darkeye_apply_compiler_options(darkeye_services)

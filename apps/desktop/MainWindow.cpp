@@ -752,7 +752,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
     if (routeName == QStringLiteral("database"))
     {
         m_managementPage =
-            new ManagementPage(m_publicDatabase, m_themeService, *m_crawlerScheduler,
+            new ManagementPage(m_publicDatabase, m_themeService, *m_crawlerScheduler, m_privateDatabase,
                                m_paths.workCoverDirectory(), m_paths.actressImageDirectory(),
                                m_paths.fanartDirectory(),
                                settings::crawler().coverFetchApiUrl,
@@ -887,6 +887,28 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
             if (m_shelfPage)
                 m_shelfPage->refresh();
             refreshRelationshipGraph();
+        });
+        connect(settings, &SettingsPage::quickWorkRequested, this,
+                [this](const QStringList &serials) {
+            AddQuickWorkDialog dialog(*m_crawlerScheduler, m_themeService, this);
+            dialog.loadSerials(serials);
+            dialog.exec();
+        });
+        connect(settings, &SettingsPage::referencesChanged, this, [this](ReferenceKind) {
+            if (m_workPage) m_workPage->refreshReferences();
+            if (m_shelfPage) m_shelfPage->refreshReferences();
+        });
+        connect(settings, &SettingsPage::tagsChanged, this, [this] {
+            if (m_workPage) m_workPage->refreshTags();
+            if (m_shelfPage) m_shelfPage->refreshTags();
+        });
+        connect(settings, &SettingsPage::actressesChanged, this, [this] {
+            if (m_actressPage) m_actressPage->refresh();
+            if (m_managementPage) m_managementPage->refreshPersonSelectors();
+        });
+        connect(settings, &SettingsPage::actorsChanged, this, [this] {
+            if (m_actorPage) m_actorPage->refresh();
+            if (m_managementPage) m_managementPage->refreshPersonSelectors();
         });
         return settings;
     }

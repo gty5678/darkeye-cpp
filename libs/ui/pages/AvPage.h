@@ -6,11 +6,15 @@
 #include <QString>
 
 class QFileSystemWatcher;
+class QPlainTextEdit;
 class QShowEvent;
+class QStackedWidget;
 class QTextBrowser;
+class QTimer;
 class QTreeWidget;
 class QTreeWidgetItem;
 class QUrl;
+namespace darkeye { class AvwikiUpdateService; class DesignButton; }
 
 namespace darkeye
 {
@@ -33,6 +37,12 @@ private:
     [[nodiscard]] QTreeWidgetItem *firstDocument(QTreeWidgetItem *item) const;
     void openItem(QTreeWidgetItem *item);
     void loadDocument(const QString &filePath);
+    void loadEditor(const QString &filePath);
+    void autoSave();
+    void switchToPreview();
+    void switchToEdit();
+    void watchDirectory();
+    [[nodiscard]] QUrl updateManifestUrl() const;
     void handleLink(const QUrl &url);
 
     QString m_requestedWikiDirectory;
@@ -40,9 +50,18 @@ private:
     QString m_currentPath;
     QTreeWidget *m_tree = nullptr;
     QTextBrowser *m_browser = nullptr;
+    QPlainTextEdit *m_editor = nullptr;
+    QStackedWidget *m_contentStack = nullptr;
+    DesignButton *m_previewButton = nullptr;
+    DesignButton *m_editButton = nullptr;
+    DesignButton *m_updateButton = nullptr;
     QFileSystemWatcher *m_watcher = nullptr;
+    QTimer *m_saveTimer = nullptr;
+    AvwikiUpdateService *m_updateService = nullptr;
     QHash<QString, QString> m_stemToPath;
     QHash<QString, QTreeWidgetItem *> m_pathToItem;
+    bool m_editDirty = false;
+    bool m_loadingEditor = false;
 };
 
 } // namespace darkeye

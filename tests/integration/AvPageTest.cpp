@@ -2,6 +2,8 @@
 
 #include <QDir>
 #include <QFile>
+#include <QPlainTextEdit>
+#include <QPushButton>
 #include <QTemporaryDir>
 #include <QTextBrowser>
 #include <QTreeWidget>
@@ -14,6 +16,7 @@ class AvPageTest final : public QObject
 
 private slots:
     void buildsDocumentTreeAndRendersMarkdown();
+    void editsAndAutomaticallySavesMarkdown();
 };
 
 void AvPageTest::buildsDocumentTreeAndRendersMarkdown()
@@ -47,6 +50,39 @@ void AvPageTest::buildsDocumentTreeAndRendersMarkdown()
     browser->anchorClicked(QUrl(QStringLiteral("internal:详情")));
     QCOMPARE(tree->currentItem()->text(0), QStringLiteral("详情"));
     QVERIFY(browser->toPlainText().contains(QStringLiteral("正文")));
+}
+
+void AvPageTest::editsAndAutomaticallySavesMarkdown()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString filePath = directory.filePath(QStringLiteral("首页.md"));
+    QFile file(filePath);
+    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    QVERIFY(file.write("# 原始内容") > 0);
+    file.close();
+
+    darkeye::AvPage page(directory.path());
+    page.initialize();
+    auto *edit = page.findChild<QPushButton *>(QStringLiteral("AvWikiEditButton"));
+    auto *preview = page.findChild<QPushButton *>(QStringLiteral("AvWikiPreviewButton"));
+    auto *editor = page.findChild<QPlainTextEdit *>(QStringLiteral("AvWikiEditor"));
+    QVERIFY(edit != nullptr);
+    QVERIFY(preview != nullptr);
+    QVERIFY(editor != nullptr);
+
+    edit->click();
+    QCOMPARE(editor->toPlainText(), QStringLiteral("# 原始内容"));
+    editor->setPlainText(QStringLiteral("# 已自动保存"));
+    QTRY_VERIFY_WITH_TIMEOUT([&] {
+        QFile saved(filePath);
+        return saved.open(QIODevice::ReadOnly | QIODevice::Text)
+               && QString::fromUtf8(saved.readAll()) == QStringLiteral("# 已自动保存");
+    }(), 2500);
+
+    preview->click();
+    auto *browser = page.findChild<QTextBrowser *>(QStringLiteral("AvWikiBrowser"));
+    QVERIFY(browser->toPlainText().contains(QStringLiteral("已自动保存")));
 }
 
 QTEST_MAIN(AvPageTest)

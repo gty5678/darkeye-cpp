@@ -23,6 +23,7 @@ class ManagementPage final : public LazyWidget
 public:
     explicit ManagementPage(
         QSqlDatabase database, ThemeService &themes, CrawlerScheduler &crawlerScheduler,
+        QSqlDatabase privateDatabase = {},
         QString coverDirectory = {},
         QString actressImageDirectory = {},
         QString fanartDirectory = {},
@@ -57,6 +58,7 @@ private:
         SeriesManagementTab,
         BatchOperationsTab,
         SummaryQueryTab,
+        PersonalRecordManagementTab,
         SoftDeleteTab,
         RecycleBinTab,
     };
@@ -65,6 +67,7 @@ private:
     void ensureTabLoaded(int index);
 
     QSqlDatabase m_database;
+    QSqlDatabase m_privateDatabase;
     ThemeService &m_themes;
     QString m_coverDirectory;
     QString m_actressImageDirectory;

@@ -2,11 +2,13 @@
 
 #include "settings/Settings.h"
 #include "settings/Paths.h"
+#include "database/repositories/ReferenceRepository.h"
 #include "darkeye_ui/base/LazyWidget.h"
 #include "darkeye_ui/theme/ThemeService.h"
 
 #include <QJsonObject>
 #include <QSqlDatabase>
+#include <QStringList>
 #include <QWidget>
 
 class QComboBox;
@@ -47,6 +49,7 @@ public:
 
 signals:
     void worksChanged();
+    void quickWorkRequested(const QStringList &serials);
 
 private:
     void lazyLoad() override;
@@ -132,9 +135,14 @@ class NfoSettingsPage final : public LazyWidget
     Q_OBJECT
 
 public:
-    explicit NfoSettingsPage(QSqlDatabase publicDatabase, QWidget *parent = nullptr);
+    explicit NfoSettingsPage(QSqlDatabase publicDatabase, settings::Paths paths,
+                             QWidget *parent = nullptr);
 
 signals:
+    void referencesChanged(ReferenceKind kind);
+    void tagsChanged();
+    void actressesChanged();
+    void actorsChanged();
     void worksChanged();
 
 private:
@@ -142,6 +150,8 @@ private:
     void importFile(bool mdcz);
     void importFolder(bool mdcz, bool useVideoPaths);
     QSqlDatabase m_publicDatabase;
+    settings::Paths m_paths;
+    bool m_batchImportRunning = false;
 };
 
 class TranslationSettingsPage final : public LazyWidget
@@ -249,7 +259,12 @@ public:
     [[nodiscard]] QComboBox *themeSelector() const;
 
 signals:
+    void referencesChanged(ReferenceKind kind);
+    void tagsChanged();
+    void actressesChanged();
+    void actorsChanged();
     void worksChanged();
+    void quickWorkRequested(const QStringList &serials);
 
 private:
     void lazyLoad() override;

@@ -1,7 +1,9 @@
 #include "ui/pages/AvPage.h"
 
 #include "darkeye_ui/components/DesignButton.h"
+#include "darkeye_ui/components/ToastNotification.h"
 #include "settings/Paths.h"
+#include "services/AvwikiUpdateService.h"
 
 #include <QDesktopServices>
 #include <QDir>
@@ -12,9 +14,13 @@
 #include <QFont>
 #include <QHBoxLayout>
 #include <QRegularExpression>
+#include <QPlainTextEdit>
+#include <QSettings>
 #include <QShowEvent>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QTextBrowser>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -71,15 +77,18 @@ void AvPage::lazyLoad()
     contentLayout->setContentsMargins(0, 0, 0, 0);
 
     auto *toolbar = new QHBoxLayout;
-    auto *previewButton = new Button(QStringLiteral("预览"), content);
-    previewButton->setCheckable(true);
-    previewButton->setChecked(true);
-    auto *editButton = new Button(QStringLiteral("编辑"), content);
-    editButton->setCheckable(true);
-    editButton->setEnabled(false);
-    editButton->setToolTip(QStringLiteral("知识库当前为只读内容"));
-    toolbar->addWidget(previewButton);
-    toolbar->addWidget(editButton);
+    m_previewButton = new Button(QStringLiteral("预览"), content);
+    m_previewButton->setObjectName(QStringLiteral("AvWikiPreviewButton"));
+    m_previewButton->setCheckable(true);
+    m_previewButton->setChecked(true);
+    m_editButton = new Button(QStringLiteral("编辑"), content);
+    m_editButton->setObjectName(QStringLiteral("AvWikiEditButton"));
+    m_editButton->setCheckable(true);
+    m_updateButton = new Button(QStringLiteral("更新知识库"), content);
+    m_updateButton->setObjectName(QStringLiteral("AvWikiUpdateButton"));
+    toolbar->addWidget(m_previewButton);
+    toolbar->addWidget(m_editButton);
+    toolbar->addWidget(m_updateButton);
     toolbar->addStretch();
     contentLayout->addLayout(toolbar);
 
@@ -90,7 +99,14 @@ void AvPage::lazyLoad()
     QFont contentFont = m_browser->font();
     contentFont.setPointSize(13);
     m_browser->setFont(contentFont);
-    contentLayout->addWidget(m_browser, 1);
+    m_editor = new QPlainTextEdit(content);
+    m_editor->setObjectName(QStringLiteral("AvWikiEditor"));
+    m_editor->setFont(contentFont);
+    m_editor->setPlaceholderText(QStringLiteral("请在左侧选择一篇文档"));
+    m_contentStack = new QStackedWidget(content);
+    m_contentStack->addWidget(m_browser);
+    m_contentStack->addWidget(m_editor);
+    contentLayout->addWidget(m_contentStack, 1);
 
     splitter->addWidget(m_tree);
     splitter->addWidget(content);
@@ -101,18 +117,44 @@ void AvPage::lazyLoad()
             [this](QTreeWidgetItem *item, int) { openItem(item); });
     connect(m_browser, &QTextBrowser::anchorClicked, this,
             [this](const QUrl &url) { handleLink(url); });
+    connect(m_previewButton, &Button::clicked, this, [this] { switchToPreview(); });
+    connect(m_editButton, &Button::clicked, this, [this] { switchToEdit(); });
+    connect(m_editor, &QPlainTextEdit::textChanged, this, [this] {
+        if (m_loadingEditor) return;
+        m_editDirty = true;
+        m_saveTimer->start(1500);
+    });
+
+    m_saveTimer = new QTimer(this);
+    m_saveTimer->setSingleShot(true);
+    connect(m_saveTimer, &QTimer::timeout, this, &AvPage::autoSave);
+
+    m_updateService = new AvwikiUpdateService(this);
+    connect(m_updateButton, &Button::clicked, this, [this] {
+        autoSave();
+        m_updateButton->setEnabled(false);
+        m_updateButton->setText(QStringLiteral("更新中..."));
+        m_updateService->update(updateManifestUrl(), m_wikiDirectory);
+    });
+    connect(m_updateService, &AvwikiUpdateService::finished, this,
+            [this](const AvwikiUpdateResult &result) {
+                m_updateButton->setEnabled(true);
+                m_updateButton->setText(QStringLiteral("更新知识库"));
+                if (result.success) {
+                    rebuildTree();
+                    restoreSelection();
+                    watchDirectory();
+                    Toast::showSuccess(window(), result.message);
+                } else {
+                    Toast::showError(window(), result.message);
+                }
+            });
 
     m_wikiDirectory = resolveWikiDirectory();
     m_watcher = new QFileSystemWatcher(this);
-    if (QFileInfo::exists(m_wikiDirectory))
-    {
-        m_watcher->addPath(m_wikiDirectory);
-        connect(m_watcher, &QFileSystemWatcher::directoryChanged, this,
-                [this] {
-                    rebuildTree();
-                    restoreSelection();
-                });
-    }
+    connect(m_watcher, &QFileSystemWatcher::directoryChanged, this,
+            [this] { rebuildTree(); restoreSelection(); watchDirectory(); });
+    watchDirectory();
 
     rebuildTree();
     selectFirstDocument();
@@ -239,8 +281,12 @@ void AvPage::openItem(QTreeWidgetItem *item)
     if (item == nullptr) return;
     const QString filePath = item->data(0, documentPathRole).toString();
     if (filePath.isEmpty()) return;
+    autoSave();
     m_currentPath = normalizedPath(filePath);
-    loadDocument(m_currentPath);
+    if (m_contentStack->currentWidget() == m_editor)
+        loadEditor(m_currentPath);
+    else
+        loadDocument(m_currentPath);
     m_tree->setCurrentItem(item);
     m_tree->scrollToItem(item);
 }
@@ -254,6 +300,66 @@ void AvPage::loadDocument(const QString &filePath)
         return;
     }
     m_browser->setMarkdown(preprocessWikiLinks(QString::fromUtf8(file.readAll())));
+}
+
+void AvPage::loadEditor(const QString &filePath)
+{
+    m_loadingEditor = true;
+    QFile file(filePath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text))
+        m_editor->setPlainText(QString::fromUtf8(file.readAll()));
+    else
+        m_editor->clear();
+    m_loadingEditor = false;
+    m_editDirty = false;
+}
+
+void AvPage::autoSave()
+{
+    if (!m_editDirty || m_contentStack == nullptr || m_contentStack->currentWidget() != m_editor
+        || m_currentPath.isEmpty()) return;
+    QFile file(m_currentPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        Toast::showError(window(), QStringLiteral("自动保存失败：%1").arg(file.errorString()));
+        return;
+    }
+    if (file.write(m_editor->toPlainText().toUtf8()) < 0) {
+        Toast::showError(window(), QStringLiteral("自动保存失败：%1").arg(file.errorString()));
+        return;
+    }
+    m_editDirty = false;
+}
+
+void AvPage::switchToPreview()
+{
+    autoSave();
+    if (!m_currentPath.isEmpty()) loadDocument(m_currentPath);
+    m_contentStack->setCurrentWidget(m_browser);
+    m_previewButton->setChecked(true);
+    m_editButton->setChecked(false);
+}
+
+void AvPage::switchToEdit()
+{
+    if (!m_currentPath.isEmpty()) loadEditor(m_currentPath);
+    m_contentStack->setCurrentWidget(m_editor);
+    m_previewButton->setChecked(false);
+    m_editButton->setChecked(true);
+}
+
+void AvPage::watchDirectory()
+{
+    if (m_watcher == nullptr || !QFileInfo(m_wikiDirectory).isDir()) return;
+    if (!m_watcher->directories().contains(m_wikiDirectory)) m_watcher->addPath(m_wikiDirectory);
+}
+
+QUrl AvPage::updateManifestUrl() const
+{
+    const QString configPath = QDir(settings::Paths().resourcesDirectory())
+                                   .filePath(QStringLiteral("config/update.ini"));
+    QSettings config(configPath, QSettings::IniFormat);
+    const QString configured = config.value(QStringLiteral("Update/AvwikiLatestJsonUrl")).toString().trimmed();
+    return QUrl(configured.isEmpty() ? QStringLiteral("https://darkeye.win/avwiki/avwiki_latest.json") : configured);
 }
 
 void AvPage::handleLink(const QUrl &url)
@@ -272,8 +378,12 @@ void AvPage::handleLink(const QUrl &url)
         m_browser->setPlainText(QStringLiteral("未找到页面：%1").arg(page));
         return;
     }
+    autoSave();
     m_currentPath = filePath;
-    loadDocument(filePath);
+    if (m_contentStack->currentWidget() == m_editor)
+        loadEditor(filePath);
+    else
+        loadDocument(filePath);
     if (auto *item = m_pathToItem.value(filePath, nullptr); item != nullptr)
     {
         m_tree->setCurrentItem(item);

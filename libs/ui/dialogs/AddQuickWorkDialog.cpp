@@ -16,6 +16,7 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QRegularExpression>
+#include <QSet>
 #include <QTableWidgetItem>
 #include <QTextStream>
 #include <QVBoxLayout>
@@ -136,6 +137,19 @@ AddQuickWorkDialog::AddQuickWorkDialog(CrawlerScheduler &crawlerScheduler, Theme
     });
     connect(commit, &QPushButton::clicked, this, &AddQuickWorkDialog::submit);
     addRow();
+}
+
+void AddQuickWorkDialog::loadSerials(const QStringList &serials)
+{
+    m_table->setRowCount(0);
+    QSet<QString> seen;
+    for (const QString &value : serials)
+    {
+        const QString serial = value.trimmed().toUpper();
+        if (serial.isEmpty() || seen.contains(serial)) continue;
+        seen.insert(serial);
+        addRow(serial);
+    }
 }
 
 void AddQuickWorkDialog::addRow(const QString &serial)

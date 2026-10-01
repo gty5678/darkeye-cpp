@@ -17,6 +17,7 @@
 #include "database/DatabaseMaintenanceService.h"
 #include "database/WebDavBackupService.h"
 #include "database/WebDavCredentialStore.h"
+#include "database/SqliteConnection.h"
 #include "database/repositories/PersonRepository.h"
 #include "database/repositories/ReferenceRepository.h"
 #include "database/repositories/WorkRepository.h"
@@ -32,6 +33,7 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QInputDialog>
 #include <QKeySequence>
@@ -49,12 +51,19 @@
 #include <QUrl>
 #include <QProgressDialog>
 #include <QProcess>
+#include <QPointer>
+#include <QImageReader>
+#include <QEventLoop>
+#include <QThreadPool>
 #include <QSettings>
 #include <QTimer>
 #include <QXmlStreamReader>
 
 #include <tuple>
 #include <utility>
+#include <algorithm>
+#include <atomic>
+#include <memory>
 
 namespace darkeye
 {
@@ -147,118 +156,103 @@ QWidget *pendingSettingsPage(const QString &name, QWidget *parent)
 
 struct ParsedNfo final
 {
-    QString serial;
-    QString title;
-    QString plot;
-    QString director;
-    QString releaseDate;
-    QString notes;
-    QString studio;
+    struct Cast final { QString name; QString thumb; };
+    struct Fanart final { QString url; QString file; };
+    QString serial, title, plot, director, releaseDate, notes, studio, series;
     std::optional<int> runtime;
-    QStringList genres;
-    QStringList tags;
-    QStringList actors;
-    QString series;
+    QStringList genres, tags, coverCandidates;
+    QList<Cast> cast;
+    QList<Fanart> fanart;
 };
 
 std::optional<ParsedNfo> parseNfo(const QString &path, bool mdcz, QString *error)
 {
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        *error = QStringLiteral("无法读取文件：%1").arg(file.errorString());
-        return std::nullopt;
-    }
-    QXmlStreamReader xml(&file);
-    ParsedNfo result;
-    QString currentActor;
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) { *error = QStringLiteral("无法读取文件：%1").arg(file.errorString()); return std::nullopt; }
+    QXmlStreamReader xml(&file); ParsedNfo result;
     while (!xml.atEnd()) {
-        xml.readNext();
-        if (!xml.isStartElement()) continue;
+        xml.readNext(); if (!xml.isStartElement()) continue;
         const QString name = xml.name().toString();
         if (name == QStringLiteral("actor")) {
-            while (!(xml.isEndElement() && xml.name() == QStringLiteral("actor")) && !xml.atEnd()) {
-                xml.readNext();
-                if (xml.isStartElement() && xml.name() == QStringLiteral("name"))
-                    currentActor = xml.readElementText().trimmed();
-            }
-            if (!currentActor.isEmpty()) result.actors.append(currentActor);
-        } else if (name == QStringLiteral("id") || name == QStringLiteral("num")) {
-            if (result.serial.isEmpty()) result.serial = xml.readElementText().trimmed();
-        } else if (name == QStringLiteral("uniqueid") && result.serial.isEmpty()) {
-            result.serial = xml.readElementText().trimmed();
-        } else if (name == QStringLiteral("title")) result.title = xml.readElementText().trimmed();
+            ParsedNfo::Cast cast;
+            while (!(xml.isEndElement() && xml.name() == QStringLiteral("actor")) && !xml.atEnd()) { xml.readNext(); if (xml.isStartElement() && xml.name() == QStringLiteral("name")) cast.name = xml.readElementText().trimmed(); else if (xml.isStartElement() && xml.name() == QStringLiteral("thumb")) cast.thumb = xml.readElementText().trimmed(); }
+            if (!cast.name.isEmpty()) result.cast.append(cast);
+        } else if (name == QStringLiteral("fanart")) {
+            while (!(xml.isEndElement() && xml.name() == QStringLiteral("fanart")) && !xml.atEnd()) { xml.readNext(); if (xml.isStartElement() && xml.name() == QStringLiteral("thumb")) { const QString url = xml.readElementText().trimmed(); if (!url.isEmpty()) result.fanart.append({url, {}}); } }
+        } else if (mdcz && name == QStringLiteral("set")) {
+            while (!(xml.isEndElement() && xml.name() == QStringLiteral("set")) && !xml.atEnd()) { xml.readNext(); if (xml.isStartElement() && xml.name() == QStringLiteral("name")) result.series = xml.readElementText().trimmed(); else if (xml.isCharacters() && !xml.isWhitespace() && result.series.isEmpty()) result.series = xml.text().toString().trimmed(); }
+        } else if (name == QStringLiteral("id") || name == QStringLiteral("num")) { if (result.serial.isEmpty()) result.serial = xml.readElementText().trimmed(); }
+        else if (name == QStringLiteral("uniqueid") && result.serial.isEmpty()) result.serial = xml.readElementText().trimmed();
+        else if (name == QStringLiteral("title")) result.title = xml.readElementText().trimmed();
         else if (name == QStringLiteral("plot")) result.plot = xml.readElementText().trimmed();
         else if (name == QStringLiteral("director")) result.director = xml.readElementText().trimmed();
-        else if (name == QStringLiteral("premiered") || name == QStringLiteral("releasedate") || name == QStringLiteral("release")) {
-            if (result.releaseDate.isEmpty()) result.releaseDate = xml.readElementText().trimmed();
-        } else if (name == QStringLiteral("runtime")) {
-            bool ok = false; const int value = xml.readElementText().trimmed().toInt(&ok);
-            if (ok) result.runtime = value;
-        } else if (name == QStringLiteral("source")) result.notes = xml.readElementText().trimmed();
+        else if (name == QStringLiteral("premiered") || name == QStringLiteral("releasedate") || name == QStringLiteral("release")) { if (result.releaseDate.isEmpty()) result.releaseDate = xml.readElementText().trimmed(); }
+        else if (name == QStringLiteral("runtime")) { bool ok = false; const int value = xml.readElementText().trimmed().toInt(&ok); if (ok) result.runtime = value; }
+        else if (name == QStringLiteral("source")) result.notes = xml.readElementText().trimmed();
         else if (name == QStringLiteral("studio")) result.studio = xml.readElementText().trimmed();
         else if (name == QStringLiteral("genre")) result.genres.append(xml.readElementText().trimmed());
         else if (name == QStringLiteral("tag")) result.tags.append(xml.readElementText().trimmed());
-        else if (mdcz && name == QStringLiteral("set")) result.series = xml.readElementText().trimmed();
+        else if (name == QStringLiteral("thumb")) { const QString thumb = xml.readElementText().trimmed(); if (!thumb.isEmpty()) result.coverCandidates.append(thumb); }
+        else if (mdcz && name == QStringLiteral("image")) { const QString url = xml.readElementText().trimmed(); if (!url.isEmpty()) result.fanart.append({url, {}}); }
     }
     if (xml.hasError()) { *error = QStringLiteral("XML 解析失败：%1").arg(xml.errorString()); return std::nullopt; }
-    result.serial = result.serial.toUpper();
-    if (result.serial.isEmpty()) { *error = QStringLiteral("NFO 中缺少番号（<id>/<num>/<uniqueid>）"); return std::nullopt; }
-    return result;
+    result.serial = result.serial.toUpper(); if (result.serial.isEmpty()) { *error = QStringLiteral("NFO 中缺少番号（<id>/<num>/<uniqueid>）"); return std::nullopt; } return result;
 }
 
-bool importNfo(QSqlDatabase database, const QString &path, bool mdcz, QString *message)
+bool isRemoteImage(const QString &source) { const QUrl url(source); return url.isValid() && (url.scheme() == QStringLiteral("http") || url.scheme() == QStringLiteral("https")); }
+bool saveImageAsJpeg(const QString &source, const QString &destination)
 {
-    const auto parsed = parseNfo(path, mdcz, message);
-    if (!parsed) return false;
-    WorkRepository works(database);
-    if (works.findIdBySerial(parsed->serial).has_value()) { *message = QStringLiteral("番号「%1」已在库中，已跳过导入。").arg(parsed->serial); return false; }
-    ReferenceRepository references(database);
-    PersonRepository people(database);
-    const auto resolveReference = [&references](ReferenceKind kind, const QString &name) {
-        if (name.isEmpty()) return std::optional<qint64>{};
-        const auto existing = references.findByName(kind, name);
-        return existing.has_value() ? existing : references.create(kind, name);
-    };
-    Work work; work.serialNumber = parsed->serial; work.japaneseTitle = parsed->title;
-    work.japaneseStory = parsed->plot; work.director = parsed->director.isEmpty() ? QStringLiteral("----") : parsed->director;
-    work.releaseDate = parsed->releaseDate; work.notes = parsed->notes; work.runtime = parsed->runtime;
-    const QStringList studioParts = parsed->studio.split(u'/', Qt::SkipEmptyParts);
-    if (!studioParts.isEmpty()) work.makerId = resolveReference(ReferenceKind::Maker, studioParts.at(0).trimmed());
-    if (studioParts.size() > 1) work.labelId = resolveReference(ReferenceKind::Label, studioParts.at(1).trimmed());
-    const QString series = mdcz ? parsed->series : (parsed->tags.isEmpty() ? QString{} : parsed->tags.first());
-    work.seriesId = resolveReference(ReferenceKind::Series, series);
-    QList<qint64> actressIds, tagIds;
-    for (const QString &name : std::as_const(parsed->actors)) {
-        if (name.isEmpty()) continue;
-        auto id = people.findByName(PersonKind::Actress, name);
-        if (!id) id = people.create(PersonKind::Actress, name, name);
-        if (id && !actressIds.contains(*id)) actressIds.append(*id);
-    }
-    const QList<TagOption> existingTags = works.tagOptions();
-    QStringList tagNames = parsed->genres;
-    if (mdcz)
-        tagNames.append(parsed->tags);
-    for (const QString &name : std::as_const(tagNames)) {
-        if (name.isEmpty()) continue;
-        std::optional<qint64> tagId;
-        for (const TagOption &tag : existingTags) {
-            if (tag.name == name) { tagId = tag.id; break; }
-        }
-        if (!tagId) {
-            const auto id = references.createTag(name, 11, QStringLiteral("#cccccc"), {});
-            tagId = id;
-        }
-        if (tagId && !tagIds.contains(*tagId)) tagIds.append(*tagId);
-    }
-    QString error;
-    if (!works.insertComplete(work, actressIds, {}, tagIds, &error)) { *message = error.isEmpty() ? QStringLiteral("写入数据库失败") : error; return false; }
-    *message = QStringLiteral("已从 NFO 导入作品：%1").arg(parsed->serial); return true;
+    QImageReader reader(source); const QImage image = reader.read();
+    return !image.isNull() && QDir().mkpath(QFileInfo(destination).absolutePath()) && image.save(destination, "JPEG", 90);
+}
+bool downloadImageAsJpeg(const QString &source, const QString &destination)
+{
+    QNetworkAccessManager manager; QNetworkReply *reply = manager.get(QNetworkRequest(QUrl(source))); QEventLoop loop; QTimer timeout; timeout.setSingleShot(true);
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit); QObject::connect(&timeout, &QTimer::timeout, reply, &QNetworkReply::abort); timeout.start(30000); loop.exec();
+    const QByteArray body = reply->readAll(); const bool ok = reply->error() == QNetworkReply::NoError; reply->deleteLater(); const QImage image = QImage::fromData(body);
+    return ok && !image.isNull() && QDir().mkpath(QFileInfo(destination).absolutePath()) && image.save(destination, "JPEG", 90);
+}
+QString resolveLocalImage(const QString &source, const QString &nfoPath)
+{
+    if (isRemoteImage(source)) return {}; if (QFileInfo(source).isFile()) return QFileInfo(source).absoluteFilePath();
+    const QString relative = QDir(QFileInfo(nfoPath).absolutePath()).filePath(source); return QFileInfo(relative).isFile() ? QFileInfo(relative).absoluteFilePath() : QString{};
+}
+QString pickCover(const ParsedNfo &nfo, const QString &path)
+{
+    QStringList large, neutral, small, remote;
+    for (const QString &candidate : nfo.coverCandidates) { if (isRemoteImage(candidate)) { remote.append(candidate); continue; } const QString local = resolveLocalImage(candidate, path); if (local.isEmpty()) continue; const QString lower = local.toLower().replace(u'\\', u'/'); if (lower.contains(QStringLiteral("bigpic")) || lower.contains(QStringLiteral("largepic")) || lower.contains(QStringLiteral("/large/"))) large.append(local); else if (lower.contains(QStringLiteral("smallpic")) || lower.contains(QStringLiteral("small_pic")) || lower.contains(QStringLiteral("/small/"))) small.append(local); else neutral.append(local); }
+    if (!large.isEmpty()) { std::sort(large.begin(), large.end(), [](const QString &left, const QString &right) { return (left.contains(QStringLiteral("bigpic"), Qt::CaseInsensitive) ? 0 : 1) < (right.contains(QStringLiteral("bigpic"), Qt::CaseInsensitive) ? 0 : 1); }); return large.first(); }
+    if (!neutral.isEmpty()) return neutral.first(); if (!small.isEmpty()) return small.first(); if (!remote.isEmpty()) return remote.first(); for (const auto &cast : nfo.cast) if (!cast.thumb.isEmpty()) return cast.thumb; return {};
+}
+QSet<QString> maleActorNames(const settings::Paths &paths)
+{
+    QFile file(QDir(paths.resourcesDirectory()).filePath(QStringLiteral("config/actors_cn_jp_export.json"))); if (!file.open(QIODevice::ReadOnly)) return {};
+    QSet<QString> names; for (const QJsonValue &value : QJsonDocument::fromJson(file.readAll()).array()) if (!value.toString().trimmed().isEmpty()) names.insert(value.toString().trimmed()); return names;
+}
+QString fanartJson(const QList<ParsedNfo::Fanart> &items) { QJsonArray array; for (const auto &item : items) if (!item.url.isEmpty() || !item.file.isEmpty()) array.append(QJsonObject{{QStringLiteral("url"), item.url}, {QStringLiteral("file"), item.file}}); return array.isEmpty() ? QString{} : QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)); }
+
+bool importNfo(QSqlDatabase database, const QString &path, bool mdcz, const settings::Paths &paths, QString *message)
+{
+    const auto parsed = parseNfo(path, mdcz, message); if (!parsed) return false;
+    WorkRepository works(database); if (works.findIdBySerial(parsed->serial)) { *message = QStringLiteral("番号「%1」已在库中，已跳过导入。").arg(parsed->serial); return false; }
+    ReferenceRepository references(database); PersonRepository people(database);
+    const auto resolveReference = [&references](ReferenceKind kind, const QString &name) { if (name.isEmpty()) return std::optional<qint64>{}; const auto existing = references.findByName(kind, name); return existing ? existing : references.create(kind, name); };
+    Work work; work.serialNumber = parsed->serial; work.japaneseTitle = parsed->title; work.japaneseStory = parsed->plot; work.director = parsed->director.isEmpty() ? QStringLiteral("----") : parsed->director; work.releaseDate = parsed->releaseDate; work.notes = parsed->notes; work.runtime = parsed->runtime;
+    const QStringList studioParts = parsed->studio.split(u'/', Qt::SkipEmptyParts); if (!studioParts.isEmpty()) work.makerId = resolveReference(ReferenceKind::Maker, studioParts.first().trimmed()); if (studioParts.size() > 1) work.labelId = resolveReference(ReferenceKind::Label, studioParts.at(1).trimmed()); work.seriesId = resolveReference(ReferenceKind::Series, mdcz ? parsed->series : (parsed->tags.isEmpty() ? QString{} : parsed->tags.first()));
+    QList<qint64> actressIds, actorIds, tagIds; const QSet<QString> maleNames = maleActorNames(paths);
+    for (const auto &cast : parsed->cast) { auto id = people.findByName(PersonKind::Actress, cast.name); if (id) { if (!actressIds.contains(*id)) actressIds.append(*id); continue; } id = people.findByName(PersonKind::Actor, cast.name); if (id) { if (!actorIds.contains(*id)) actorIds.append(*id); continue; } const PersonKind kind = maleNames.contains(cast.name) ? PersonKind::Actor : PersonKind::Actress; id = people.create(kind, cast.name, cast.name); if (id && kind == PersonKind::Actress && !actressIds.contains(*id)) actressIds.append(*id); if (id && kind == PersonKind::Actor && !actorIds.contains(*id)) actorIds.append(*id); }
+    const QList<TagOption> existingTags = works.tagOptions(); QStringList tagNames = parsed->genres; if (mdcz) tagNames.append(parsed->tags);
+    for (const QString &name : std::as_const(tagNames)) { if (name.isEmpty()) continue; std::optional<qint64> tagId; for (const TagOption &tag : existingTags) if (tag.name == name) { tagId = tag.id; break; } if (!tagId) tagId = references.createTag(name, 11, QStringLiteral("#cccccc"), {}); if (tagId && !tagIds.contains(*tagId)) tagIds.append(*tagId); }
+    const QString cover = mdcz ? QDir(QFileInfo(path).absolutePath()).filePath(QStringLiteral("fanart.jpg")) : pickCover(*parsed, path); const QString localCover = isRemoteImage(cover) ? QString{} : resolveLocalImage(cover, path); if (!cover.isEmpty() && (isRemoteImage(cover) || !localCover.isEmpty())) { const QString destination = QDir(paths.workCoverDirectory()).filePath(parsed->serial + QStringLiteral(".jpg")); if ((isRemoteImage(cover) ? downloadImageAsJpeg(cover, destination) : saveImageAsJpeg(localCover, destination))) work.imageUrl = QFileInfo(destination).fileName(); }
+    QList<ParsedNfo::Fanart> fanart = parsed->fanart;
+    if (mdcz) { const QDir sourceDir(QDir(QFileInfo(path).absolutePath()).filePath(QStringLiteral("extrafanart"))); const QFileInfoList sourceFiles = sourceDir.entryInfoList({QStringLiteral("*.jpg"), QStringLiteral("*.jpeg"), QStringLiteral("*.png"), QStringLiteral("*.webp")}, QDir::Files, QDir::Name); int index = 0; for (auto &item : fanart) { const QString base = QFileInfo(QUrl(item.url).path()).completeBaseName(); QFileInfo source(sourceDir.filePath(base + QStringLiteral(".jpg"))); if (!source.isFile() && index < sourceFiles.size()) source = sourceFiles.at(index++); if (!source.isFile()) continue; item.file = (base.isEmpty() ? source.completeBaseName() : base) + QStringLiteral(".jpg"); const QString destination = QDir(paths.fanartDirectory()).filePath(item.file); if (saveImageAsJpeg(source.absoluteFilePath(), destination)) QFile::remove(source.absoluteFilePath()); else item.file.clear(); } }
+    work.fanartJson = fanartJson(fanart); QString error; if (!works.insertComplete(work, actressIds, actorIds, tagIds, &error)) { *message = error.isEmpty() ? QStringLiteral("写入数据库失败") : error; return false; } *message = QStringLiteral("已从 NFO 导入作品：%1").arg(parsed->serial); return true;
 }
 
 } // namespace
 
-NfoSettingsPage::NfoSettingsPage(QSqlDatabase publicDatabase, QWidget *parent)
-    : LazyWidget(parent), m_publicDatabase(std::move(publicDatabase)) {}
+NfoSettingsPage::NfoSettingsPage(QSqlDatabase publicDatabase, settings::Paths paths, QWidget *parent)
+    : LazyWidget(parent), m_publicDatabase(std::move(publicDatabase)), m_paths(std::move(paths)) {}
 
 void NfoSettingsPage::lazyLoad()
 {
@@ -283,7 +277,11 @@ void NfoSettingsPage::importFile(bool mdcz)
     const QString path = QFileDialog::getOpenFileName(this, QStringLiteral("选择 NFO 文件"), {}, QStringLiteral("NFO 文件 (*.nfo);;所有文件 (*.*)"));
     if (path.isEmpty()) return;
     QString message;
-    if (importNfo(m_publicDatabase, path, mdcz, &message)) { emit worksChanged(); QMessageBox::information(this, QStringLiteral("导入成功"), message); }
+    if (importNfo(m_publicDatabase, path, mdcz, m_paths, &message)) {
+        emit referencesChanged(ReferenceKind::Maker); emit referencesChanged(ReferenceKind::Label);
+        emit referencesChanged(ReferenceKind::Series); emit tagsChanged(); emit actressesChanged();
+        emit actorsChanged(); emit worksChanged(); QMessageBox::information(this, QStringLiteral("导入成功"), message);
+    }
     else QMessageBox::warning(this, QStringLiteral("未导入"), message);
 }
 
@@ -303,23 +301,33 @@ void NfoSettingsPage::importFolder(bool mdcz, bool useVideoPaths)
     }
     files.removeDuplicates();
     if (files.isEmpty()) { QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("未发现 .nfo 文件。")); return; }
-    QProgressDialog progress(QString{}, QStringLiteral("取消"), 0, files.size(), this);
-    progress.setWindowTitle(mdcz ? QStringLiteral("批量导入 MDCZ NFO") : QStringLiteral("批量导入 NFO")); progress.setWindowModality(Qt::WindowModal); progress.show();
-    int imported = 0, skipped = 0, failed = 0;
-    QStringList errors;
-    for (qsizetype i = 0; i < files.size(); ++i) {
-        progress.setValue(i); progress.setLabelText(QStringLiteral("正在导入 (%1/%2)：%3").arg(i + 1).arg(files.size()).arg(QFileInfo(files.at(i)).fileName()));
-        QCoreApplication::processEvents(); if (progress.wasCanceled()) break;
-        QString message;
-        if (importNfo(m_publicDatabase, files.at(i), mdcz, &message)) ++imported;
-        else if (message.contains(QStringLiteral("已在库中"))) ++skipped;
-        else { ++failed; if (errors.size() < 8) errors.append(QFileInfo(files.at(i)).fileName() + QStringLiteral(": ") + message); }
-    }
-    progress.setValue(files.size());
-    if (imported) emit worksChanged();
-    QString result = QStringLiteral("共扫描 %1 个 NFO。\n新导入：%2\n跳过（番号已存在）：%3\n失败：%4").arg(files.size()).arg(imported).arg(skipped).arg(failed);
-    if (!errors.isEmpty()) result += QStringLiteral("\n\n") + errors.join(QLatin1Char('\n'));
-    QMessageBox::information(this, QStringLiteral("批量导入完成"), result);
+    if (m_batchImportRunning) return;
+    m_batchImportRunning = true;
+    auto *progress = new QProgressDialog(QStringLiteral("准备导入…"), QStringLiteral("取消"), 0, files.size(), this);
+    progress->setWindowTitle(mdcz ? QStringLiteral("批量导入 MDCZ NFO") : QStringLiteral("批量导入 NFO"));
+    progress->setWindowModality(Qt::WindowModal); progress->setAutoClose(false); progress->show();
+    const auto cancelled = std::make_shared<std::atomic_bool>(false);
+    connect(progress, &QProgressDialog::canceled, this, [cancelled] { cancelled->store(true); });
+    const QString databasePath = m_publicDatabase.databaseName(); const settings::Paths paths = m_paths;
+    QPointer<NfoSettingsPage> page(this); QPointer<QProgressDialog> guardedProgress(progress);
+    QThreadPool::globalInstance()->start([files, mdcz, cancelled, databasePath, paths, page, guardedProgress] {
+        SqliteConnection connection; QString openError;
+        int imported = 0, skipped = 0, failed = 0; QStringList errors; bool stopped = false;
+        if (!connection.open(databasePath, false, &openError)) { failed = files.size(); errors.append(openError); }
+        else for (qsizetype i = 0; i < files.size(); ++i) {
+            if (cancelled->load()) { stopped = true; break; }
+            const QString file = files.at(i);
+            QMetaObject::invokeMethod(qApp, [guardedProgress, i, total = files.size(), file] { if (guardedProgress) { guardedProgress->setValue(i); guardedProgress->setLabelText(QStringLiteral("正在导入 (%1/%2)：%3").arg(i + 1).arg(total).arg(QFileInfo(file).fileName())); } }, Qt::QueuedConnection);
+            QString message; if (importNfo(connection.database(), file, mdcz, paths, &message)) ++imported;
+            else if (message.contains(QStringLiteral("已在库中"))) ++skipped;
+            else { ++failed; if (errors.size() < 8) errors.append(QFileInfo(file).fileName() + QStringLiteral(": ") + message); }
+        }
+        QMetaObject::invokeMethod(qApp, [page, guardedProgress, imported, skipped, failed, errors, stopped, total = files.size()] {
+            if (guardedProgress) guardedProgress->deleteLater(); if (!page) return; page->m_batchImportRunning = false;
+            if (imported) { emit page->referencesChanged(ReferenceKind::Maker); emit page->referencesChanged(ReferenceKind::Label); emit page->referencesChanged(ReferenceKind::Series); emit page->tagsChanged(); emit page->actressesChanged(); emit page->actorsChanged(); emit page->worksChanged(); }
+            QString result = QStringLiteral("共扫描 %1 个 NFO。\n新导入：%2\n跳过（番号已存在）：%3\n失败：%4").arg(total).arg(imported).arg(skipped).arg(failed); if (stopped) result.prepend(QStringLiteral("已取消，以下为已处理部分的结果。\n")); if (!errors.isEmpty()) result += QStringLiteral("\n\n") + errors.join(QLatin1Char('\n')); QMessageBox::information(page, QStringLiteral("批量导入完成"), result);
+        }, Qt::QueuedConnection);
+    });
 }
 
 AboutSettingsPage::AboutSettingsPage(ThemeService &themeService, QWidget *parent)
@@ -652,12 +660,7 @@ void VideoSettingsPage::scanMissingSerials()
                                  QStringLiteral("本地视频的番号均已存在于数据库中"));
         return;
     }
-    QMessageBox::information(
-        this, QStringLiteral("发现数据库缺失番号"),
-        QStringLiteral("共扫描 %1 个视频，发现 %2 个待添加番号：\n\n%3\n\n"
-                       "批量采集对话框迁移完成后可从这里继续录入。")
-            .arg(result.scannedFiles).arg(result.missingSerials.size())
-            .arg(result.missingSerials.join(QStringLiteral("\n"))));
+    emit quickWorkRequested(result.missingSerials);
 }
 
 void VideoSettingsPage::synchronizeVideoUrls()
@@ -1592,7 +1595,7 @@ void SettingsPage::lazyLoad()
     const QList<ModernScrollMenu::Section> sections = {
         {QStringLiteral("常规"), m_commonPage},
         {QStringLiteral("视频"), new VideoSettingsPage(m_publicDatabase, this)},
-        {QStringLiteral("NFO"), new NfoSettingsPage(m_publicDatabase, this)},
+        {QStringLiteral("NFO"), new NfoSettingsPage(m_publicDatabase, m_paths, this)},
         {QStringLiteral("信息补充器"), new CrawlerSettingsPage(this)},
         {QStringLiteral("翻译"), new TranslationSettingsPage(this)},
         {QStringLiteral("数据库"), new DatabaseSettingsPage(m_publicDatabase, m_privateDatabase, m_paths, this)},
@@ -1602,9 +1605,19 @@ void SettingsPage::lazyLoad()
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(new ModernScrollMenu(sections, this));
     if (auto *videoPage = findChild<VideoSettingsPage *>())
+    {
         connect(videoPage, &VideoSettingsPage::worksChanged, this, &SettingsPage::worksChanged);
+        connect(videoPage, &VideoSettingsPage::quickWorkRequested, this,
+                &SettingsPage::quickWorkRequested);
+    }
     if (auto *nfoPage = findChild<NfoSettingsPage *>())
+    {
+        connect(nfoPage, &NfoSettingsPage::referencesChanged, this, &SettingsPage::referencesChanged);
+        connect(nfoPage, &NfoSettingsPage::tagsChanged, this, &SettingsPage::tagsChanged);
+        connect(nfoPage, &NfoSettingsPage::actressesChanged, this, &SettingsPage::actressesChanged);
+        connect(nfoPage, &NfoSettingsPage::actorsChanged, this, &SettingsPage::actorsChanged);
         connect(nfoPage, &NfoSettingsPage::worksChanged, this, &SettingsPage::worksChanged);
+    }
 }
 
 QComboBox *SettingsPage::themeSelector() const

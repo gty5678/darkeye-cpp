@@ -5,6 +5,7 @@
 #include "ui/pages/management/AddWorkTabPage3.h"
 #include "ui/pages/management/MakerManagementWidget.h"
 #include "ui/pages/management/LabelManagementWidget.h"
+#include "ui/pages/management/PersonalRecordManagementWidget.h"
 #include "ui/pages/management/ReferenceManagementWidget.h"
 #include "ui/pages/management/SummaryQueryWidget.h"
 #include "ui/pages/management/TagManagementWidget.h"
@@ -46,10 +47,11 @@ private:
 } // namespace
 
 ManagementPage::ManagementPage(QSqlDatabase database, ThemeService &themes,
-                               CrawlerScheduler &crawlerScheduler, QString coverDirectory,
+                               CrawlerScheduler &crawlerScheduler, QSqlDatabase privateDatabase,
+                               QString coverDirectory,
                                QString actressImageDirectory, QString fanartDirectory, QUrl imageFetchEndpoint,
                                QUrl topActressesEndpoint, QWidget *parent)
-    : LazyWidget(parent), m_database(std::move(database)), m_themes(themes),
+    : LazyWidget(parent), m_database(std::move(database)), m_privateDatabase(std::move(privateDatabase)), m_themes(themes),
       m_coverDirectory(std::move(coverDirectory)),
       m_actressImageDirectory(std::move(actressImageDirectory)),
       m_fanartDirectory(std::move(fanartDirectory)),
@@ -144,6 +146,10 @@ void ManagementPage::lazyLoad()
         connect(page, &SummaryQueryWidget::workRequested, this,
                 [this](qint64 workId) { loadWork(workId); });
         return page;
+    });
+    addDeferredTab(QStringLiteral("综合管理"), [this](QWidget *parent)
+    {
+        return new PersonalRecordManagementWidget(m_privateDatabase, m_themes, parent);
     });
     addDeferredTab(QStringLiteral("作品软删除"), [this](QWidget *parent)
     {
