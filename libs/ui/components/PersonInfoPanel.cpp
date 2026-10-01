@@ -95,7 +95,10 @@ PersonInfoPanel::PersonInfoPanel(ThemeService &themes, QString imageDirectory, Q
     setObjectName(QStringLiteral("PersonInfoPanel"));
     setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
     auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(10, 0, 0, 0);
+    // The application stylesheet gives every QWidget an opaque background.
+    // Keep child containers clear of the hand-painted frame so they cannot
+    // overpaint its top, right, or bottom edge.
+    root->setContentsMargins(10, 2, 2, 2);
     root->setSpacing(0);
 
     auto *summary = new QWidget(this);
