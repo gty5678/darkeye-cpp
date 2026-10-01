@@ -36,7 +36,10 @@ void HeartLabel::paintEvent(QPaintEvent *)
     heart.cubicTo(3, -15, 13, -13, 13, -5);
     heart.cubicTo(13, 2, 2, 9, 0, 12);
     painter.setPen(QPen(m_checked ? QColor("#ff2a2a") : QColor("#cccccc"), 2));
-    painter.setBrush(m_checked ? QColor("#ff2a2a") : Qt::NoBrush);
+    // Keep the unselected heart hollow, matching the Python component's
+    // transparent SVG rendering.  Mixing QColor and Qt::NoBrush in a ternary
+    // expression coerces NoBrush into a black QColor before setBrush sees it.
+    painter.setBrush(m_checked ? QBrush(QColor("#ff2a2a")) : QBrush(Qt::NoBrush));
     painter.drawPath(heart);
 }
 

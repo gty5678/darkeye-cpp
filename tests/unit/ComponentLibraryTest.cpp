@@ -485,6 +485,14 @@ void ComponentLibraryTest::avatarsHeartAndChamferButtonKeepContract()
     QVERIFY(heart.getState());
     QCOMPARE(clicked.count(), 1);
 
+    heart.setState(false);
+    QImage hollowHeart(heart.size(), QImage::Format_ARGB32_Premultiplied);
+    hollowHeart.fill(Qt::transparent);
+    heart.render(&hollowHeart);
+    QVERIFY(hollowHeart.pixelColor(hollowHeart.width() / 2, hollowHeart.height() / 2)
+                .alpha()
+            == 0);
+
     darkeye::ChamferButton chamfer(QStringLiteral("刷新"), QStringLiteral("refresh"), 20, 40, 0.22,
                                    &themes);
     QCOMPARE(chamfer.objectName(), QStringLiteral("DesignChamferButton"));
