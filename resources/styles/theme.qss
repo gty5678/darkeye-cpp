@@ -545,10 +545,6 @@ QAbstractItemView#DesignCompleterPopup {
     selection-background-color: @PRIMARY@;
 }
 
-QWidget#DesignSidebar {
-    background-color: @BACKGROUND@;
-    border-right: 1px solid @BORDER@;
-}
 QWidget#DesignSidebarMenuButton {
     background-color: transparent;
     border-left: 3px solid transparent;

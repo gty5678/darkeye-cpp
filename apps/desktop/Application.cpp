@@ -14,6 +14,7 @@
 #include <QMessageBox>
 #include <QFileInfo>
 #include <QProcess>
+#include <QStackedWidget>
 #include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -61,8 +62,16 @@ void Application::prewarmGraphRenderer()
 {
     // Python renders a small ForceViewRhiWidget during startup. On Windows,
     // a fully offscreen window may never submit a frame, so keep this renderer
-    // in the visible main window but underneath its opaque page widgets.
-    m_graphPrewarmWindow = std::make_unique<QWidget>(m_mainWindow->centralWidget());
+    // visible underneath an opaque page widget.  It must be parented to the
+    // page stack rather than centralWidget: the latter starts at x = 0 and
+    // overlays the sidebar's transparent menu rows.
+    auto *pageStack = m_mainWindow->centralWidget()->findChild<QStackedWidget *>(
+        QStringLiteral("mainPages"));
+    if (pageStack == nullptr) {
+        qWarning() << "Graph renderer prewarm skipped: main page stack is unavailable";
+        return;
+    }
+    m_graphPrewarmWindow = std::make_unique<QWidget>(pageStack);
     m_graphPrewarmWindow->setAttribute(Qt::WA_TransparentForMouseEvents);
     m_graphPrewarmWindow->setGeometry(0, 0, 240, 200);
 
@@ -85,6 +94,10 @@ void Application::prewarmGraphRenderer()
     }
     QObject::disconnect(connection);
     view->pauseSimulation();
+    // Prewarming requires one visible frame on Windows, but the helper must
+    // not remain in the compositing tree afterwards: transparent application
+    // widgets would otherwise reveal it.
+    m_graphPrewarmWindow->hide();
     if (!frameSubmitted) {
         qWarning() << "Graph renderer prewarm did not submit a frame";
     }

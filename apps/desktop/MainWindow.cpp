@@ -840,7 +840,8 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
     if (routeName == QStringLiteral("graph"))
     {
         m_forceDirectPage =
-            new ForceDirectPage(m_themeService, *m_graphManager, parent);
+            new ForceDirectPage(m_themeService, *m_graphManager, parent,
+                                m_paths.actressImageDirectory(), m_paths.workCoverDirectory());
         connect(m_forceDirectPage, &ForceDirectPage::workRequested, this, [this](qint64 workId) {
             auto *detail = static_cast<WorkDetailPage *>(ensurePage(QStringLiteral("work")));
             if (detail->showWork(workId))
