@@ -2,7 +2,7 @@ site_name: DarkEye
 site_description: DarkEye C++ documentation
 
 nav:
-  - 开发白皮书: develop.md
+  - C++ 版本概览: develop.md
   - 入门指南: usage.md
   - 版本更新记录: CHANGELOG.md
   - 常见问题: faq.md

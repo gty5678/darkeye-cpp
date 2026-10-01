@@ -1,189 +1,148 @@
+# C++ / Qt 开发、构建与调试
 
+本仓库是一个 Windows 桌面 C++ / Qt 项目。主程序由 CMake 管理，使用 Qt 6、MSVC、
+Ninja 和 vcpkg manifest 模式；本文档是本项目唯一的本地构建说明。
 
-## 开发环境准备
-### python环境
-1. 用conda的输入下面指令
+## 前置条件
 
-```
-conda create -n venv python=3.13
-conda activate venv
-pip install -e ".[docs]"
-```
+在 Windows 上准备以下工具：
 
-2. 复制resources/develop_resources 复制到data下面
+- Visual Studio 2022，并安装“使用 C++ 的桌面开发”工作负载（MSVC x64 工具链和 Windows SDK）。
+- CMake 3.25 或更高版本、Ninja。
+- Qt 6.10.3 ，并且安装的 **MSVC 2022 64-bit** kit。
+- vcpkg。项目的 C++ 第三方依赖由根目录的 `vcpkg.json` 自动解析，不要手动复制第三方库目录。
 
-简单来说就是运行脚本scripts/develop_pre.ps1
+在 **Developer PowerShell for VS 2022** 中设置 Qt 和 vcpkg 的位置。以下路径仅为示例，请按实际安装位置替换：
 
-
-### C++ / Qt 环境（桌面 C++ 项目）
-
-仓库根目录的 C++ 桌面程序使用 **vcpkg manifest 模式**管理 `freetype` 和
-`msdfgen`。首次 CMake 配置会根据根目录的 `vcpkg.json` 自动安装它们；不要手动
-复制 `3rdparty/` 目录。
-
-新电脑从 GitHub 克隆后，在 **Developer PowerShell for VS 2022** 中按以下步骤构建：
-
-1. 安装 Visual Studio 2022，并勾选“使用 C++ 的桌面开发”；安装 CMake 3.25+ 和 Ninja。
-2. 安装 Qt 6.10.3 的 **MSVC 2022 64-bit** kit，并设置环境变量（PowerShell 示例）：
-
-   ```powershell
-   $env:Qt6_DIR = "C:/Qt/6.10.3/msvc2022_64/lib/cmake/Qt6"
-   ```
-
-3. 安装 vcpkg（只需一次），设置 `VCPKG_ROOT`；随后克隆并构建项目：
-
-   ```powershell
-   git clone https://github.com/microsoft/vcpkg C:/src/vcpkg
-   C:/src/vcpkg/bootstrap-vcpkg.bat
-   $env:VCPKG_ROOT = "C:/src/vcpkg"
-   git clone <GitHub-repository-url> darkeye-cpp
-   cd darkeye-cpp
-   cmake --preset windows-msvc-debug-tests
-   cmake --build --preset debug-tests
-   ctest --preset debug
-   ```
-
-   第一次 `cmake --preset ...` 会下载并编译 manifest 中锁定版本的 C++ 第三方库。
-   `x64-windows` triplet 与 Qt 的动态 MSVC runtime 匹配。若只构建应用、不构建测试，
-   使用 `windows-msvc-debug` / `debug`；发布构建使用 `release-no-data` 或 `release-data`。
-
-`vcpkg.json` 中的 baseline 必须随依赖升级提交，不能依赖开发者机器上全局安装的
-vcpkg 包版本。Qt 不通过 vcpkg 提供，因为本项目使用 Qt 6.10、`Qt6::GuiPrivate`、
-`windeployqt`，且需要与 PySide6/Shiboken 使用的 Qt SDK 保持一致。
-
-### C++ qt环境(如果要修改绑定项目)
-安装qt6.10.3
-
-vs2022，选择C++桌面开发
-
-下载第三方C++包
-
-C++ 绑定项目在 `cpp_bindings/` 下，目前有两个：
-
-- `cpp_bindings/color_wheel`：生成 `PyColorWheel.pyd`、`colorwheellib.dll`
-- `cpp_bindings/forced_direct_view`：生成 `PyForceView.pyd`、`forceviewlib.dll`
-
-编译前需要安装/准备：
-
-- Visual Studio 2022，安装“使用 C++ 的桌面开发”
-- Qt 6.10.3，MSVC 2022 64-bit kit
-- CMake、Ninja
-- 对应 conda 环境中安装 PySide6、shiboken6、shiboken6-generator
-- `cpp_bindings/3rdparty.zip`、`cpp_bindings/forced_direct_view.zip` 等第三方包按需要解压到对应目录
-
-脚本里目前硬编码了 VS、Qt、conda 环境路径，例如：
-
-- VS：`C:\Program Files\Microsoft Visual Studio\2022\Community`
-- Qt：`E:\Qt\6.10.1\msvc2022_64\lib\cmake`
-- conda 环境：`avlite3`
-- PySide6/Shiboken6 cmake 路径：`C:/Users/yin/anaconda3/envs/avlite3/...`
-
-如果本机路径或环境名不同，先修改对应 `build.ps1` 里的路径。
-
-在仓库根目录执行：
-
-```
-powershell -NoProfile -ExecutionPolicy Bypass -File .\cpp_bindings\color_wheel\build.ps1
+```powershell
+$env:Qt6_DIR = "C:/Qt/6.10.3/msvc2022_64/lib/cmake/Qt6"
+$env:VCPKG_ROOT = "C:/src/vcpkg"
 ```
 
-或：
+若尚未安装 vcpkg，可执行：
 
-```
-powershell -NoProfile -ExecutionPolicy Bypass -File .\cpp_bindings\forced_direct_view\build.ps1
-```
-
-脚本会清理并重新创建绑定项目下的 `build/` 目录，使用 Release 配置编译，然后执行 `ninja install`。安装后 `.pyd`、`.dll` 和 `shiboken6.abi3.dll` 会复制到对应绑定目录，Python 可以直接从该目录导入绑定模块。
-
-这部分只有在修改 C++/Shiboken 绑定时才需要编译；日常 Python/UI 开发不需要重新编译。
-
-
-
-
-### 开发前准备
-下载后请运行`scripts/develop_pre.ps1`
-
-插件加载，需要手动的按照上面去浏览器临时加载选择extensions/firefox_capture里的manifest.json
-
-
-## 运行
-vscode解释器选择
-Ctrl + Shift + P
-
-```
-Python: Select Interpreter
-```
-venv
-python main.py
-
-或者直接按F5
-
-### 外部信息补充器（56790）
-
-主程序自身会启动 `server/` 中的 FastAPI 服务，默认监听
-`http://127.0.0.1:56789`。爬虫设置中的 work、actress、image 和
-top-actresses API 默认指向另一个服务：`http://127.0.0.1:56790`。
-
-`56790` 服务是外部的信息补充器（Collector/Bridge），本仓库只包含它的客户端配置、
-启动和状态探测逻辑，不包含该服务的源码、Python 包或构建脚本，无法从本仓库直接启动该服务。
-
-本地联调时，需要先单独准备并启动信息补充器，然后在“设置 → 信息补充器相关设置”中：
-
-1. 选择信息补充器的 `.exe`，可按需启用“打开软件自动启动信息服务器”；或在外部手动启动该程序。
-2. 如果服务地址不是默认的 `127.0.0.1:56790`，修改四个爬虫 API 地址。
-3. 使用设置页的“测试”按钮探测 `{Bridge 根地址}/api/v1/exist`。
-
-信息补充器未运行且没有配置其他可用服务地址时，上述四个爬虫 API 会调用失败；
-这不影响主程序内部的 `56789` 服务启动。
-
-
-### 代码规范
-
-官方样式指南，约定包括：
-缩进：4 个空格，不用 Tab 混用。
-行长：常见约定每行 ≤79（文档/注释）或 ≤88/100（很多项目用工具放宽）。
-命名：模块/包 lowercase；类 CapWords；函数/方法/变量 lower_with_underscores；常量 ALL_CAPS；私有约定 _leading_underscore。
-qt信号，小驼峰
-
-导入：标准库 → 第三方 → 本地，各组空一行；尽量不用 import *。
-空格：运算符两侧、逗号后等留白习惯；不在括号里无故加空格。
-字符串：与同文件已有风格一致；无特殊理由可优先双引号或统一用一种。
-PEP 257
-docstring 的写法和格式约定。
-
-类型注解
-PEP 484 及后续（typing / | 联合类型等），是否强制由项目决定。
-
-使用black作为代码的风格的整理
-
-
-## 打包发布
-日常开发使用 `venv` 环境；正式打包请切换到专用的 `pack` 环境。`pack` 环境完全根据 `pyproject.toml` 安装依赖，只保留项目运行和打包需要的包，避免开发环境里的额外依赖污染打包结果，也能减少 Nuitka 的依赖分析范围。
-
-在 powershell 里运行：
-
-```
-conda activate pack
-python scripts/build-nuitka.py --debug
+```powershell
+git clone https://github.com/microsoft/vcpkg C:/src/vcpkg
+C:/src/vcpkg/bootstrap-vcpkg.bat
 ```
 
-debug 版本用于本地验证：不启用 LTO、强制显示控制台、会生成 `report.xml`，不会生成发布压缩包。
-编译后的可移动目录在 `dist/main.dist`，运行 `dist/main.dist/DarkEye.exe` 即可启动。
+建议将 `Qt6_DIR` 和 `VCPKG_ROOT` 配置为用户环境变量，避免每次新开终端都要设置。Qt 必须使用
+MSVC 2022 64-bit kit，并与项目的 x64 Windows 构建一致。
 
-确认无问题后，发布版使用：
+## vcpkg换源
+首先先去安装[powershell 7.5.3](https://github.com/PowerShell/PowerShell/releases/download/v7.5.3/PowerShell-7.5.3-win-x64.msi)
+
+Git URL重定向
+```
+git config --global url."https://gitee.com/mirrors/vcpkg".insteadOf "https://github.com/microsoft/vcpkg"
+```
 
 ```
-conda activate pack
-python scripts/build-nuitka.py --release
+git config --global url."https://mirrors.tuna.tsinghua.edu.cn/git/vcpkg/".insteadOf "https://github.com/microsoft/vcpkg"
 ```
 
-release 版本会启用 LTO、隐藏控制台，编译完成后自动运行 `scripts/pack.py`，生成 `tar.zst`、`zip` 和 `update/latest.json`。
+设置环境变量
+```
+$env:VCPKG_DOWNLOAD_MIRROR="https://mirrors.ustc.edu.cn/github-release/ninja-build/ninja/"
+$env:X_VCPKG_ASSET_SOURCES="x-azurl,https://mirrors.ustc.edu.cn/vcpkg/assets/"
+```
 
-现在的打包属于激进排除，几乎把不需要的 dll 文件全删除了，所以当需要用到新的东西时很可能少 dll。需要重新修改 `scripts/build-nuitka.py` 里的打包配置。
+## CMake 预设
 
-本仓库的发布脚本只负责打包 DarkEye 主程序，不提供外部信息补充器的构建脚本；
-信息补充器的构建与发布需要在对应项目中完成。
+根目录的 `CMakePresets.json` 已定义下列预设：
 
+| 用途 | 配置预设 | 构建预设 |
+| --- | --- | --- |
+| 日常 Debug 构建 | `windows-msvc-debug` | `debug` |
+| Debug 构建并启用测试 | `windows-msvc-debug-tests` | `debug-tests` |
+| Release（不含 `data`） | `windows-msvc-release-no-data` | `release-no-data` |
+| Release（含 `data`） | `windows-msvc-release-data` | `release-data` |
+| Release 构建并启用测试 | `windows-msvc-release-tests` | `release-tests` |
 
+首次配置时，vcpkg 会下载并构建 `vcpkg.json` 中锁定的依赖，耗时会比后续配置更长。
+构建目录位于 `build/windows-msvc-*`；不要把生成文件提交到 Git。
 
+## 命令行构建与运行
 
+在仓库根目录执行日常 Debug 构建：
 
+```powershell
+cmake --preset windows-msvc-debug
+cmake --build --preset debug
+```
+
+生成的可执行文件为：
+
+```text
+build/windows-msvc-debug/apps/desktop/Darkeye.exe
+```
+
+构建完成后，CMake 会自动调用 Qt 的 `windeployqt`，因此可以直接运行该文件：
+
+```powershell
+& .\build\windows-msvc-debug\apps\desktop\Darkeye.exe
+```
+
+如需构建和运行测试，改用测试预设：
+
+```powershell
+cmake --preset windows-msvc-debug-tests
+cmake --build --preset debug-tests
+ctest --preset debug
+```
+
+`ctest --preset debug` 会在测试失败时输出失败信息。也可用 `ctest --test-dir build/windows-msvc-debug-tests --output-on-failure`
+运行同一套测试。
+
+## Visual Studio 2022 调试
+
+1. 使用 **File → Open → Folder** 打开仓库根目录；Visual Studio 会读取 `CMakePresets.json`。
+2. 在工具栏的配置下拉框选择 `windows-msvc-debug`；若要调试测试，选择 `windows-msvc-debug-tests`。
+3. 在 CMake Targets View 中将 `Darkeye` 设为启动项，等待首次 CMake 配置和构建完成。
+4. 在 C++ 源文件中设置断点，按 `F5` 开始调试；使用 `Ctrl+F5` 直接运行而不附加调试器。
+
+若 Visual Studio 提示找不到 Qt 或 vcpkg，请在启动 Visual Studio 前设置 `Qt6_DIR`、`VCPKG_ROOT`，然后执行
+**Project → Delete Cache and Reconfigure**。切换 Debug/Release 或切换依赖配置后，也应重新配置。
+
+## VS Code 调试
+
+安装 Microsoft 的 C/C++ 与 CMake Tools 扩展后，打开仓库根目录：
+
+1. 在 CMake Tools 的配置预设中选择 `windows-msvc-debug`。
+2. 执行 **CMake: Configure**，再执行 **CMake: Build**。
+3. 选择 `Darkeye` 作为启动目标；在源文件添加断点后按 `F5`。
+
+VS Code 必须从已设置 `Qt6_DIR`、`VCPKG_ROOT` 的 Developer PowerShell 启动，或在系统环境变量中配置它们；否则 CMake 无法定位 Qt 和 vcpkg 工具链。
+
+## 安装目录与发布构建
+
+Release 构建不等同于安装包。构建完成后执行 `cmake --install`，才能得到可分发目录：
+
+```powershell
+cmake --preset windows-msvc-release-data
+cmake --build --preset release-data
+cmake --install build/windows-msvc-release-data --config Release
+```
+
+输出目录为 `out/install/release-data`。`release-data` 会一并安装 `data/`；若发布包不需要数据，使用
+`windows-msvc-release-no-data` / `release-no-data`，输出到 `out/install/release-no-data`。
+
+安装步骤会复制程序、`resources/`、Qt 运行时和所需的 vcpkg DLL。交付前请在未安装开发环境的 Windows
+机器上验证 `Darkeye.exe` 能否直接启动。
+
+## 常见问题
+
+### CMake 找不到 Qt6
+
+确认 `Qt6_DIR` 指向类似
+`C:/Qt/6.10.3/msvc2022_64/lib/cmake/Qt6` 的目录，而不是 Qt 安装根目录；然后删除 CMake 缓存并重新配置。
+
+### vcpkg 工具链或依赖找不到
+
+确认 `VCPKG_ROOT` 是 vcpkg 根目录，其中包含 `scripts/buildsystems/vcpkg.cmake`。不要用全局安装的包替代 manifest
+依赖；`vcpkg.json` 的 baseline 应随依赖更新一并提交。
+
+### 程序启动时缺少 Qt DLL 或插件
+
+先重新执行对应的 `cmake --build --preset ...`。默认构建会在可执行文件旁运行 `windeployqt`；如果关闭了
+`DARKEYE_DEPLOY_QT_RUNTIME`，需自行部署 Qt runtime，或改用 `cmake --install` 生成安装目录。

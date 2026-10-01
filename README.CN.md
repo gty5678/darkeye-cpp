@@ -226,7 +226,7 @@
 <a id="development"></a>
 
 ## 开发与技术
-主要技术基于 PySide6 / Qt Quick 3D、SQLite、本地 FastAPI 与浏览器扩展协同，并含 C++ 力导向图加速。
+主要技术基于 C++20 / Qt 6、SQLite、本地 HTTP API 与浏览器扩展协同，并含 QRhi 力导向图渲染。
 
 若想开发，请先阅读下面的文档将软件运行起来。
 👉 [开发文档](https://gty5678.github.io/darkeye/development/)

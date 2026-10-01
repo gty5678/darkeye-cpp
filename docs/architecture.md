@@ -1,199 +1,106 @@
-# DarkEye 项目架构说明
+# DarkEye C++ 架构
 
-> 基于代码与现有文档整理，描述整体分层、模块职责与关键数据流。
+> 本文描述仓库当前的 C++ / Qt 实现；Python 版目录、运行时和绑定层均不属于本项目架构。
 
----
+## 技术栈
 
-## 一、项目概述
+| 类别 | 当前实现 |
+| --- | --- |
+| 语言与构建 | C++20、CMake 3.25+、Ninja、MSVC 2022、vcpkg manifest |
+| GUI | Qt 6.10：Widgets、Quick/Quick3D、QML、QRhi、Qt SQL |
+| 数据 | SQLite 公共库与私有库，基于 Qt SQL 访问 |
+| 本地通信 | Qt HttpServer，默认仅监听 `127.0.0.1:56789` |
+| 外部采集 | 可选 Collector 进程与 HTTP JSON 客户端，默认端口 56790 |
+| 关系图 | 自有图存储/会话、力导向仿真、QRhi 渲染、MSDF 字体图集 |
+| 发布 | CMake install、Qt 部署脚本、vcpkg 运行时依赖收集 |
 
-**DarkEye（暗眼）** 是一款 PC 端本地化、隐私导向的暗黑影片元数据管理与分析软件。技术要点：
+## 分层与依赖
 
-- **GUI**：PySide6 (Qt6) + Qt Quick 3D（拟物 DVD 等）
-- **存储**：SQLite 双库（公共库 public.db + 私有库 private.db）
-- **采集**：Firefox 插件 + 本地 FastAPI 接口 + 多源爬虫
-- **关系发现**：力导向图（C++ 加速，Shiboken6 绑定）
-
----
-
-## 二、技术栈概览
-
-| 类别     | 技术 |
-|----------|------|
-| 语言     | Python 3.13、C++17（力导向图）、JavaScript（浏览器插件） |
-| GUI      | PySide6 6.10、Qt Quick 3D、OpenGL |
-| 数据库   | SQLite（WAL、外键）、双库分离 |
-| 本地 API | FastAPI、Uvicorn、Pydantic |
-| 爬虫/解析 | asyncio、Worker 线程池、BS4、requests |
-| 图/可视化 | NetworkX、C++ ForceView（Shiboken6）、QPainter 自绘 |
-| 打包     | PyInstaller / Nuitka |
-| 文档     | MkDocs、MkDocs Material |
-
----
-
-## 三、整体架构分层
-
+```text
+apps/desktop (Darkeye.exe)
+        │
+        ├── libs/ui ──────────────── 页面、编辑器、对话框和导航
+        ├── libs/darkeye_ui ──────── 主题、布局、通用视觉组件
+        │
+        ├── libs/services ────────── 采集持久化、同步、翻译、更新、视频库维护
+        ├── libs/graph_view ──────── 关系图视图、仿真和 QRhi 渲染
+        │        └── libs/graph ──── 图数据、仓储和图会话
+        │
+        ├── libs/database ────────── SQLite、仓储、备份、维护和 WebDAV
+        ├── libs/settings ────────── 路径与持久化设置
+        └── libs/core ────────────── 领域模型、日志、采集、HTTP API、通用工具
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  入口：main.py                                                           │
-│  （日志、性能分析、Qt/OpenGL 设置、数据库初始化、样式、主窗口、延迟启动 API）  │
-└─────────────────────────────────────────────────────────────────────────┘
+
+`libs/darkeye_ui` 是可复用的设计系统；`libs/ui` 负责 DarkEye 的业务页面。
+`libs/graph` 不依赖渲染器，`libs/graph_view` 将图会话适配到 Qt 图形视图，便于单独测试
+图数据和渲染逻辑。
+
+## 应用启动
+
+`apps/desktop/main.cpp` 创建 `darkeye::Application`。应用构造和运行流程如下：
+
+1. `settings::Paths` 创建运行所需目录，`settings::ensureDefaults` 补齐默认设置。
+2. `DatabaseManager` 打开并初始化公共、私有 SQLite 数据库。
+3. `ThemeService` 读取并应用主题；随后创建 `MainWindow`、`LocalApiServer` 和可选的 `ManagedCollector`。
+4. 接受首次使用协议后，显示主窗口并预热 `ForceViewRhiWidget` 的图形渲染器。
+5. Qt 事件循环启动后，本地 API 监听 `127.0.0.1:56789`；应用按设置启动 Collector、检查更新，以及可选的本地 `llama-server`。
+
+程序退出时会停止本地 API、Collector 和受管理的 `llama-server`，再关闭日志服务。
+
+## 桌面界面与功能入口
+
+`MainWindow` 使用侧栏和 `QStackedWidget` 管理页面，并按需创建具体页面。当前主入口包括：
+
+| 入口 | 主要页面/职责 |
+| --- | --- |
+| 首页、仪表盘 | 首页内容和数据库概览。 |
+| 作品 | `WorkPage`：作品浏览、条件检索、详情与编辑跳转。 |
+| 女演员、男演员 | 列表、详情和编辑页面。 |
+| 管理 | 作品录入、标签/制作商/厂牌/系列管理、批处理、汇总查询、回收站。 |
+| 统计 | 私人数据记录与统计图表。 |
+| 关系图 | `ForceDirectPage`：作品/人物关联浏览。 |
+| 书架、剧照 | 拟物书架、作品详情和剧照浏览。 |
+| 通知 | `InboxPage`：采集队列状态与处理。 |
+| 设置 | 主题、视频、快捷键、采集、NFO、翻译、数据库与备份。 |
+
+页面之间通过 Qt 信号传递“打开详情”“编辑”“数据已修改”等事件。主窗口集中处理导航、
+历史记录、主题切换及跨页面刷新，页面不直接依赖其他页面的实现。
+
+## 数据、采集与本地 API
+
+```text
+浏览器扩展 / 本机工具
+          │ HTTP（127.0.0.1:56789）
+          ▼
+LocalApiServer ── Qt 信号 ──► MainWindow / CrawlerScheduler
                                       │
-        ┌─────────────────────────────┼─────────────────────────────┐
-        ▼                             ▼                             ▼
-┌───────────────┐           ┌───────────────────┐           ┌───────────────┐
-│ config.py     │           │ controller/       │           │ 资源路径       │
-│ 路径/版本/    │           │ app_context.py    │           │ settings.ini  │
-│ settings.ini  │           │ ThemeManager 单例 │           │ resources/    │
-└───────────────┘           └───────────────────┘           └───────────────┘
-        │                             │
-        └─────────────────────────────┼─────────────────────────────────────┐
-                                      ▼                                     │
-┌─────────────────────────────────────────────────────────────────────────┐
-│  UI 层：ui/                                                              │
-│  MainWindow → Sidebar2 + QStackedWidget → Router（懒加载页面工厂）         │
-│  pages/（HomePage, WorkPage, ActressPage, ForceDirectPage, ShelfPage…）   │
-│  widgets/, basic/, dialogs/, navigation/, statistics/                     │
-└─────────────────────────────────────────────────────────────────────────┘
-        │
-        │ 依赖
-        ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  设计系统与组件库：darkeye_ui/                                            │
-│  ThemeManager / tokens / 主题切换；Button、ToggleSwitch、FlowLayout 等     │
-└─────────────────────────────────────────────────────────────────────────┘
-        │
-        │ 依赖
-        ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  控制器层：controller/                                                    │
-│  app_context（ThemeManager 单例）；ShortcutRegistry、ShortcutBindings；   │
-│  GlobalSignalBus（数据变更信号）；MessageService 等                        │
-└─────────────────────────────────────────────────────────────────────────┘
-        │
-        │ 依赖
-        ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  核心层：core/                                                           │
-│  database/（连接、init、migrations、query、insert、update、delete、备份） │
-│  graph/（GraphManager、力导向视图、过滤、异步图数据加载）                   │
-│  crawler/（CrawlerManager、Worker、多源爬虫、结果合并）                    │
-│  dvd/（Qt Quick 3D 拟物 DVD）                                             │
-│  recommendation/、utils/、schema/                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-        │
-        │ 可选 C++ 加速
-        ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  C++ 绑定：cpp_bindings/                                                 │
-│  forced_direct_view：力导向物理仿真 + 渲染（PyForceView）                  │
-│  color_wheel：取色等                                                      │
-└─────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────┐
-│  服务层：server/                                                          │
-│  FastAPI app（后台线程）←→ ServerBridge（Qt 信号）←→ 主线程 GUI            │
-│  供 Firefox 插件、本地前端调用                                            │
-└─────────────────────────────────────────────────────────────────────────┘
-        ▲
-        │ HTTP
-        │
-┌─────────────────────────────────────────────────────────────────────────┐
-│  扩展：extensions/firefox_capture/                                        │
-│  WebExtension：popup、content scripts、background；站点脚本 javdb/javlib 等 │
-└─────────────────────────────────────────────────────────────────────────┘
+                                      ▼
+                       CollectorClient（可选，127.0.0.1:56790）
+                                      │ JSON
+                                      ▼
+                       CrawlerPersistenceService ──► SQLite 与图片资源
 ```
 
----
+`LocalApiServer` 只转发本地采集事件，不在 HTTP 处理器内执行长时间任务。`CrawlerScheduler`
+负责排队、暂停、取消、失败状态与完成回调；`CollectorClient` 通过网络请求与外部信息补充器通信。
+Collector 是可选的独立程序，仓库不包含其实现或构建方式。
 
-## 四、模块说明
+数据库由 `DatabaseManager` 管理公共和私有连接。领域仓储覆盖作品、人物、统计、引用和私有数据；
+数据库模块同时提供事务、架构脚本、快照、维护、CSV 和 WebDAV 备份服务。运行数据路径全部由
+`settings::Paths` 解析，默认相对于可执行程序目录。
 
-### 4.1 入口与启动（main.py）
+## 关系图
 
-- 设置 `QSG_RHI_BACKEND=opengl`、Qt 属性、OpenGL SurfaceFormat。
-- 初始化日志（`utils.log_config`）、性能分析（`utils.profiler`）。
-- 可选首次启动协议（TermsDialog）。
-- **数据库**：`init_private_db` → `check_and_upgrade_private_db` → `check_and_upgrade_public_db` → `init_database`（见 [SCHEMA](SCHEMA.md)）。
-- **图**：`GraphManager.instance().initialize()` 异步建图。
-- **样式**：`load_app_stylesheet(app)` 注册 `ThemeManager` 到 `controller.app_context`。
-- 创建并显示 `MainWindow`；`QTimer.singleShot(0, start_server)` 延迟启动 API，避免阻塞首帧。
+关系图由两层组成：
 
-### 4.2 配置与上下文
+- `libs/graph`：读取数据、维护图存储、仓储和视图会话，负责全图、中心节点邻域和筛选条件。
+- `libs/graph_view`：力导向物理、四叉树、节点/边渲染、图片覆盖和 QRhi 小部件。
 
-- **config.py**：`resource_path` 兼容打包；从 `settings.ini` 读取路径（数据库、公/私库备份、女优/男优/封面图、SQL、敏感词、快捷键、爬虫导航按钮等）；`REQUIRED_PUBLIC_DB_VERSION` / `REQUIRED_PRIVATE_DB_VERSION` 用于迁移。
-- **controller/app_context.py**：全局 `ThemeManager` 的 get/set，供各页面与 darkeye_ui 组件使用。
+`GraphViewWidget` 接收 `GraphManager` 与 `GraphViewSession` 的数据，可展示全图、中心节点邻域、
+收藏筛选或测试图。渲染层使用 `msdfgen` 与 FreeType 生成文字图集，并由 Qt 的图形运行时部署所需 DLL。
 
-### 4.3 核心层（core/）
+## 发布边界
 
-| 子模块 | 职责 |
-|--------|------|
-| **database/** | `connection.get_connection()` 统一 SQLite 连接（WAL、外键）；`init` 建库；`migrations` 版本检测与升级、重建私有库链接、maker 前缀导入导出；`query/` 按领域拆分（work、actress、actor、tag、statistics、dashboard、private）；`insert`/`update`/`delete` 写操作，并在完成后由调用方 emit `GlobalSignalBus` 对应信号（见 [write_ops_signal_mapping](write_ops_signal_mapping.md)）；`backup_utils` 备份/还原与资源快照；`db_utils` 附件私有库、图片一致性、清理临时文件等。 |
-| **graph/** | `GraphManager` 单例维护总图 G，基于元数据/标签等生成节点与边；发出 `graph_diff_signal`、`initialization_finished`；`ForceDirectedViewWidget` 等与 C++ `PyForceView` 或 Python 实现对接；`graph_filter`、`async_image_loader`、`text_parser`（wikilink 等）支撑图展示与筛选。 |
-| **crawler/** | `CrawlerManager`（含 CrawlerManager2）单例：任务队列、定时调度、多源（javlib、javdb、javtxt、fanza、avdanyuwiki 等）；`Worker` 执行单次爬取；结果经 `ResultRelay`/`MergeRelay` 回主线程；与 `server.bridge.captureone_received` 连接，实现「插件推送番号 → 自动开始爬取」。 |
-| **dvd/** | Qt Quick 3D 拟物 DVD 展示（QML、DvdShelfView 等）。 |
-| **recommendation/** | 推荐逻辑（如随机推荐、养生模式，见 PRD）。 |
-| **utils/** | 日志、性能分析、通用工具。 |
-| **schema/** | 爬虫结果等数据结构（如 Pydantic/CrawledWorkData）。 |
-
-### 4.4 UI 层（ui/）
-
-- **main_window.py**：`QMainWindow`，侧边栏 `Sidebar2` + `QStackedWidget`，`Router` 注册路由与懒加载工厂，菜单与路由映射；快捷键通过 `ShortcutRegistry`/`setup_mainwindow_actions` 绑定；`server.bridge.capture_received` 处理插件抓取数据；延后初始化 `CrawlerManager`。
-- **navigation/router.py**：`Router` 单例，`register(route_name, factory, menu_id)`，`push`/`back` 维护历史栈并切换 stack 页面；`_get_page_instance` 懒加载页面。
-- **pages/**：各功能页（HomePage、WorkPage、ActressPage、ActorPage、ForceDirectPage、ShelfPage、SettingPage、ManagementPage、StatisticsPage、AvPage 等），以及单条详情/编辑（SingleWorkPage、SingleActressPage、ModifyActressPage 等）。
-- **widgets/**、**basic/**、**dialogs/**：可复用控件与对话框。
-- **darkeye_ui/**：独立设计系统与组件库（主题、Token、Button、ToggleSwitch、FlowLayout、WaterfallLayout 等），被主 UI 与设置页主题切换使用。
-
-### 4.5 控制器层（controller/）
-
-- **ShortcutRegistry / ShortcutBindings**：统一注册与绑定主窗口及全局快捷键。
-- **GlobalSignalBus**：全局 Qt 信号（`work_data_changed`、`actress_data_changed`、`tag_data_changed`、撸管/做爱/晨勃/喜欢作品/喜欢女优、`status_msg_changed`、`gui_update` 等），用于写操作后刷新列表/选择器/图等（见 write_ops_signal_mapping）。
-
-### 4.6 服务层（server/）
-
-- **launcher.py**：在后台线程启动 Uvicorn 运行 FastAPI，不阻塞主线程。
-- **bridge.py**：`ServerBridge` 单例（主线程创建），信号如 `capture_received`、`captureone_received`、`javlib_finished` 等；FastAPI 路由通过 `bridge.xxx.emit()` 与 Qt 主线程通信（必要时使用 `QueuedConnection`）。
-- **app**：FastAPI 应用，提供浏览器插件与本地调用的 HTTP API（如接收番号、抓取结果等）。
-
-### 4.7 扩展（extensions/firefox_capture）
-
-- Firefox WebExtension：manifest、popup、content scripts、background。
-- 站点脚本适配 javdb、javlibrary、fanza、minnano 等；与本地 `server` API 通信，推送番号或抓取数据。
-
-### 4.8 C++ 绑定（cpp_bindings/）
-
-- **forced_direct_view**：力导向图物理状态（PhysicsState）、力（CenterForce、LinkForce、ManyBodyForce）、仿真循环、`NodeLayer`（QGraphicsObject）、`ForceView`（QGraphicsView）；通过 Shiboken6 暴露为 `PyForceView`，供 Python 设置图数据并接收节点点击等信号。
-- **color_wheel**：取色等控件（bindings.xml 等）。
-
----
-
-## 五、数据流与通信要点
-
-1. **插件 → 桌面端**：浏览器 content/popup → HTTP 到 FastAPI → `ServerBridge.captureone_received` / `capture_received` → 主线程 CrawlerManager / MainWindow 处理。
-2. **写操作 → UI 刷新**：database 的 insert/update/delete 调用方负责 emit `global_signals` 对应信号；列表页、选择器、图等监听这些信号并刷新（见 write_ops_signal_mapping）。
-3. **图数据**：`GraphManager` 维护总图，异步初始化后通过 `graph_diff_signal` 或等价机制向力导向视图推送增量；视图层可过滤、按需加载图片与文案。
-4. **主题**：`ThemeManager` 在 main 中创建并 `set_theme_manager`；设置页切换主题时调用 `apply_theme(theme_id)`，重新 `set_theme(app, theme_id)` 并刷新依赖 token 的组件。
-
----
-
-## 六、资源与部署
-
-- **资源路径**：由 config 从 settings.ini 解析，支持开发/打包（`resource_path`）；主要数据在 `resources/public`（公库、封面、女优/男优图）与 `resources/private`（私库、备份）。
-- **SQL**：`resources/sql/` 下建表（initTABLE.sql、initPrivateTable.sql）与迁移、ReBuild 脚本。
-- **文档**：MkDocs 配置在 `mkdocs.yml`，`mkdocs serve` / `mkdocs build`；架构、PRD、SCHEMA、API、写操作信号映射等见 `docs/`。
-- **打包**：PyInstaller（build-pyinstaller.ps1）或 Nuitka（build-nuitka.ps1）；需注意 OpenGL 与运行库依赖。
-
----
-
-## 七、小结
-
-| 层次 | 目录/模块 | 核心职责 |
-|------|-----------|----------|
-| 入口 | main.py | 环境、数据库、图、样式、主窗口、延迟 API |
-| 配置 | config | 路径、版本、settings.ini |
-| UI | ui/, darkeye_ui | 主窗口、路由、页面、设计系统与组件 |
-| 控制 | controller | 主题上下文、快捷键、全局信号总线、MessageService |
-| 核心 | core/database, graph, crawler, dvd, … | 存储、图、爬虫、拟物 DVD、推荐 |
-| 服务 | server | FastAPI + Bridge，供插件与本地调用 |
-| 扩展 | extensions/firefox_capture | 浏览器端采集与推送 |
-| 加速 | cpp_bindings | 力导向图、取色等 C++ 实现 |
-
-整体为**单进程桌面应用**：主线程 Qt 事件循环，数据库与图在进程内，爬虫与 API 在子线程/异步中运行，通过 Qt 信号与 Bridge 与主线程安全通信。
+CMake 将桌面程序和 `resources/` 安装到输出目录；`DARKEYE_INSTALL_DATA` 决定是否附带 `data/`。
+Windows 下构建后会使用 `windeployqt` 部署开发运行所需的 Qt 文件；`cmake --install` 还会收集
+msdfgen、FreeType 等运行时依赖。具体命令和预设见[开发准备](development.md)。
