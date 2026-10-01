@@ -3,8 +3,8 @@
     <img src="https://raw.githubusercontent.com/gty5678/darkeye-cpp/main/resources/icons/logo.svg" alt="DarkEye" width="128" />
   </a>
   <h1>DarkEye</h1>
-  <p><strong>ローカル資料管理を、より明確で整然と</strong></p>
-  <p>完全ローカル・プライバシー重視のメディアメタデータ／個人資料管理ツール。ブラウザ拡張による補助取得と実物風 DVD ボックスの陳列に対応。整理・検索・分析・可視化をひとつに。</p>
+  <p><strong>洞察と秩序</strong></p>
+  <p>完全ローカルの個人向けメディアライブラリ、メタデータエディタ、関係分析ツール、アーカイブブラウザです。</p>
   <br />
 
 [![README · 日本語][badge-readme-ja]](README.md)
@@ -93,7 +93,7 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 
 👉 [FAQ：更新と移行](https://gty5678.github.io/darkeye/faq/)
 
-設定から**本体**の自動更新が可能です。ブラウザ拡張はストア公開できませんが、**拡張ファイル**はソフトの `extensions` フォルダで更新されるため、ブラウザ側で**再読み込み**が必要です。拡張は [Releases][link-releases] から手動でダウンロードも可能です。
+設定から**ソフト本体**を自動更新できます。ソフト自体は自動更新されませんが、**拡張機能**はソフトの `extensions` フォルダで更新されるため、ブラウザで**手動で再読み込み**が必要です。拡張機能は [Releases][link-releases] から手動でダウンロードすることもできます。
 
 バージョン移行時は**ブラウザ拡張の更新**にご注意ください。クローラーはサイト側の都合ですぐ失効することがあり、フィードバックを受けて手作業で保守します。プロキシの問題はソフト側では解決しません。対象サイトがブラウザで開ければ、通常は取得できます。
 
@@ -127,14 +127,13 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 | **簡易スクレイピング** | 取得可否と品質は対象サイトの公開方針とアクセスルールに依存。詳細はドキュメント参照 | ✅ |
 | **関連グラフ** | 関連の表示、約 1 万ノードで約 60 fps | ✅ |
 | **翻訳** | LLM 翻訳・ワンクリックで上書き翻訳 | ✅ |
-| **mdcz NFO インポート** | [mdcz](https://github.com/ShotHeadman/mdcz) スクレイピング NFO のインポート | ✅ |
-| **Jvedio NFO インポート** | Jvedio からエクスポートした NFO（試験中） | ✅ |
-| **外部リンク** | JSON 駆動で外部サイトへジャンプ、カスタム可 | ✅ |
 | **ローカル動画リンク** | ローカルに動画がある場合、DB にリンクできる | ✅ |
 | **バックアップ** | バックアップ機能、ローカル資料の保全と復元に利用 | ✅ |
 | **テーマ** | テーマ切替（3D シーンはライト／ダーク未完全対応） | ✅ |
 | **スクリーンショット** | 一部スクリーンショット、女優画面で C キー | ✅ |
 | **自動更新** | 更新の自動検知とダウンロード | ✅ |
+| **mdcz NFO インポート** | [mdcz](https://github.com/ShotHeadman/mdcz) の NFO インポート | ✅ |
+| **Jvedio NFO インポート** | Jvedio のデータエクスポート NFO（試験中） | ✅ |
 
 
 ### 計画・進行中
@@ -232,6 +231,8 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 
 主な技術は PySide6 / Qt Quick 3D、SQLite、ローカル FastAPI とブラウザ拡張の協調、および C++ による力指向グラフの高速化です。
 
+開発する場合は、まず以下のドキュメントを読み、ソフトを起動してください。
+
 👉 [開発ドキュメント](https://gty5678.github.io/darkeye/development/)
 
 ---
@@ -252,11 +253,11 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 
 ## 参考プロジェクト
 
-- [mdcz](https://github.com/ShotHeadman/mdcz)：ローカル動画のファイル名から品番を取り、NFO との整合の参考
-- [Jvedio](https://github.com/hitchao/Jvedio)：データベース連携・データのエクスポート
-- [JavSP](https://github.com/Yuukiy/JavSP)：一部サイトのクローラー実装の参考
-- [JAV-JHS](https://sleazyfork.org/zh-CN/scripts/558525-jav-jhs)：サイト情報整理の参考
-- [JAV_MovieManager](https://github.com/4evergaeul/JAV_MovieManager)
+- [mdcz](https://github.com/ShotHeadman/mdcz)（移行互換の参考）
+- [Jvedio](https://github.com/hitchao/Jvedio)（移行互換の参考）
+- [JavSP](https://github.com/Yuukiy/JavSP)（サイト対応の参考）
+- [JAV-JHS](https://sleazyfork.org/zh-CN/scripts/558525-jav-jhs)（情報整理の参考）
+- [JAV_MovieManager](https://github.com/4evergaeul/JAV_MovieManager)（メディア管理の操作性の参考）
 - [stash](https://github.com/stashapp/stash)
 - [AMMDS](https://github.com/QYG2297248353/AMMDS-Docker)
 - [mdc-ng](https://github.com/mdc-ng/mdc-ng)

@@ -3,8 +3,8 @@
     <img src="https://raw.githubusercontent.com/gty5678/darkeye-cpp/main/resources/icons/logo.svg" alt="DarkEye" width="128" />
   </a>
   <h1>DarkEye</h1>
-  <p><strong>讓本機資料管理更清晰有序</strong></p>
-  <p>完全本機、重視隱私的媒體中繼資料與個人資料管理工具。支援透過瀏覽器擴充功能輔助抓取和擬物化 DVD 盒子陳列，將整理、搜尋、分析與視覺化整合在一起。</p>
+  <p><strong>洞察與秩序</strong></p>
+  <p>一個純本機的個人媒體資料庫、中繼資料編輯器、關係分析器與歸檔瀏覽器。</p>
   <br />
 
 [![README · 日本語][badge-readme-ja]](README.md)
