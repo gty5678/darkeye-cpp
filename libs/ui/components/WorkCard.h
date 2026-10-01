@@ -17,14 +17,10 @@ class WorkCard final : public QWidget
 
 public:
     explicit WorkCard(const WorkSummary &work, const QString &coverDirectory,
-                      bool largeCoverView = false, QWidget *parent = nullptr);
-    WorkCard(const WorkSummary &work, const QString &coverDirectory,
-             bool largeCoverView, QWidget *parent, bool greenMode,
-             bool deferCoverLoad = false);
+                      bool largeCoverView = false, QWidget *parent = nullptr,
+                      bool deferCoverLoad = false);
 
     [[nodiscard]] qint64 workId() const noexcept;
-    void setGreenMode(bool enabled);
-    [[nodiscard]] bool greenMode() const noexcept;
     void startCoverLoad(int priority = 0);
 
 signals:
@@ -44,8 +40,6 @@ private:
     bool m_largeCoverView = false;
     AsyncImageLabel *m_cover = nullptr;
     QLabel *m_title = nullptr;
-    QString m_originalTitle;
-    bool m_greenMode = false;
 };
 
 } // namespace darkeye

@@ -814,23 +814,13 @@ void CommonSettingsPage::lazyLoad()
     m_themeSelector = new DesignComboBox(this);
     m_themeSelector->setAccessibleName(QStringLiteral("主题"));
 
-    m_greenMode = new ToggleSwitch(48, 24, &m_themeService, this);
-    m_greenMode->setChecked(settings::app().greenMode);
-
     layout->addRow(new DesignLabel(QStringLiteral("主色"), this), m_primaryColorRow);
     layout->addRow(new DesignLabel(QStringLiteral("主题"), this), m_themeSelector);
-    layout->addRow(new DesignLabel(QStringLiteral("绿色模式"), this), m_greenMode);
 
     connect(m_colorPicker, &ColorPicker::colorConfirmed, this,
             &CommonSettingsPage::savePrimaryColor);
     connect(&m_themeService, &ThemeService::themeChanged, this,
             [this](ThemeId) { updatePrimaryPickerState(); });
-    connect(m_greenMode, &ToggleSwitch::toggled, this, [this](bool enabled) {
-        AppSettings appSettings = settings::app();
-        appSettings.greenMode = enabled;
-        settings::saveApp(appSettings);
-        emit greenModeChanged(enabled);
-    });
     updatePrimaryPickerState();
 }
 
@@ -1615,8 +1605,6 @@ void SettingsPage::lazyLoad()
         connect(videoPage, &VideoSettingsPage::worksChanged, this, &SettingsPage::worksChanged);
     if (auto *nfoPage = findChild<NfoSettingsPage *>())
         connect(nfoPage, &NfoSettingsPage::worksChanged, this, &SettingsPage::worksChanged);
-    connect(m_commonPage, &CommonSettingsPage::greenModeChanged,
-            this, &SettingsPage::greenModeChanged);
 }
 
 QComboBox *SettingsPage::themeSelector() const

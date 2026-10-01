@@ -888,12 +888,6 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
                 m_shelfPage->refresh();
             refreshRelationshipGraph();
         });
-        connect(settings, &SettingsPage::greenModeChanged, this, [this](bool) {
-            if (m_workPage)
-                m_workPage->refresh();
-            if (m_shelfPage)
-                m_shelfPage->refresh();
-        });
         return settings;
     }
     return new PlaceholderPage(menuTitle, routeName, parent);

@@ -3,10 +3,7 @@
 #include "ui/components/AsyncImageLabel.h"
 #include "ui/components/ClickableLabel.h"
 #include "darkeye_ui/components/DesignLabel.h"
-#include "utils/GeneralUtils.h"
-#include "utils/TextUtils.h"
 
-#include <QCoreApplication>
 #include <QDir>
 #include <QEvent>
 #include <QFileInfo>
@@ -23,19 +20,6 @@
 #include <QVBoxLayout>
 
 namespace {
-
-const QStringList &sensitiveWords()
-{
-    static const QStringList words = darkeye::utils::loadSensitiveWords(
-        QDir(QCoreApplication::applicationDirPath())
-            .filePath(QStringLiteral("resources/config/sensitive_words.txt")));
-    return words;
-}
-
-QString displayedTitle(const QString &title, bool greenMode)
-{
-    return greenMode ? darkeye::utils::replaceSensitive(title, sensitiveWords()) : title;
-}
 
 QColor cardColor(int tagId)
 {
@@ -56,16 +40,9 @@ QColor cardColor(int tagId)
 namespace darkeye {
 
 WorkCard::WorkCard(const WorkSummary &work, const QString &coverDirectory,
-                   bool largeCoverView, QWidget *parent)
-    : WorkCard(work, coverDirectory, largeCoverView, parent, false, false)
-{
-}
-
-WorkCard::WorkCard(const WorkSummary &work, const QString &coverDirectory,
-                   bool largeCoverView, QWidget *parent, bool greenMode,
-                   bool deferCoverLoad)
+                   bool largeCoverView, QWidget *parent, bool deferCoverLoad)
     : QWidget(parent), m_workId(work.id), m_backgroundColor(cardColor(work.highlightTagId)),
-      m_largeCoverView(largeCoverView), m_originalTitle(work.chineseTitle), m_greenMode(greenMode)
+      m_largeCoverView(largeCoverView)
 {
     setObjectName(QStringLiteral("WorkCard"));
     setProperty("workId", work.id);
@@ -102,7 +79,6 @@ WorkCard::WorkCard(const WorkSummary &work, const QString &coverDirectory,
             [this] { emit coverLoadFinished(); });
     connect(m_cover, &AsyncImageLabel::imageLoadFailed, this,
             [this] { emit coverLoadFinished(); });
-    m_cover->setGreenMode(m_greenMode);
     m_cover->setFitMode(largeCoverView ? ImageFitMode::Contain
                                        : (work.standard ? ImageFitMode::RightCover
                                                         : ImageFitMode::Contain));
@@ -115,7 +91,7 @@ WorkCard::WorkCard(const WorkSummary &work, const QString &coverDirectory,
     m_cover->installEventFilter(this);
     layout->addWidget(m_cover, 0, Qt::AlignCenter);
 
-    QString displayedTitle = ::displayedTitle(m_originalTitle, m_greenMode);
+    QString displayedTitle = work.chineseTitle;
     if (largeCoverView) {
         displayedTitle = displayedTitle.left(40);
     }
@@ -161,22 +137,6 @@ WorkCard::WorkCard(const WorkSummary &work, const QString &coverDirectory,
 qint64 WorkCard::workId() const noexcept
 {
     return m_workId;
-}
-
-void WorkCard::setGreenMode(bool enabled)
-{
-    if (m_greenMode == enabled) return;
-    m_greenMode = enabled;
-    m_cover->setGreenMode(enabled);
-    QString title = ::displayedTitle(m_originalTitle, enabled);
-    if (m_largeCoverView)
-        title = title.left(40);
-    m_title->setText(title);
-}
-
-bool WorkCard::greenMode() const noexcept
-{
-    return m_greenMode;
 }
 
 void WorkCard::startCoverLoad(int priority)

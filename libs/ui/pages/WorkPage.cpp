@@ -592,11 +592,9 @@ QList<QWidget *> WorkPage::loadCardPage(int pageIndex, int pageSize)
     cards.reserve(works.size());
     QList<WorkCard *> workCards;
     workCards.reserve(works.size());
-    const bool greenMode = settings::app().greenMode;
     for (const WorkSummary &work : works)
     {
-        auto *card = new WorkCard(work, m_coverDirectory, m_largeCoverView, nullptr,
-                                  greenMode, true);
+        auto *card = new WorkCard(work, m_coverDirectory, m_largeCoverView, nullptr, true);
         connect(card, &WorkCard::activated, this, &WorkPage::showWorkDetails);
         connect(card, &WorkCard::editRequested, this, &WorkPage::loadWork);
         cards.append(card);

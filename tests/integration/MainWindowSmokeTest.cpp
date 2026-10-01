@@ -158,7 +158,6 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QVERIFY(!aboutPage->findChild<QPushButton *>(QStringLiteral("CheckUpdateButton"))->isEnabled());
     QVERIFY(aboutPage->findChild<QPushButton *>(QStringLiteral("FeedbackButton"))->isEnabled());
     QVERIFY(window.findChild<QWidget *>(QStringLiteral("PrimaryColorRow")));
-    QVERIFY(window.findChild<QWidget *>(QStringLiteral("greenModeSwitch")));
     auto *shortcutPage = window.findChild<darkeye::ShortcutSettingsPage *>(
         QStringLiteral("ShortcutSettingsPage"));
     QVERIFY(shortcutPage);

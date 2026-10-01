@@ -21,15 +21,13 @@ QCache<QString, QPixmap> &imageCache()
     return cache;
 }
 
-QString imageCacheKey(const QString &path, const QSize &target, ImageFitMode fitMode,
-                      bool greenMode)
+QString imageCacheKey(const QString &path, const QSize &target, ImageFitMode fitMode)
 {
-    return QStringLiteral("%1|%2x%3|%4|%5")
+    return QStringLiteral("%1|%2x%3|%4")
         .arg(path)
         .arg(target.width())
         .arg(target.height())
-        .arg(static_cast<int>(fitMode))
-        .arg(greenMode ? 1 : 0);
+        .arg(static_cast<int>(fitMode));
 }
 
 int imageCostKiB(const QPixmap &pixmap)
@@ -155,15 +153,6 @@ void AsyncImageLabel::setFitMode(ImageFitMode mode)
     startLoad();
 }
 
-bool AsyncImageLabel::greenMode() const { return m_greenMode; }
-
-void AsyncImageLabel::setGreenMode(bool enabled)
-{
-    if (m_greenMode == enabled) return;
-    m_greenMode = enabled;
-    startLoad();
-}
-
 QString AsyncImageLabel::placeholderText() const { return m_placeholder; }
 
 void AsyncImageLabel::setPlaceholderText(const QString &text)
@@ -223,7 +212,7 @@ void AsyncImageLabel::startLoad()
         setText(m_placeholder);
         return;
     }
-    const QString cacheKey = imageCacheKey(m_source, size(), m_fitMode, m_greenMode);
+    const QString cacheKey = imageCacheKey(m_source, size(), m_fitMode);
     if (const QPixmap *cached = imageCache().object(cacheKey)) {
         setText({});
         setPixmap(*cached);
@@ -251,21 +240,12 @@ void AsyncImageLabel::applyResult(quint64 requestId, const QString &path,
         emit imageLoadFailed(path);
         return;
     }
-    const QImage displayImage = m_greenMode ? mosaic(image) : image;
-    const QPixmap displayPixmap = QPixmap::fromImage(displayImage);
-    imageCache().insert(imageCacheKey(path, size(), m_fitMode, m_greenMode),
+    const QPixmap displayPixmap = QPixmap::fromImage(image);
+    imageCache().insert(imageCacheKey(path, size(), m_fitMode),
                         new QPixmap(displayPixmap), imageCostKiB(displayPixmap));
     setText({});
     setPixmap(displayPixmap);
     emit imageLoaded(path);
-}
-
-QImage AsyncImageLabel::mosaic(const QImage &source)
-{
-    if (source.isNull()) return {};
-    const QSize tiny(qMax(1, source.width() / 18), qMax(1, source.height() / 18));
-    return source.scaled(tiny, Qt::IgnoreAspectRatio, Qt::FastTransformation)
-        .scaled(source.size(), Qt::IgnoreAspectRatio, Qt::FastTransformation);
 }
 
 } // namespace darkeye

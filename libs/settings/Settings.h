@@ -22,7 +22,6 @@ struct AppSettings final
 
     QString themeId = QStringLiteral("LIGHT");
     QString customPrimary;
-    bool greenMode = false;
 
     bool firstLaunch = true;
     bool maximized = false;

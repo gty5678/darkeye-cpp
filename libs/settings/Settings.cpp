@@ -145,7 +145,6 @@ AppSettings app(QString settingsFile)
     AppSettings settings;
     settings.themeId = m_store.value(QStringLiteral("App/Theme"), settings.themeId).toString();
     settings.customPrimary = m_store.value(QStringLiteral("App/CustomPrimary")).toString();
-    settings.greenMode = m_store.value(QStringLiteral("App/GreenMode"), settings.greenMode).toBool();
     settings.firstLaunch =
         m_store.value(QStringLiteral("window/first_lunch"), settings.firstLaunch).toBool();
     settings.maximized =
@@ -295,7 +294,6 @@ void saveApp(const AppSettings &settings, QString settingsFile)
     m_store.setValues({
         {QStringLiteral("App/Theme"), settings.themeId},
         {QStringLiteral("App/CustomPrimary"), settings.customPrimary},
-        {QStringLiteral("App/GreenMode"), settings.greenMode},
         {QStringLiteral("window/first_lunch"), settings.firstLaunch},
         {QStringLiteral("window/maximized"), settings.maximized},
         {QStringLiteral("window/size"), settings.windowSize},
@@ -309,6 +307,7 @@ void saveApp(const AppSettings &settings, QString settingsFile)
         {QStringLiteral("Update/AutomaticCheck"), settings.update.automaticCheck},
         {QStringLiteral("Update/UpdateNotification"), settings.update.updateNotification},
     });
+    m_store.remove(QStringLiteral("App/GreenMode"));
 }
 
 void saveCrawler(const CrawlerSettings &settings, QString settingsFile)

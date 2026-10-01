@@ -91,9 +91,6 @@ public:
 
     [[nodiscard]] QComboBox *themeSelector() const;
 
-signals:
-    void greenModeChanged(bool enabled);
-
 private:
     void lazyLoad() override;
     void updatePrimaryPickerState();
@@ -103,7 +100,6 @@ private:
     QWidget *m_primaryColorRow = nullptr;
     ColorPicker *m_colorPicker = nullptr;
     QComboBox *m_themeSelector = nullptr;
-    ToggleSwitch *m_greenMode = nullptr;
 };
 
 class CrawlerSettingsPage final : public LazyWidget
@@ -254,7 +250,6 @@ public:
 
 signals:
     void worksChanged();
-    void greenModeChanged(bool enabled);
 
 private:
     void lazyLoad() override;
