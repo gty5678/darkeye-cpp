@@ -13,7 +13,7 @@
 #include "ui/pages/PersonPage.h"
 #include "ui/pages/StatisticsPage.h"
 #include "ui/pages/SettingsPage.h"
-#include "ui/pages/WorkDetailPage.h"
+#include "ui/pages/ShelfPage.h"
 #include "ui/pages/WorkPage.h"
 #include "ui/components/IdCheckList.h"
 #include "ui/components/JsonTransferBar.h"
@@ -110,7 +110,7 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
 
     QVERIFY(sidebar != nullptr);
     QVERIFY(pages != nullptr);
-    QCOMPARE(pages->count(), 17);
+    QCOMPARE(pages->count(), 16);
     QCOMPARE(sidebar->selectedId(), QStringLiteral("work"));
     QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("WorkPage"));
     QVERIFY(window.findChild<darkeye::WorkPage *>(QStringLiteral("WorkPage")) !=
@@ -206,23 +206,21 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     emit sidebar->itemClicked(QStringLiteral("work"));
     QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("WorkPage"));
     auto *workPage = window.findChild<darkeye::WorkPage *>(QStringLiteral("WorkPage"));
-    auto *detailPage =
-        window.findChild<darkeye::WorkDetailPage *>(QStringLiteral("WorkDetailPage"));
+    auto *shelfPage = window.findChild<darkeye::ShelfPage *>(QStringLiteral("ShelfPage"));
     auto *actressPage = window.findChild<darkeye::PersonPage *>(QStringLiteral("ActressPage"));
     auto *actressDetail =
         window.findChild<darkeye::PersonDetailPage *>(QStringLiteral("ActressDetailPage"));
     QVERIFY(workPage != nullptr);
-    QVERIFY(detailPage != nullptr);
+    QVERIFY(shelfPage != nullptr);
     QVERIFY(actressPage != nullptr);
     QVERIFY(actressDetail != nullptr);
     emit workPage->detailRequested(*workId);
-    QCOMPARE(pages->currentWidget(), detailPage);
-    QCOMPARE(detailPage->currentWorkId(), *workId);
-    QCOMPARE(sidebar->selectedId(), QStringLiteral("work"));
+    QCOMPARE(pages->currentWidget(), shelfPage);
+    QCOMPARE(sidebar->selectedId(), QStringLiteral("shelf"));
     emit sidebar->backwardClicked();
     QCOMPARE(pages->currentWidget(), workPage);
     emit sidebar->forwardClicked();
-    QCOMPARE(pages->currentWidget(), detailPage);
+    QCOMPARE(pages->currentWidget(), shelfPage);
     emit sidebar->itemClicked(QStringLiteral("actress"));
     QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("ActressPage"));
     emit sidebar->itemClicked(QStringLiteral("actor"));

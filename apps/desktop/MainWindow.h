@@ -36,7 +36,6 @@ class ModifyActorPage;
 class ManagementPage;
 class PersonPage;
 class StatisticsPage;
-class WorkDetailPage;
 class WorkPage;
 class ShelfPage;
 class ForceDirectPage;
@@ -75,6 +74,7 @@ private:
     void openPersonEditor(PersonKind kind, qint64 personId);
     void refreshRelationshipGraph();
     void refreshRelationshipGraphWork(qint64 workId);
+    void showWorkInShelf(qint64 workId);
     void registerApplicationActions();
     void focusWorkSearch();
     [[nodiscard]] QWidget *partialCaptureTarget();
@@ -99,7 +99,6 @@ private:
     WorkPage *m_workPage = nullptr;
     ShelfPage *m_shelfPage = nullptr;
     ForceDirectPage *m_forceDirectPage = nullptr;
-    WorkDetailPage *m_workDetailPage = nullptr;
     FanartBrowserPage *m_fanartBrowserPage = nullptr;
     ActressPage *m_actressPage = nullptr;
     ActorPage *m_actorPage = nullptr;

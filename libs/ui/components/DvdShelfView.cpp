@@ -109,6 +109,17 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
         graphLayout->setContentsMargins(0, 0, 0, 0);
         m_relationGraph = new graph_view::GraphViewWidget(*m_graphManager, m_relationGraphContainer);
         graphLayout->addWidget(m_relationGraph);
+        connect(m_relationGraph, &graph_view::GraphViewWidget::nodeLeftClicked, this,
+                [this](const QString &nodeId) {
+                    if (nodeId.size() < 2) return;
+                    bool ok = false;
+                    const qint64 id = nodeId.mid(1).toLongLong(&ok);
+                    if (!ok || id <= 0) return;
+                    if (nodeId.startsWith(QLatin1Char('w')))
+                        emit workSelected(id);
+                    else if (nodeId.startsWith(QLatin1Char('a')))
+                        emit actressRequested(id);
+                });
         m_relationGraphContainer->hide();
     }
     m_fanartContainer = new QWidget(this);

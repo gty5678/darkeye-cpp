@@ -28,6 +28,10 @@ void StatisticsPage::lazyLoad()
     tabs->setObjectName(QStringLiteral("StatisticsTabs"));
     m_personalData = new PersonalDataPage(m_publicDatabase, m_privateDatabase,
                                           m_themeService, m_actressImageDirectory, tabs);
+    connect(m_personalData, &PersonalDataPage::actressDetailRequested, this,
+            &StatisticsPage::actressDetailRequested);
+    connect(m_personalData, &PersonalDataPage::actressEditRequested, this,
+            &StatisticsPage::actressEditRequested);
     m_plots = new PlotTabPage(m_publicDatabase, m_privateDatabase, tabs);
     tabs->addTab(m_personalData, QStringLiteral("信息面版"));
     tabs->addTab(m_plots, QStringLiteral("统计"));

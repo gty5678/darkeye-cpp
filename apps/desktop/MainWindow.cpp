@@ -17,7 +17,6 @@
 #include "ui/pages/SettingsPage.h"
 #include "ui/pages/ShelfPage.h"
 #include "ui/pages/PlaceholderPage.h"
-#include "ui/pages/WorkDetailPage.h"
 #include "ui/pages/WorkPage.h"
 #include "crawler/CrawlerScheduler.h"
 #include "http/LocalApiServer.h"
@@ -307,7 +306,6 @@ void MainWindow::buildUi()
     registerPage(QStringLiteral("首页"), QStringLiteral("home"));
     registerPage(QStringLiteral("仪表盘"), QStringLiteral("test_page"));
     registerPage(QStringLiteral("作品"), QStringLiteral("mutiwork"));
-    registerPage(QStringLiteral("作品详情"), QStringLiteral("work"));
     registerPage(QStringLiteral("剧照浏览"), QStringLiteral("fanart"));
     registerPage(QStringLiteral("女演员"), QStringLiteral("actress"));
     registerPage(QStringLiteral("男演员"), QStringLiteral("actor"));
@@ -539,6 +537,17 @@ void MainWindow::refreshRelationshipGraphWork(qint64 workId)
     m_graphManager->scheduleRefreshWork(workId);
 }
 
+void MainWindow::showWorkInShelf(qint64 workId)
+{
+    if (workId <= 0) return;
+    auto *shelf = static_cast<ShelfPage *>(ensurePage(QStringLiteral("shelf")));
+    if (shelf == nullptr) return;
+    navigateTo(QStringLiteral("shelf"));
+    if (!shelf->showWork(workId)) {
+        QTimer::singleShot(0, shelf, [shelf, workId] { shelf->showWork(workId); });
+    }
+}
+
 void MainWindow::registerPage(const QString &menuTitle, const QString &routeName)
 {
     auto *page = createPage(menuTitle, routeName, m_pages);
@@ -582,9 +591,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
                                   m_paths.fanartDirectory(),
                                   settings::crawler().coverFetchApiUrl, parent);
         connect(m_workPage, &WorkPage::detailRequested, this, [this](qint64 workId) {
-            auto *detail = static_cast<WorkDetailPage *>(ensurePage(QStringLiteral("work")));
-            if (detail->showWork(workId))
-                navigateTo(QStringLiteral("work"));
+            showWorkInShelf(workId);
         });
         connect(m_workPage, &WorkPage::editRequested, this, [this](qint64 workId) {
             auto *management =
@@ -602,30 +609,6 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
                 [this] { refreshRelationshipGraph(); });
         return m_workPage;
     }
-    if (routeName == QStringLiteral("work"))
-    {
-        m_workDetailPage = new WorkDetailPage(m_publicDatabase, m_privateDatabase, m_themeService,
-                                              m_paths.workCoverDirectory(), parent);
-        connect(m_workDetailPage, &WorkDetailPage::editRequested, this, [this](qint64 workId) {
-            auto *work = static_cast<WorkPage *>(ensurePage(QStringLiteral("mutiwork")));
-            work->openEditor(workId);
-        });
-        connect(m_workDetailPage, &WorkDetailPage::workDeleted, this, [this](qint64) {
-            if (m_workPage)
-                m_workPage->refresh();
-            if (m_shelfPage)
-                m_shelfPage->refresh();
-            refreshRelationshipGraph();
-            navigateTo(QStringLiteral("mutiwork"));
-        });
-        connect(m_workDetailPage, &WorkDetailPage::favoriteChanged, this,
-                &MainWindow::refreshRelationshipGraph);
-        connect(m_workDetailPage, &WorkDetailPage::fanartRequested, this, [this](qint64 workId) {
-            auto *browser = static_cast<FanartBrowserPage *>(ensurePage(QStringLiteral("fanart")));
-            if (browser->showWork(workId)) navigateTo(QStringLiteral("fanart"));
-        });
-        return m_workDetailPage;
-    }
     if (routeName == QStringLiteral("fanart"))
     {
         m_fanartBrowserPage = new FanartBrowserPage(
@@ -633,9 +616,8 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
             m_paths.workCoverDirectory(), settings::crawler().coverFetchApiUrl, parent);
         connect(m_fanartBrowserPage, &FanartBrowserPage::closeRequested, this,
                 &MainWindow::navigateBackward);
-        connect(m_fanartBrowserPage, &FanartBrowserPage::fanartChanged, this, [this](qint64 workId) {
-            if (m_workDetailPage && m_workDetailPage->currentWorkId() == workId)
-                m_workDetailPage->showWork(workId);
+        connect(m_fanartBrowserPage, &FanartBrowserPage::fanartChanged, this, [this](qint64) {
+            if (m_shelfPage) m_shelfPage->refresh();
         });
         return m_fanartBrowserPage;
     }
@@ -675,9 +657,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
             m_paths.actressImageDirectory(), parent, m_paths.workCoverDirectory());
         connect(m_actressDetailPage, &PersonDetailPage::editRequested, this, &MainWindow::openPersonEditor);
         connect(m_actressDetailPage, &PersonDetailPage::workRequested, this, [this](qint64 workId) {
-            auto *workDetail = static_cast<WorkDetailPage *>(ensurePage(QStringLiteral("work")));
-            if (workDetail->showWork(workId))
-                navigateTo(QStringLiteral("work"));
+            showWorkInShelf(workId);
         });
         connect(m_actressDetailPage, &PersonDetailPage::favoriteChanged, this, [this] {
             if (m_actressPage)
@@ -692,9 +672,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
             m_paths.actorImageDirectory(), parent, m_paths.workCoverDirectory());
         connect(m_actorDetailPage, &PersonDetailPage::editRequested, this, &MainWindow::openPersonEditor);
         connect(m_actorDetailPage, &PersonDetailPage::workRequested, this, [this](qint64 workId) {
-            auto *workDetail = static_cast<WorkDetailPage *>(ensurePage(QStringLiteral("work")));
-            if (workDetail->showWork(workId))
-                navigateTo(QStringLiteral("work"));
+            showWorkInShelf(workId);
         });
         connect(m_actorDetailPage, &PersonDetailPage::favoriteChanged, this, [this] {
             if (m_actorPage)
@@ -742,9 +720,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
                     refreshRelationshipGraph();
                 });
         connect(editor, &PersonEditorPage::workLinkRequested, this, [this](qint64 workId) {
-            auto *detail = static_cast<WorkDetailPage *>(ensurePage(QStringLiteral("work")));
-            if (detail->showWork(workId))
-                navigateTo(QStringLiteral("work"));
+            showWorkInShelf(workId);
         });
         connect(editor, &PersonEditorPage::actressLinkRequested, this, [this](qint64 actressId) {
             auto *detail = static_cast<PersonDetailPage *>(ensurePage(QStringLiteral("actress_detail")));
@@ -818,9 +794,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
         connect(management, &ManagementPage::actressesCreated, this,
                 &MainWindow::enqueueActressSyncs);
         connect(management, &ManagementPage::workRequested, this, [this](qint64 workId) {
-            auto *detail = static_cast<WorkDetailPage *>(ensurePage(QStringLiteral("work")));
-            if (detail->showWork(workId))
-                navigateTo(QStringLiteral("work"));
+            showWorkInShelf(workId);
         });
         connect(management, &ManagementPage::actressRequested, this, [this](qint64 actressId) {
             auto *detail =
@@ -835,6 +809,17 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
         m_statisticsPage =
             new StatisticsPage(m_publicDatabase, m_privateDatabase, m_themeService,
                                m_paths.actressImageDirectory(), parent);
+        connect(m_statisticsPage, &StatisticsPage::actressDetailRequested, this,
+                [this](qint64 actressId) {
+                    auto *detail = static_cast<PersonDetailPage *>(
+                        ensurePage(QStringLiteral("actress_detail")));
+                    if (detail->showPerson(actressId))
+                        navigateTo(QStringLiteral("actress_detail"));
+                });
+        connect(m_statisticsPage, &StatisticsPage::actressEditRequested, this,
+                [this](qint64 actressId) {
+                    openPersonEditor(PersonKind::Actress, actressId);
+                });
         return m_statisticsPage;
     }
     if (routeName == QStringLiteral("graph"))
@@ -843,9 +828,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
             new ForceDirectPage(m_themeService, *m_graphManager, parent,
                                 m_paths.actressImageDirectory(), m_paths.workCoverDirectory());
         connect(m_forceDirectPage, &ForceDirectPage::workRequested, this, [this](qint64 workId) {
-            auto *detail = static_cast<WorkDetailPage *>(ensurePage(QStringLiteral("work")));
-            if (detail->showWork(workId))
-                navigateTo(QStringLiteral("work"));
+            showWorkInShelf(workId);
         });
         connect(m_forceDirectPage, &ForceDirectPage::actressRequested, this, [this](qint64 actressId) {
             auto *detail = static_cast<PersonDetailPage *>(ensurePage(QStringLiteral("actress_detail")));
@@ -860,9 +843,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
                                     m_graphManager.get(), m_paths.workCoverDirectory(),
                                     m_paths.fanartDirectory(), parent);
         connect(m_shelfPage, &ShelfPage::detailRequested, this, [this](qint64 workId) {
-            auto *detail = static_cast<WorkDetailPage *>(ensurePage(QStringLiteral("work")));
-            if (detail->showWork(workId))
-                navigateTo(QStringLiteral("work"));
+            showWorkInShelf(workId);
         });
         connect(m_shelfPage, &ShelfPage::editRequested, this, [this](qint64 workId) {
             auto *management = static_cast<ManagementPage *>(ensurePage(QStringLiteral("database")));
@@ -958,7 +939,7 @@ void MainWindow::navigateTo(const QString &routeName, bool recordHistory)
         }
         m_sidebar->clearSelection();
     }
-    else if (routeName == QStringLiteral("work") || routeName == QStringLiteral("mutiwork"))
+    else if (routeName == QStringLiteral("mutiwork"))
     {
         m_sidebar->select(QStringLiteral("work"));
     }

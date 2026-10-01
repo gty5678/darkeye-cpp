@@ -22,6 +22,10 @@ public:
 
     void refresh();
 
+signals:
+    void actressDetailRequested(qint64 actressId);
+    void actressEditRequested(qint64 actressId);
+
 private:
     void lazyLoad() override;
 

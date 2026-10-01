@@ -30,9 +30,9 @@ namespace darkeye
 class OctagonCard : public QWidget
 {
 public:
-    OctagonCard(ThemeService &themeService, const QMargins &margins,
+    OctagonCard(ThemeService &themeService, const QMargins &margins, bool drawBorder = true,
                 QWidget *parent = nullptr)
-        : QWidget(parent), m_themeService(themeService)
+        : QWidget(parent), m_themeService(themeService), m_drawBorder(drawBorder)
     {
         setFixedSize(170, 250);
         setAttribute(Qt::WA_StyledBackground, true);
@@ -75,22 +75,28 @@ protected:
 
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing);
-        painter.setPen(QPen(QColor(tokens.border), 1));
+        if (m_drawBorder)
+            painter.setPen(QPen(QColor(tokens.border), 1));
+        else
+            painter.setPen(Qt::NoPen);
         painter.setBrush(QColor(tokens.background));
         painter.drawPath(path);
     }
 
 private:
     ThemeService &m_themeService;
+    bool m_drawBorder = true;
     QVBoxLayout *m_layout = nullptr;
 };
 
 class TopActressCard final : public OctagonCard
 {
+    Q_OBJECT
+
 public:
     TopActressCard(int days, QString imageDirectory, ThemeService &themeService,
                    QWidget *parent = nullptr)
-        : OctagonCard(themeService, QMargins(10, 0, 10, 10), parent),
+        : OctagonCard(themeService, QMargins(10, 0, 10, 10), false, parent),
           m_imageDirectory(std::move(imageDirectory))
     {
         auto *title = new DesignLabel(QStringLiteral("过去%1天最喜欢的女优").arg(days), this);
@@ -99,6 +105,14 @@ public:
                                       m_imageDirectory, this);
         contentLayout()->addWidget(title, 0, Qt::AlignCenter);
         contentLayout()->addWidget(m_personCard, 0, Qt::AlignCenter);
+        connect(m_personCard, &PersonCard::activated, this, [this](qint64 actressId) {
+            if (actressId > 0)
+                emit actressDetailRequested(actressId);
+        });
+        connect(m_personCard, &PersonCard::editRequested, this, [this](qint64 actressId) {
+            if (actressId > 0)
+                emit actressEditRequested(actressId);
+        });
     }
 
     void setStatistic(const std::optional<TopActressStatistic> &statistic)
@@ -111,6 +125,10 @@ public:
         m_personCard->updateData(statistic->actressId, statistic->name,
                                  statistic->imagePath);
     }
+
+signals:
+    void actressDetailRequested(qint64 actressId);
+    void actressEditRequested(qint64 actressId);
 
 private:
     QString m_imageDirectory;
@@ -143,22 +161,23 @@ void PersonalDataPage::lazyLoad()
         auto *card = new TopActressCard(days, m_actressImageDirectory,
                                         m_themeService, this);
         card->setProperty("days", days);
+        connect(card, &TopActressCard::actressDetailRequested, this,
+                &PersonalDataPage::actressDetailRequested);
+        connect(card, &TopActressCard::actressEditRequested, this,
+                &PersonalDataPage::actressEditRequested);
         m_topActressCards.append(card);
         summary->addWidget(card);
     }
-    auto *cycleCard = new OctagonCard(m_themeService, QMargins(), this);
+    auto *cycleCard = new OctagonCard(m_themeService, QMargins(), false, this);
     auto *cycleLayout = cycleCard->contentLayout();
     auto *cycleTitle =
         new DesignLabel(QStringLiteral("收藏作品中未观看去化周期"), cycleCard);
     cycleTitle->setAlignment(Qt::AlignCenter);
-    cycleTitle->setWordWrap(true);
     m_salesCycle = new DesignLabel(QStringLiteral("加载中..."), cycleCard);
     m_salesCycle->setAlignment(Qt::AlignCenter);
-    QFont cycleFont = m_salesCycle->font();
-    cycleFont.setPointSize(30);
-    m_salesCycle->setFont(cycleFont);
+    m_salesCycle->setStyleSheet(QStringLiteral("font-size: 30pt; color: #999999;"));
     cycleLayout->addWidget(cycleTitle);
-    cycleLayout->addWidget(m_salesCycle, 1);
+    cycleLayout->addWidget(m_salesCycle);
     summary->addWidget(cycleCard);
     summary->addStretch();
     root->addLayout(summary);
@@ -261,7 +280,9 @@ void PersonalDataPage::refresh()
     }
     const int cycle = statistics.favoriteUnwatchedSalesCycle();
     m_salesCycle->setText(QStringLiteral("%1天").arg(cycle));
-    m_salesCycle->setStyleSheet(cycle > 30 ? QStringLiteral("color:#FF0000;") : QString());
+    m_salesCycle->setStyleSheet(cycle > 30
+                                    ? QStringLiteral("font-size: 30pt; color: #FF0000;")
+                                    : QStringLiteral("font-size: 30pt; color: #000000;"));
     refreshHeatmap();
 }
 
@@ -317,3 +338,5 @@ void PersonalDataPage::changeYear(int year)
 }
 
 } // namespace darkeye
+
+#include "PersonalDataPage.moc"
