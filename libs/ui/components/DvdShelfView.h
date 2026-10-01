@@ -149,6 +149,10 @@ private:
     QTimer *m_cameraTimer = nullptr;
     QTimer *m_relationGraphTimer = nullptr;
     bool m_thumbnailRefreshPending = false;
+    // Each route-driven open invalidates delayed expand callbacks from an
+    // earlier work.  This matters when the shelf is already open and another
+    // page immediately requests a different work.
+    quint64 m_openWorkRequest = 0;
     QString m_title, m_story, m_code, m_releaseDate, m_director, m_studio, m_label, m_series;
     QVariantList m_actresses, m_actors, m_tags;
     qint64 m_makerId = -1, m_labelId = -1, m_seriesId = -1;

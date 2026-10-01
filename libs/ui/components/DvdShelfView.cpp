@@ -167,6 +167,9 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
 
 void DvdShelfView::setWorks(const QList<WorkSummary> &works)
 {
+    // A filtering reload invalidates any delayed route-open callback whose
+    // delegate belonged to the previous virtualized window.
+    ++m_openWorkRequest;
     m_works = works;
     m_cameraX = 0;
     m_cameraTargetX = 0;
@@ -604,6 +607,7 @@ bool DvdShelfView::openWork(qint64 workId)
     if (iterator == m_works.cend()) return false;
     constexpr qreal spacing = 0.0145;
     const int virtualIndex = static_cast<int>(std::distance(m_works.cbegin(), iterator));
+    const quint64 request = ++m_openWorkRequest;
     m_suppressRelationGraphUntilDeselected = true;
     if (m_relationGraphTimer != nullptr) m_relationGraphTimer->stop();
     hideOverlays();
@@ -618,15 +622,41 @@ bool DvdShelfView::openWork(qint64 workId)
     const int delegateIndex = virtualIndex - m_visibleStart;
     QObject *root = m_quickWidget->rootObject();
     if (root == nullptr || delegateIndex < 0 || delegateIndex >= 60) return false;
+    // The selected delegate freezes its content while it animates.  A route
+    // jump can land on the same local delegate index after the visible window
+    // moves (for example, both work 40 and 41 are index 30).  Clear the old
+    // selection first and wait one event-loop turn before selecting the new
+    // delegate, otherwise QML never emits selectedChanged and keeps showing
+    // the old frozen DVD.
     root->setProperty("hoveredDelegateIndex", -1);
     root->setProperty("pressedDelegateIndex", -1);
     root->setProperty("fullyExpandedDelegateIndex", -1);
-    root->setProperty("selectedDelegateIndex", delegateIndex);
     root->setProperty("expandedDelegateIndex", -1);
-    QTimer::singleShot(550, this, [this, delegateIndex] {
+    root->setProperty("selectedDelegateIndex", -1);
+    root->setProperty("_pendingCollapseSelectedIndex", -1);
+    root->setProperty("_pendingCollapseCloseSpeedMultiplier", 1.0);
+    root->setProperty("_frozenSelectedDelegateIndex", -1);
+    root->setProperty("_frozenSelectedVirtualIndex", -1);
+    // Do not make the route transition depend solely on QML change signals:
+    // when the shelf is already open, a delegate can be recycled at the same
+    // local index and QML may not emit every intermediate state change.
+    refresh_expanded_work_meta(virtualIndex);
+    QTimer::singleShot(0, this, [this, delegateIndex, virtualIndex, request] {
         QObject *root = m_quickWidget->rootObject();
-        if (root != nullptr && root->property("selectedDelegateIndex").toInt() == delegateIndex)
-            root->setProperty("expandedDelegateIndex", delegateIndex);
+        if (request != m_openWorkRequest || root == nullptr) return;
+        root->setProperty("selectedDelegateIndex", delegateIndex);
+        QTimer::singleShot(550, this, [this, delegateIndex, virtualIndex, request] {
+            QObject *root = m_quickWidget->rootObject();
+            if (request == m_openWorkRequest && root != nullptr
+                && root->property("selectedDelegateIndex").toInt() == delegateIndex)
+            {
+                root->setProperty("expandedDelegateIndex", delegateIndex);
+                // Keep C++ state authoritative for a route-driven switch.  QML
+                // refreshes this as well, but this makes the page correct even if
+                // an unchanged QML property suppresses its notifier.
+                refresh_expanded_work_meta(virtualIndex);
+            }
+        });
     });
     return true;
 }

@@ -20,6 +20,7 @@ class ShelfPageTest final : public QObject
 private slots:
     void filtersAndLoadsVirtualizedShelf();
     void filtersByPrivateScope();
+    void routeJumpReplacesAnAlreadyExpandedWork();
 };
 
 void ShelfPageTest::filtersAndLoadsVirtualizedShelf()
@@ -93,6 +94,51 @@ void ShelfPageTest::filtersByPrivateScope()
     QTRY_COMPARE(count->text(), QStringLiteral("过滤总数:1"));
     scope->setCurrentText(QStringLiteral("已撸过"));
     QTRY_COMPARE(count->text(), QStringLiteral("没有查询到数据"));
+}
+
+void ShelfPageTest::routeJumpReplacesAnAlreadyExpandedWork()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(temporaryDirectory.filePath(QStringLiteral("public.db")), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(connection, darkeye::DatabaseKind::Public, &error));
+    darkeye::WorkRepository repository(connection.database());
+    qint64 firstId = -1;
+    qint64 secondId = -1;
+    QString firstSerial;
+    QString secondSerial;
+    // These adjacent entries both occupy local delegate index 30 after
+    // virtualization.  That is the case which previously retained the old
+    // delegate's frozen cover when a route jump arrived.
+    for (int index = 0; index < 100; ++index)
+    {
+        darkeye::Work work;
+        work.serialNumber = QStringLiteral("ROUTE-%1").arg(index, 3, 10, QLatin1Char('0'));
+        const auto id = repository.insertComplete(work, {}, {}, {}, &error);
+        QVERIFY(id.has_value());
+        if (index == 40) { firstId = *id; firstSerial = work.serialNumber; }
+        if (index == 41) { secondId = *id; secondSerial = work.serialNumber; }
+    }
+
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    QVERIFY(application != nullptr);
+    darkeye::ThemeService themes(*application);
+    darkeye::ShelfPage page(connection.database(), {}, themes);
+    page.initialize();
+    auto *view = page.findChild<darkeye::DvdShelfView *>(QStringLiteral("DvdShelfView"));
+    QVERIFY(view != nullptr);
+
+    QVERIFY(page.showWork(firstId));
+    QTRY_COMPARE(view->expandedWorkCode(), firstSerial);
+    QTest::qWait(600);
+    QVERIFY(page.showWork(secondId));
+    QTRY_COMPARE(view->expandedWorkCode(), secondSerial);
+    // Allow the first delayed expand callback to run; it must not restore the
+    // previous work after a new route request has arrived.
+    QTest::qWait(650);
+    QCOMPARE(view->expandedWorkCode(), secondSerial);
 }
 
 QTEST_MAIN(ShelfPageTest)
