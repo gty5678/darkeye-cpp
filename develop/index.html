@@ -23,7 +23,7 @@
     
     
       
-        <title>开发白皮书 - DarkEye</title>
+        <title>C++ 版本概览 - DarkEye</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#darkeye" class="md-skip">
+        <a href="#darkeye-c-qt" class="md-skip">
           跳转至
         </a>
       
@@ -108,7 +108,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              开发白皮书
+              C++ 版本概览
             
           </span>
         </div>
@@ -211,7 +211,7 @@
   
     
   
-  开发白皮书
+  C++ 版本概览
 
       </a>
     </li>
@@ -407,7 +407,7 @@
   <span class="md-ellipsis">
     
   
-    开发白皮书
+    C++ 版本概览
   
 
     
@@ -425,7 +425,7 @@
   <span class="md-ellipsis">
     
   
-    开发白皮书
+    C++ 版本概览
   
 
     
@@ -451,271 +451,43 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-vision-philosophy" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1. 顶层设计：愿景与定位 (Vision &amp; Philosophy)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="1. 顶层设计：愿景与定位 (Vision &amp; Philosophy)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
   <a href="#_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        核心理念
+        当前已实现的功能
       
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-features-user-stories" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. 中层架构：功能矩阵与用户故事 (Features &amp; User Stories)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="2. 中层架构：功能矩阵与用户故事 (Features &amp; User Stories)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#21-immersive-capture" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.1 沉浸式采集 (Immersive Capture)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#22-intelligent-management" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.2 智能化管理 (Intelligent Management)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#23-quantified-self" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.3 量化自我 (Quantified Self)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#24-ultimate-privacy" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.4 极致安全 (Ultimate Privacy)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#3-tech-stack-standards" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. 底层实现：技术栈与规范 (Tech Stack &amp; Standards)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="3. 底层实现：技术栈与规范 (Tech Stack &amp; Standards)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#31-architecture" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.1 技术架构 (Architecture)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#32" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.2 目录结构说明
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#321" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.2.1 当前启动与数据流
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#33-guidelines" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.3 开发规范 (Guidelines)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#34-monolith-plugins" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.4 单体 + 插件架构 (Monolith + Plugins)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="3.4 单体 + 插件架构 (Monolith + Plugins)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#341-core-monolith" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.4.1 单体核心 (Core Monolith)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#342-plugins" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.4.2 插件 (Plugins)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#343" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.4.3 插件与核心的交互
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#4-roadmap" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. 路线图与里程碑 (Roadmap)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="4. 路线图与里程碑 (Roadmap)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#phase-1-the-curator-update-current-focus" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Phase 1: 策展人更新 (The Curator Update) - Current Focus
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#phase-2-the-intelligence-update" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Phase 2: 情报网更新 (The Intelligence Update)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#phase-3-the-invisible-update" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Phase 3: 隐形人更新 (The Invisible Update)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        长期目标
+        运行时组成
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        代码布局
+      
+    </span>
+  </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#5-backlog" class="md-nav__link">
+  <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. 待优化与已知事项 (Backlog)
+        开发约定
       
     </span>
   </a>
@@ -946,271 +718,43 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-vision-philosophy" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1. 顶层设计：愿景与定位 (Vision &amp; Philosophy)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="1. 顶层设计：愿景与定位 (Vision &amp; Philosophy)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
   <a href="#_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        核心理念
+        当前已实现的功能
       
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-features-user-stories" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. 中层架构：功能矩阵与用户故事 (Features &amp; User Stories)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="2. 中层架构：功能矩阵与用户故事 (Features &amp; User Stories)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#21-immersive-capture" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.1 沉浸式采集 (Immersive Capture)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#22-intelligent-management" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.2 智能化管理 (Intelligent Management)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#23-quantified-self" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.3 量化自我 (Quantified Self)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#24-ultimate-privacy" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.4 极致安全 (Ultimate Privacy)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#3-tech-stack-standards" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. 底层实现：技术栈与规范 (Tech Stack &amp; Standards)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="3. 底层实现：技术栈与规范 (Tech Stack &amp; Standards)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#31-architecture" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.1 技术架构 (Architecture)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#32" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.2 目录结构说明
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#321" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.2.1 当前启动与数据流
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#33-guidelines" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.3 开发规范 (Guidelines)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#34-monolith-plugins" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.4 单体 + 插件架构 (Monolith + Plugins)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="3.4 单体 + 插件架构 (Monolith + Plugins)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#341-core-monolith" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.4.1 单体核心 (Core Monolith)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#342-plugins" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.4.2 插件 (Plugins)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#343" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.4.3 插件与核心的交互
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#4-roadmap" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. 路线图与里程碑 (Roadmap)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="4. 路线图与里程碑 (Roadmap)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#phase-1-the-curator-update-current-focus" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Phase 1: 策展人更新 (The Curator Update) - Current Focus
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#phase-2-the-intelligence-update" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Phase 2: 情报网更新 (The Intelligence Update)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#phase-3-the-invisible-update" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Phase 3: 隐形人更新 (The Invisible Update)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        长期目标
+        运行时组成
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        代码布局
+      
+    </span>
+  </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#5-backlog" class="md-nav__link">
+  <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. 待优化与已知事项 (Backlog)
+        开发约定
       
     </span>
   </a>
@@ -1234,256 +778,127 @@
 
 
 
-<h1 id="darkeye">DarkEye 开发白皮书<a class="headerlink" href="#darkeye" title="Permanent link">&para;</a></h1>
-<h2 id="1-vision-philosophy">1. 顶层设计：愿景与定位 (Vision &amp; Philosophy)<a class="headerlink" href="#1-vision-philosophy" title="Permanent link">&para;</a></h2>
-<p><strong>DarkEye (暗眼)</strong> 是一个本地化、隐私导向的 AV 领域元数据管理与情报分析系统。我们的目标不仅仅是管理文件，而是收藏与发掘数字时代地下艺术的价值。</p>
-<h3 id="_1">核心理念<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>Curator (策展人)</strong>：我们不只是收集番号，我们是在收藏和策展。通过独特的视角，找出最有艺术性的作品。</li>
-<li><strong>Intelligence (情报)</strong>：从被动的数据记录转向主动的情报挖掘。不仅记录“看了什么”，更通过数据洞察“偏好什么”，挖掘数据背后的联系（如“共演关系”、“新人出道轨迹”）。</li>
-<li><strong>Privacy First (绝对隐私)</strong>：基于本地优先架构，数据完全私有。具备隐私保护与伪装能力，让用户拥有绝对的安全感。</li>
-<li><strong>CJK Aesthetics (东方美学)</strong>：专为东方文字设计的竖排 UI，还原阅读实体杂志的沉浸感，带来原汁原味的文化契合度。</li>
-<li><strong>Zero-Friction (零摩擦)</strong>：极致的自动化采集与整理，让用户感知不到繁琐的录入过程，享受“刷流媒体”般的沉浸体验。</li>
-</ul>
-<h2 id="2-features-user-stories">2. 中层架构：功能矩阵与用户故事 (Features &amp; User Stories)<a class="headerlink" href="#2-features-user-stories" title="Permanent link">&para;</a></h2>
-<h3 id="21-immersive-capture">2.1 沉浸式采集 (Immersive Capture)<a class="headerlink" href="#21-immersive-capture" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>浏览即收藏</strong>：
-  通过 Firefox 插件 (<code>extensions/firefox_capture</code>) 与本地服务器联动。当你在 JavLibrary 或 JavDB 浏览时，插件会自动检测并同步状态到本地“收件箱”。
-  <em>场景</em>：在浏览器中看到一部感兴趣的片子，插件图标直接显示“本地未收藏”，点击一下即可推送到 DarkEye，无需复制粘贴。</li>
-<li><strong>Inbox（收件箱）工作流</strong>：
-  采集的数据进入“待处理区”，系统后台自动完成爬虫抓取，元数据清洗。用户只需在闲暇时进行“确认归档”，如同处理邮件一样高效。</li>
-</ul>
-<h3 id="22-intelligent-management">2.2 智能化管理 (Intelligent Management)<a class="headerlink" href="#22-intelligent-management" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>拟物化收藏体验</strong>：
-  强调仪式感。有封面的作品被包装成实体光盘或杂志的样子，陈列在虚拟书架上。鼠标滑过时可以抽出预览，双击即可播放或查看详情。</li>
-<li><strong>ForceView 关系网</strong>：
-  产品的核心差异化亮点。通过动态的力导向图，展示女优、作品、导演之间的复杂关联网络。
-  <em>场景</em>：点击一位女优，图谱自动展开她的“朋友圈”——共演过的演员、常合作的导演，帮助用户发现潜在感兴趣的新目标。</li>
-<li><strong>多维视图与筛选</strong>：</li>
-<li><strong>画廊模式</strong>：无边界的卡片流，适合漫无目的地浏览。</li>
-<li><strong>时间轴</strong>：按发布时间或收藏时间回顾历史。</li>
-<li><strong>Tag 智能筛选</strong>：支持复杂的标签逻辑（必须包含、必须排除），快速定位特定口味的作品。</li>
-</ul>
-<h3 id="23-quantified-self">2.3 量化自我 (Quantified Self)<a class="headerlink" href="#23-quantified-self" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>贤者模式报告</strong>：
-  不仅记录行为（观看、自慰、评分），更分析偏好变化。
-  <em>场景</em>：系统生成月度报告：“你这个月偏爱 MILF 类型，比上个月增加了 30%；你在周五晚上的活跃度最高。”让用户通过数据重新认识自己的性癖好。</li>
-</ul>
-<h3 id="24-ultimate-privacy">2.4 极致安全 (Ultimate Privacy)<a class="headerlink" href="#24-ultimate-privacy" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>一键伪装 (Panic Button)</strong>：
-  按下快捷键，整个界面瞬间切换为 Excel 报表或代码编辑器界面，从容应对突发查岗。</li>
-<li><strong>本地化存储</strong>：
-  所有数据（包括图片、数据库）均存储在本地 <code>resources/</code> 目录下，不上传云端，确保绝对隐私。</li>
-</ul>
-<hr />
-<h2 id="3-tech-stack-standards">3. 底层实现：技术栈与规范 (Tech Stack &amp; Standards)<a class="headerlink" href="#3-tech-stack-standards" title="Permanent link">&para;</a></h2>
-<h3 id="31-architecture">3.1 技术架构 (Architecture)<a class="headerlink" href="#31-architecture" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>UI Framework</strong>: PySide6 (Qt for Python) - 复杂交互可用 QGraphicsView；关系图 ForceView 当前由 C++ OpenGL 实现（<code>cpp_bindings/forced_direct_view</code>），Qt 侧为 <code>ForceDirectedViewWidget</code> 容器与 <code>ForceViewSettingsPanel</code>；书架与卡片流使用 <code>ShelfWidget</code>、<code>ShelfVirtualizedView</code> 等。</li>
-<li><strong>Backend</strong>: FastAPI (Local Server) - 作为本地微服务，处理浏览器插件请求、爬虫任务调度和后台数据处理。</li>
-<li><strong>Database</strong>: SQLite + sqlite3 - 轻量级、单文件 (<code>public.db</code>, <code>private.db</code>)，便于备份和迁移。数据层采用 <code>get_connection</code> 获取连接，<strong>不引入 ORM 与 Repository 中间层</strong>；UI 直接调用 <code>core.database.query/insert/update/delete</code> 进行读写。</li>
-<li><strong>Crawler</strong>: 模块化爬虫系统 (<code>core/crawler</code>) - 支持 JavBus, JavDB, Minnano, Fanza 等多源数据抓取与清洗。</li>
-</ul>
-<h3 id="32">3.2 目录结构说明<a class="headerlink" href="#32" title="Permanent link">&para;</a></h3>
-<ul>
-<li><code>main.py</code>: 应用程序入口。负责：性能分析、日志、OpenGL 默认格式与预热、本地 API 启动、数据库初始化与迁移、<code>GraphManager</code> 初始化、全局 QSS、主窗口创建与显示。</li>
-<li><code>config.py</code>: 路径与配置（<code>settings.ini</code>、QSettings），公共/私有数据库路径、资源路径、窗口状态等。</li>
-<li><code>core/</code>: 核心业务逻辑</li>
-<li><code>crawler/</code>: 爬虫管理（CrawlerManager）、多源抓取与清洗。</li>
-<li><code>database/</code>: 连接管理（sqlite3 <code>get_connection</code>）、init/migrations、query/insert/update/delete、model。无 ORM，无 Repository 中间层。</li>
-<li><code>graph/</code>: 关系图：<code>graph_manager.py</code>（单例，维护总图、增量信号）、<code>graph_session.py</code>（会话与过滤）、<code>force_directed_view_widget.py</code>（与 C++ OpenGL 视图协作）、<code>graph_filter.py</code>、<code>graph.py</code>（图生成）、<code>async_image_loader.py</code>、<code>force_view_settings_panel.py</code>。</li>
-<li><code>recommendation/</code>: 推荐逻辑（如随机推荐）。</li>
-<li><code>schema/</code>, <code>cv/</code>, <code>utils/</code>: 数据模型、图像、日志/性能等工具。</li>
-<li><code>controller/</code>: 全局信号（<code>GlobalSignalBus</code>）、快捷键（<code>ShortcutRegistry</code> / <code>ShortcutBindings</code>）、状态栏（<code>StatusManager</code>）、任务与通知（<code>TaskManager</code> / <code>TaskListWindow</code>）。</li>
-<li><code>ui/</code>: 界面层</li>
-<li><code>main_window.py</code>: 主窗口、顶栏、侧栏（<code>Sidebar2</code>）、<code>QStackedWidget</code>、状态栏、与 Router 协同。</li>
-<li><code>navigation/router.py</code>: 路由单例，懒加载页面、历史栈、菜单与路由映射。</li>
-<li><code>pages/</code>: 各功能页（首页/仪表盘、管理、作品/女优/男优、统计、关系图、书架、暗黑界、设置及各类详情/编辑页）。</li>
-<li><code>widgets/</code>: 通用组件（书架 <code>ShelfWidget</code>/<code>ShelfVirtualizedView</code>、图片叠加 <code>ImageOverlayWidget</code>、封面/女优卡片、选择器等）。</li>
-<li><code>basic/</code>, <code>dialogs/</code>, <code>statistics/</code>: 基础控件、对话框、统计图表。</li>
-<li><code>server/</code>: 本地 FastAPI 服务（<code>app.py</code>）、<code>bridge.py</code>（ServerBridge 单例，Qt 信号连接主线程）、launcher。</li>
-<li><code>cpp_bindings/</code>: C++ 扩展</li>
-<li><code>forced_direct_view/</code>: 力导向图 OpenGL 渲染（ForceViewOpenGL、Simulation、GraphRenderer、PhysicsState）。</li>
-<li><code>color_wheel/</code>: 色轮等自定义控件。</li>
-<li><code>extensions/</code>: 浏览器插件源码（如 <code>firefox_capture</code>）。</li>
-<li><code>resources/</code>: 静态资源与数据存储（icons、config、sql、public/private 数据目录等）。</li>
-<li><code>styles/</code>: QSS 样式（如 <code>main.qss</code>）。</li>
-<li><code>manual_tests/</code>, <code>tests/</code>: 手动测试与单元测试。</li>
-</ul>
-<h3 id="321">3.2.1 当前启动与数据流<a class="headerlink" href="#321" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>启动顺序</strong>：<code>main.py</code> → 日志与性能分析 → 后台启动 FastAPI → 设置 OpenGL 格式并预热 → 数据库 init/migrations → <code>GraphManager.instance().initialize()</code>（后台建图）→ 加载 QSS → 创建 <code>MainWindow</code> → Router 延后 <code>push("dashboard")</code> 加载首页。</li>
-<li><strong>跨线程</strong>：FastAPI 收到插件/爬虫结果后，通过 <code>server.bridge.bridge</code> 的 Qt 信号（如 <code>capture_received</code>）投递到主线程，由 <code>MainWindow</code> 等槽函数处理。</li>
-<li><strong>关系图</strong>：<code>GraphManager</code> 维护 NetworkX 总图并发出 <code>graph_diff_signal</code>；<code>GraphViewSession</code> 按当前筛选生成子图/增量，驱动 C++ <code>ForceViewOpenGL</code> 与 <code>ImageOverlayWidget</code> 显示节点与封面。</li>
-</ul>
-<h3 id="33-guidelines">3.3 开发规范 (Guidelines)<a class="headerlink" href="#33-guidelines" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>代码风格</strong>：</li>
-<li>强制使用 Type Hints，减少运行时错误。</li>
-<li>核心逻辑必须编写单元测试 (<code>tests/</code> 或 <code>manual_tests/</code>)。</li>
-<li><strong>UI 设计原则</strong>：</li>
-<li>优先使用 <code>QGraphicsView</code> 实现复杂交互。</li>
-<li>坚持 CJK 竖排美学，针对高分屏进行适配。</li>
-<li>样式与逻辑分离，统一管理颜色和字体配置。</li>
-<li><strong>数据层规范</strong>：</li>
-<li><strong>架构决策</strong>：数据层采用 sqlite3 + <code>get_connection</code>，UI 直接调用 <code>core.database.query/insert/update/delete</code>，不引入 ORM 与 Repository 中间层。详见 <code>docs/data-layer.md</code>。</li>
-<li>统一连接策略：全部使用 <code>core.database.connection.get_connection</code>；写操作完成后由调用方负责 emit 对应的 <code>global_signals.*_changed</code> 信号。</li>
-</ul>
-<h3 id="34-monolith-plugins">3.4 单体 + 插件架构 (Monolith + Plugins)<a class="headerlink" href="#34-monolith-plugins" title="Permanent link">&para;</a></h3>
-<p>采用<strong>单体核心 + 可选插件</strong>的架构：核心是完整可运行的单体应用，插件在此基础上提供增强能力。</p>
-<h4 id="341-core-monolith">3.4.1 单体核心 (Core Monolith)<a class="headerlink" href="#341-core-monolith" title="Permanent link">&para;</a></h4>
-<p>以下为应用必须的内核，不依赖插件即可运行：</p>
+<h1 id="darkeye-c-qt">DarkEye C++ / Qt 版本概览<a class="headerlink" href="#darkeye-c-qt" title="Permanent link">&para;</a></h1>
+<p>DarkEye 是一个 Windows 本地媒体资料库。当前代码库是独立的 <strong>C++20 / Qt 6</strong> 桌面程序，
+不依赖 Python 运行时或 Python 绑定层。它以本地 SQLite 数据库管理作品与人物资料，并提供
+作品整理、元数据采集、关系图、书架浏览、统计、备份和本地 HTTP 联动能力。</p>
+<h2 id="_1">当前已实现的功能<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>模块</th>
-<th>说明</th>
+<th>区域</th>
+<th>已实现能力</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>启动与配置</strong></td>
-<td><code>main.py</code> 启动流程、<code>config.py</code> 路径与 QSettings、OpenGL 预热</td>
+<td>作品库</td>
+<td>作品列表、搜索、排序、标签和厂牌等条件筛选；查看、编辑和新增作品；本地视频路径同步。</td>
 </tr>
 <tr>
-<td><strong>数据层</strong></td>
-<td><code>core/database/</code>：连接、init/migrations、query/insert/update/delete、model（详见 <code>docs/data-layer.md</code>）</td>
+<td>人物资料</td>
+<td>女演员和男演员的列表、详情、编辑、作品关联与头像资料管理。</td>
 </tr>
 <tr>
-<td><strong>基础 UI</strong></td>
-<td><code>main_window.py</code>、Router、侧栏、状态栏、基础控件（<code>ui/basic/</code>）</td>
+<td>管理</td>
+<td>作品录入、标签/厂牌/系列/制作商管理、批量状态操作、汇总查询、软删除与回收站。</td>
 </tr>
 <tr>
-<td><strong>核心页面</strong></td>
-<td>首页/仪表盘、作品管理、女优/男优列表与详情、基本设置、标签管理</td>
+<td>采集</td>
+<td>本地采集队列、字段选择、暂停/取消和失败恢复；通过外部 Collector 获取作品、人物、图片和热门人物数据。</td>
 </tr>
 <tr>
-<td><strong>控制器</strong></td>
-<td><code>GlobalSignalBus</code>、<code>ShortcutRegistry</code>、<code>StatusManager</code>、<code>TaskManager</code></td>
+<td>关系图</td>
+<td>从本地数据库生成作品和人物关系；支持全图、中心节点邻域、收藏筛选、节点图片及 GPU 渲染。</td>
 </tr>
 <tr>
-<td><strong>本地存储</strong></td>
-<td>数据与资源均存于 <code>resources/</code>，不上传云端</td>
+<td>浏览与分析</td>
+<td>仪表盘、作品书架、剧照浏览、统计和个人数据记录页面。</td>
+</tr>
+<tr>
+<td>设置与维护</td>
+<td>主题与主色、快捷键、视频目录和播放器、NFO 导入、翻译服务、数据库维护、本地/WebDAV 备份与恢复。</td>
+</tr>
+<tr>
+<td>本地联动</td>
+<td>内置仅本机监听的 HTTP API（默认 <code>127.0.0.1:56789</code>），供浏览器扩展推送采集请求。</td>
 </tr>
 </tbody>
 </table>
-<h4 id="342-plugins">3.4.2 插件 (Plugins)<a class="headerlink" href="#342-plugins" title="Permanent link">&para;</a></h4>
-<p>以下为可选扩展，可按需加载、卸载或由第三方提供：</p>
+<p>“暗黑界”“通知”等入口也已在主窗口中注册；其中通知页用于显示采集队列状态。功能是否可用取决于
+相应的本地数据、外部 Collector 或浏览器扩展是否已经配置。</p>
+<h2 id="_2">运行时组成<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<pre><code class="language-text">Darkeye.exe
+├─ Qt Widgets / Qt Quick：桌面界面、主题和通用组件
+├─ SQLite：公共资料库与私有资料库
+├─ 本地 HTTP API：浏览器扩展及本机工具联动
+├─ CollectorClient：调用可选的外部信息补充器（默认 127.0.0.1:56790）
+├─ GraphView：关系图的物理仿真与 QRhi 渲染
+└─ resources/ 与 data/：资源、配置、数据库、图片、日志和用户数据
+</code></pre>
+<p>应用启动后会创建运行目录、初始化数据库、应用保存的主题、构造主窗口，并在事件循环开始后启动
+本地 API、按设置启动外部 Collector、检查更新；如已配置，也可启动本地 <code>llama-server</code> 用于翻译。</p>
+<h2 id="_3">代码布局<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>插件</th>
-<th>功能</th>
-<th>对应目录/组件</th>
+<th>目录</th>
+<th>责任</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>采集插件</strong></td>
-<td>Firefox 插件 + 本地 Server + Inbox 工作流、爬虫抓取</td>
-<td><code>server/</code>、<code>extensions/</code>、<code>core/crawler/</code></td>
+<td><code>apps/desktop/</code></td>
+<td><code>Darkeye</code> 可执行程序、应用生命周期和主窗口导航。</td>
 </tr>
 <tr>
-<td><strong>关系图插件</strong></td>
-<td>ForceView 力导向图、共演/导演关联展示</td>
-<td><code>core/graph/</code>、<code>cpp_bindings/forced_direct_view/</code></td>
+<td><code>libs/core/</code></td>
+<td>领域模型、资源与日志、HTTP API、采集客户端和任务调度。</td>
 </tr>
 <tr>
-<td><strong>推荐插件</strong></td>
-<td>随机推荐、智能推荐</td>
-<td><code>core/recommendation/</code></td>
+<td><code>libs/database/</code></td>
+<td>SQLite 连接、建库/维护、备份、WebDAV、CSV 及领域仓储。</td>
 </tr>
 <tr>
-<td><strong>书架插件</strong></td>
-<td>拟物化书架、卡片流、虚拟化视图</td>
-<td><code>ShelfWidget</code>、<code>ShelfVirtualizedView</code></td>
+<td><code>libs/services/</code></td>
+<td>采集结果持久化、人物同步、图片、翻译、更新、视频库和批处理服务。</td>
 </tr>
 <tr>
-<td><strong>统计插件</strong></td>
-<td>贤者报告、偏好分析、热力图等</td>
-<td><code>ui/statistics/</code></td>
+<td><code>libs/graph/</code></td>
+<td>关系数据读取、图存储和图会话。</td>
 </tr>
 <tr>
-<td><strong>伪装插件</strong></td>
-<td>Excel/代码编辑器一键伪装</td>
-<td>（Phase 3 规划）</td>
+<td><code>libs/graph_view/</code></td>
+<td>力导向物理、MSDF 文字、QRhi 图形渲染与视图适配。</td>
+</tr>
+<tr>
+<td><code>libs/darkeye_ui/</code></td>
+<td>主题、布局和可复用的视觉组件。</td>
+</tr>
+<tr>
+<td><code>libs/ui/</code></td>
+<td>业务页面、编辑器、对话框和管理界面。</td>
+</tr>
+<tr>
+<td><code>resources/</code></td>
+<td>Qt 资源、默认配置、SQL、图标和随程序发布的资源。</td>
+</tr>
+<tr>
+<td><code>data/</code></td>
+<td>可选的初始/发布数据；是否安装由 CMake 预设决定。</td>
 </tr>
 </tbody>
 </table>
-<h4 id="343">3.4.3 插件与核心的交互<a class="headerlink" href="#343" title="Permanent link">&para;</a></h4>
+<h2 id="_4">开发约定<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
 <ul>
-<li>核心提供<strong>事件总线</strong>（<code>GlobalSignalBus</code>）和<strong>数据访问接口</strong>（<code>core.database.query/insert/update/delete</code>），插件通过订阅信号或调用接口与核心通信。</li>
-<li>插件通过<strong>注册机制</strong>向 Router 注册页面、向侧栏注册菜单项。</li>
-<li>插件独立打包，核心启动时从配置目录扫描并加载已启用的插件。</li>
+<li>新功能应优先放入已有的 <code>libs/*</code> 分层，并由 <code>apps/desktop/</code> 负责组合，而不是把业务逻辑塞入主窗口。</li>
+<li>使用 Qt 信号/槽连接页面与异步服务；耗时网络和采集操作不得阻塞 GUI 线程。</li>
+<li>数据库访问通过 <code>DatabaseManager</code>、<code>SqliteConnection</code> 和领域仓储完成；公库与私库由 <code>settings::Paths</code> 提供路径。</li>
+<li>关系图代码分为数据层 <code>libs/graph/</code> 与渲染层 <code>libs/graph_view/</code>；页面不直接操作底层 GPU 状态。</li>
+<li>C++ 采用 C++20。MSVC 构建启用 <code>/W4</code>、<code>/permissive-</code> 和 UTF-8 源文件编码。</li>
 </ul>
-<hr />
-<h2 id="4-roadmap">4. 路线图与里程碑 (Roadmap)<a class="headerlink" href="#4-roadmap" title="Permanent link">&para;</a></h2>
-<h3 id="phase-1-the-curator-update-current-focus">Phase 1: 策展人更新 (The Curator Update) - <em>Current Focus</em><a class="headerlink" href="#phase-1-the-curator-update-current-focus" title="Permanent link">&para;</a></h3>
-<ul>
-<li>[ ] <strong>无限卡片流首页</strong>：当前首页为 <code>CoverBrowser</code> + 随机推荐，仪表盘为 <code>DashboardPage</code>；书架直接使用 <code>ShelfWidget</code> / <code>ShelfVirtualizedView</code>，可继续向高性能水平滚动卡片流演进。</li>
-<li>[ ] <strong>CJK 竖排 UI</strong>：在卡片详情和部分标题中实现竖排排版。</li>
-<li>[ ] <strong>Inbox 模式重构</strong>：改造手动录入流程，引入“待处理”队列；插件抓取数据经 ServerBridge 由主窗口处理。</li>
-</ul>
-<h3 id="phase-2-the-intelligence-update">Phase 2: 情报网更新 (The Intelligence Update)<a class="headerlink" href="#phase-2-the-intelligence-update" title="Permanent link">&para;</a></h3>
-<ul>
-<li>[ ] <strong>浏览器插件双向通信</strong>：网页端实时显示本地收藏状态（已看/未看）。</li>
-<li>[ ] <strong>关注订阅系统</strong>：实现女优/片商的新作预告推送。</li>
-<li>[ ] <strong>多源数据融合</strong>：完善 ID 解析与去重逻辑，提升元数据准确性。</li>
-</ul>
-<h3 id="phase-3-the-invisible-update">Phase 3: 隐形人更新 (The Invisible Update)<a class="headerlink" href="#phase-3-the-invisible-update" title="Permanent link">&para;</a></h3>
-<ul>
-<li>[ ] <strong>Excel 伪装模式</strong>：实现一键 UI 切换功能。</li>
-<li>[ ] <strong>数据加密</strong>：为私有数据库 (<code>private.db</code>) 增加加密支持。</li>
-<li>[ ] <strong>贤者报告</strong>：开发基于用户行为的数据分析与可视化模块。</li>
-</ul>
-<h3 id="_2">长期目标<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>i18n 支持</strong>：全面支持简中、繁中、日文、韩文。</li>
-<li><strong>社区生态</strong>：开放插件市场，分享爬虫规则和分析模型。</li>
-</ul>
-<hr />
-<h2 id="5-backlog">5. 待优化与已知事项 (Backlog)<a class="headerlink" href="#5-backlog" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong>数据与首页</strong>：番号补全按需加载或分页；仪表盘展示数据库规模（作品数、女优数、代表作数、近 30 天增量）；最近看过的 5～10 部、最近入库作品、最近新增女优；待处理事项汇总（如无封面作品数、未绑定女优数、无代表作女优数）；随机推荐一部；首页可配置。</li>
-<li><strong>关系图</strong>：C++ 侧 <code>updateEdgeLineBuffers</code> 可考虑拆分以降低耦合（详见实现）。</li>
-<li><strong>架构演进</strong>：详见 <code>docs/architecture-refactor-proposal.md</code>；下图为<strong>拟议</strong>单体 + 插件架构（目标态）。</li>
-</ul>
-<p>```</p>
-<p>┌─────────────────────────────────────────────────────────────────────────────┐
-│  单体核心 (Monolith Core) — 完整可运行的基础应用                               │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │  Bootstrap (main.py)                                                   │  │
-│  │  配置加载、DB 初始化、 migrations、事件总线、插件加载器                  │  │
-│  └───────────────────────────────────────────────────────────────────────┘  │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐       │
-│  │ 数据层        │ │ 主窗口/路由   │ │ 核心页面     │ │ 控制器        │       │
-│  │ DB/Repo/Model│ │ MainWindow   │ │ 作品/女优/   │ │ 信号/快捷键   │       │
-│  │ migrations   │ │ Router/侧栏  │ │ 详情/设置    │ │ 状态栏/任务   │       │
-│  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘       │
-└─────────────────────────────────────┬───────────────────────────────────────┘
-                                      │ 事件总线 / 数据接口 / 页面注册
-┌─────────────────────────────────────▼───────────────────────────────────────┐
-│  插件层 (Plugins) — 可选加载                                                    │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐            │
-│  │ 采集插件     │ │ 关系图插件   │ │ 推荐插件     │ │ 书架插件     │            │
-│  │ Server+     │ │ GraphMgr+   │ │ 随机/智能    │ │ ShelfWidget │            │
-│  │ Crawler+    │ │ ForceView   │ │ 推荐        │ │ 虚拟化视图   │            │
-│  │ Inbox       │ │             │ │             │ │             │            │
-│  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘            │
-│  ┌─────────────┐ ┌─────────────┐                                             │
-│  │ 统计插件     │ │ 伪装插件     │  (按配置启用/禁用)                          │
-│  │ 贤者报告     │ │ Excel/编辑器 │                                             │
-│  └─────────────┘ └─────────────┘                                             │
-└──────────────────────────────────────────────────────────────────────────────┘</p>
-<p>符合直觉简单，比如拟物化的东西，无声的推荐，在两边放相关的东西，
-人分为被动搜索，与主动整理，注重形式感。
-关联怎么呈现，女优的信息怎么呈现，点击女优是为了过滤，还是查看女优的相关的信息，现在已经能实现像dvd的盒子一样了，
-还有很多的提示，比如本地有片时，点击后如果本地没片跳转网页，本地有片优先本地，左侧信息栏最好是3D化，就像游戏一样做进去。
-dvd回去的过程也要自然</p>
+<p>构建、测试、Visual Studio/VS Code 调试及发布目录生成，请阅读<a href="../development/">开发准备</a>。
+更细的模块依赖与数据流请阅读<a href="../architecture/">整体架构</a>。</p>
 
 
 

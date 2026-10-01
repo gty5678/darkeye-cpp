@@ -207,7 +207,7 @@
   
     
   
-  开发白皮书
+  C++ 版本概览
 
       </a>
     </li>
@@ -394,7 +394,7 @@
   <span class="md-ellipsis">
     
   
-    开发白皮书
+    C++ 版本概览
   
 
     
@@ -635,8 +635,10 @@
 静态数据分析的都没有什么意义，至少个人喜欢的和数据评分，身高的关联性都不太大。但是就是要脸好看，妆容好，还有很多无形的，比如演技，叫声，体位的色情程度，眼神，这个就很难分析。
 很多的时候可能整体的和导演的关系很大，包括背景，机位，故事</p>
 <h1 id="_1">文档工具的使用<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
-<p>mkdocs serve 启动然后点击链接</p>
-<p>mkdocs build 构建</p>
+<p>uv pip install -r requirements-docs.txt --index-url https://pypi.tuna.tsinghua.edu.cn/simple</p>
+<p>uv run mkdocs serve</p>
+<p>uv run mkdocs build --strict</p>
+<p>uv run mkdocs gh-deploy</p>
 <h1 id="_2">项目整体的结构<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h1>
 <p>AVmanagement_project/
 ├── main.py                  # 入口，启动 QApplication 和主窗口

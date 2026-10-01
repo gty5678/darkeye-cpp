@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#_1" class="md-skip">
+        <a href="#c-qt" class="md-skip">
           跳转至
         </a>
       
@@ -211,7 +211,7 @@
   
     
   
-  开发白皮书
+  C++ 版本概览
 
       </a>
     </li>
@@ -400,7 +400,7 @@
   <span class="md-ellipsis">
     
   
-    开发白皮书
+    C++ 版本概览
   
 
     
@@ -534,6 +534,8 @@
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
       
       
+        
+      
       
         <label class="md-nav__link md-nav__link--active" for="__toc">
           
@@ -576,6 +578,8 @@
   
   
   
+    
+  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -587,49 +591,65 @@
   <a href="#_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        开发环境准备
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="开发环境准备">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#python" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        python环境
+        前置条件
       
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#c-qt" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#vcpkg" class="md-nav__link">
     <span class="md-ellipsis">
       
-        C++ qt环境(如果要修改绑定项目)
+        vcpkg换源
       
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
+  <a href="#cmake" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CMake 预设
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        开发前准备
+        命令行构建与运行
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#visual-studio-2022" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Visual Studio 2022 调试
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vs-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VS Code 调试
+      
+    </span>
+  </a>
   
 </li>
       
@@ -637,19 +657,30 @@
   <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        运行
+        安装目录与发布构建
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="运行">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        常见问题
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="常见问题">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#56790" class="md-nav__link">
+  <a href="#cmake-qt6" class="md-nav__link">
     <span class="md-ellipsis">
       
-        外部信息补充器（56790）
+        CMake 找不到 Qt6
       
     </span>
   </a>
@@ -657,10 +688,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
+  <a href="#vcpkg_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        代码规范
+        vcpkg 工具链或依赖找不到
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qt-dll" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        程序启动时缺少 Qt DLL 或插件
       
     </span>
   </a>
@@ -669,17 +711,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        打包发布
-      
-    </span>
-  </a>
   
 </li>
       
@@ -762,6 +793,8 @@
   
   
   
+    
+  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -773,49 +806,65 @@
   <a href="#_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        开发环境准备
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="开发环境准备">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#python" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        python环境
+        前置条件
       
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#c-qt" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#vcpkg" class="md-nav__link">
     <span class="md-ellipsis">
       
-        C++ qt环境(如果要修改绑定项目)
+        vcpkg换源
       
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
+  <a href="#cmake" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CMake 预设
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        开发前准备
+        命令行构建与运行
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#visual-studio-2022" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Visual Studio 2022 调试
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vs-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VS Code 调试
+      
+    </span>
+  </a>
   
 </li>
       
@@ -823,19 +872,30 @@
   <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        运行
+        安装目录与发布构建
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="运行">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        常见问题
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="常见问题">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#56790" class="md-nav__link">
+  <a href="#cmake-qt6" class="md-nav__link">
     <span class="md-ellipsis">
       
-        外部信息补充器（56790）
+        CMake 找不到 Qt6
       
     </span>
   </a>
@@ -843,10 +903,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
+  <a href="#vcpkg_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        代码规范
+        vcpkg 工具链或依赖找不到
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qt-dll" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        程序启动时缺少 Qt DLL 或插件
       
     </span>
   </a>
@@ -855,17 +926,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        打包发布
-      
-    </span>
-  </a>
   
 </li>
       
@@ -886,109 +946,133 @@
 
 
 
-  <h1>开发准备</h1>
-
-<h2 id="_1">开发环境准备<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
-<h3 id="python">python环境<a class="headerlink" href="#python" title="Permanent link">&para;</a></h3>
-<ol>
-<li>用conda的输入下面指令</li>
-</ol>
-<pre><code>conda create -n venv python=3.13
-conda activate venv
-pip install -e &quot;.[docs]&quot;
-</code></pre>
-<ol>
-<li>复制resources/develop_resources 复制到data下面</li>
-</ol>
-<p>简单来说就是运行脚本scripts/develop_pre.ps1</p>
-<h3 id="c-qt">C++ qt环境(如果要修改绑定项目)<a class="headerlink" href="#c-qt" title="Permanent link">&para;</a></h3>
-<p>安装qt6.10.3</p>
-<p>vs2022，选择C++桌面开发</p>
-<p>下载第三方C++包</p>
-<p>C++ 绑定项目在 <code>cpp_bindings/</code> 下，目前有两个：</p>
+<h1 id="c-qt">C++ / Qt 开发、构建与调试<a class="headerlink" href="#c-qt" title="Permanent link">&para;</a></h1>
+<p>本仓库是一个 Windows 桌面 C++ / Qt 项目。主程序由 CMake 管理，使用 Qt 6、MSVC、
+Ninja 和 vcpkg manifest 模式；本文档是本项目唯一的本地构建说明。</p>
+<h2 id="_1">前置条件<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>在 Windows 上准备以下工具：</p>
 <ul>
-<li><code>cpp_bindings/color_wheel</code>：生成 <code>PyColorWheel.pyd</code>、<code>colorwheellib.dll</code></li>
-<li><code>cpp_bindings/forced_direct_view</code>：生成 <code>PyForceView.pyd</code>、<code>forceviewlib.dll</code></li>
+<li>Visual Studio 2022，并安装“使用 C++ 的桌面开发”工作负载（MSVC x64 工具链和 Windows SDK）。</li>
+<li>CMake 3.25 或更高版本、Ninja。</li>
+<li>Qt 6.10.3 ，并且安装的 <strong>MSVC 2022 64-bit</strong> kit。</li>
+<li>vcpkg。项目的 C++ 第三方依赖由根目录的 <code>vcpkg.json</code> 自动解析，不要手动复制第三方库目录。</li>
 </ul>
-<p>编译前需要安装/准备：</p>
-<ul>
-<li>Visual Studio 2022，安装“使用 C++ 的桌面开发”</li>
-<li>Qt 6.10.3，MSVC 2022 64-bit kit</li>
-<li>CMake、Ninja</li>
-<li>对应 conda 环境中安装 PySide6、shiboken6、shiboken6-generator</li>
-<li><code>cpp_bindings/3rdparty.zip</code>、<code>cpp_bindings/forced_direct_view.zip</code> 等第三方包按需要解压到对应目录</li>
-</ul>
-<p>脚本里目前硬编码了 VS、Qt、conda 环境路径，例如：</p>
-<ul>
-<li>VS：<code>C:\Program Files\Microsoft Visual Studio\2022\Community</code></li>
-<li>Qt：<code>E:\Qt\6.10.1\msvc2022_64\lib\cmake</code></li>
-<li>conda 环境：<code>avlite3</code></li>
-<li>PySide6/Shiboken6 cmake 路径：<code>C:/Users/yin/anaconda3/envs/avlite3/...</code></li>
-</ul>
-<p>如果本机路径或环境名不同，先修改对应 <code>build.ps1</code> 里的路径。</p>
-<p>在仓库根目录执行：</p>
-<pre><code>powershell -NoProfile -ExecutionPolicy Bypass -File .\cpp_bindings\color_wheel\build.ps1
+<p>在 <strong>Developer PowerShell for VS 2022</strong> 中设置 Qt 和 vcpkg 的位置。以下路径仅为示例，请按实际安装位置替换：</p>
+<pre><code class="language-powershell">$env:Qt6_DIR = &quot;C:/Qt/6.10.3/msvc2022_64/lib/cmake/Qt6&quot;
+$env:VCPKG_ROOT = &quot;C:/src/vcpkg&quot;
 </code></pre>
-<p>或：</p>
-<pre><code>powershell -NoProfile -ExecutionPolicy Bypass -File .\cpp_bindings\forced_direct_view\build.ps1
+<p>若尚未安装 vcpkg，可执行：</p>
+<pre><code class="language-powershell">git clone https://github.com/microsoft/vcpkg C:/src/vcpkg
+C:/src/vcpkg/bootstrap-vcpkg.bat
 </code></pre>
-<p>脚本会清理并重新创建绑定项目下的 <code>build/</code> 目录，使用 Release 配置编译，然后执行 <code>ninja install</code>。安装后 <code>.pyd</code>、<code>.dll</code> 和 <code>shiboken6.abi3.dll</code> 会复制到对应绑定目录，Python 可以直接从该目录导入绑定模块。</p>
-<p>这部分只有在修改 C++/Shiboken 绑定时才需要编译；日常 Python/UI 开发不需要重新编译。</p>
-<h3 id="_2">开发前准备<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
-<p>下载后请运行<code>scripts/develop_pre.ps1</code></p>
-<p>插件加载，需要手动的按照上面去浏览器临时加载选择extensions/firefox_capture里的manifest.json</p>
-<h2 id="_3">运行<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
-<p>vscode解释器选择
-Ctrl + Shift + P</p>
-<pre><code>Python: Select Interpreter
+<p>建议将 <code>Qt6_DIR</code> 和 <code>VCPKG_ROOT</code> 配置为用户环境变量，避免每次新开终端都要设置。Qt 必须使用
+MSVC 2022 64-bit kit，并与项目的 x64 Windows 构建一致。</p>
+<h2 id="vcpkg">vcpkg换源<a class="headerlink" href="#vcpkg" title="Permanent link">&para;</a></h2>
+<p>首先先去安装<a href="https://github.com/PowerShell/PowerShell/releases/download/v7.5.3/PowerShell-7.5.3-win-x64.msi">powershell 7.5.3</a></p>
+<p>Git URL重定向</p>
+<pre><code>git config --global url.&quot;https://gitee.com/mirrors/vcpkg&quot;.insteadOf &quot;https://github.com/microsoft/vcpkg&quot;
 </code></pre>
-<p>venv
-python main.py</p>
-<p>或者直接按F5</p>
-<h3 id="56790">外部信息补充器（56790）<a class="headerlink" href="#56790" title="Permanent link">&para;</a></h3>
-<p>主程序自身会启动 <code>server/</code> 中的 FastAPI 服务，默认监听
-<code>http://127.0.0.1:56789</code>。爬虫设置中的 work、actress、image 和
-top-actresses API 默认指向另一个服务：<code>http://127.0.0.1:56790</code>。</p>
-<p><code>56790</code> 服务是外部的信息补充器（Collector/Bridge），本仓库只包含它的客户端配置、
-启动和状态探测逻辑，不包含该服务的源码、Python 包或构建脚本，无法从本仓库直接启动该服务。</p>
-<p>本地联调时，需要先单独准备并启动信息补充器，然后在“设置 → 信息补充器相关设置”中：</p>
+<pre><code>git config --global url.&quot;https://mirrors.tuna.tsinghua.edu.cn/git/vcpkg/&quot;.insteadOf &quot;https://github.com/microsoft/vcpkg&quot;
+</code></pre>
+<p>设置环境变量</p>
+<pre><code>$env:VCPKG_DOWNLOAD_MIRROR=&quot;https://mirrors.ustc.edu.cn/github-release/ninja-build/ninja/&quot;
+$env:X_VCPKG_ASSET_SOURCES=&quot;x-azurl,https://mirrors.ustc.edu.cn/vcpkg/assets/&quot;
+</code></pre>
+<h2 id="cmake">CMake 预设<a class="headerlink" href="#cmake" title="Permanent link">&para;</a></h2>
+<p>根目录的 <code>CMakePresets.json</code> 已定义下列预设：</p>
+<table>
+<thead>
+<tr>
+<th>用途</th>
+<th>配置预设</th>
+<th>构建预设</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>日常 Debug 构建</td>
+<td><code>windows-msvc-debug</code></td>
+<td><code>debug</code></td>
+</tr>
+<tr>
+<td>Debug 构建并启用测试</td>
+<td><code>windows-msvc-debug-tests</code></td>
+<td><code>debug-tests</code></td>
+</tr>
+<tr>
+<td>Release（不含 <code>data</code>）</td>
+<td><code>windows-msvc-release-no-data</code></td>
+<td><code>release-no-data</code></td>
+</tr>
+<tr>
+<td>Release（含 <code>data</code>）</td>
+<td><code>windows-msvc-release-data</code></td>
+<td><code>release-data</code></td>
+</tr>
+<tr>
+<td>Release 构建并启用测试</td>
+<td><code>windows-msvc-release-tests</code></td>
+<td><code>release-tests</code></td>
+</tr>
+</tbody>
+</table>
+<p>首次配置时，vcpkg 会下载并构建 <code>vcpkg.json</code> 中锁定的依赖，耗时会比后续配置更长。
+构建目录位于 <code>build/windows-msvc-*</code>；不要把生成文件提交到 Git。</p>
+<h2 id="_2">命令行构建与运行<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>在仓库根目录执行日常 Debug 构建：</p>
+<pre><code class="language-powershell">cmake --preset windows-msvc-debug
+cmake --build --preset debug
+</code></pre>
+<p>生成的可执行文件为：</p>
+<pre><code class="language-text">build/windows-msvc-debug/apps/desktop/Darkeye.exe
+</code></pre>
+<p>构建完成后，CMake 会自动调用 Qt 的 <code>windeployqt</code>，因此可以直接运行该文件：</p>
+<pre><code class="language-powershell">&amp; .\build\windows-msvc-debug\apps\desktop\Darkeye.exe
+</code></pre>
+<p>如需构建和运行测试，改用测试预设：</p>
+<pre><code class="language-powershell">cmake --preset windows-msvc-debug-tests
+cmake --build --preset debug-tests
+ctest --preset debug
+</code></pre>
+<p><code>ctest --preset debug</code> 会在测试失败时输出失败信息。也可用 <code>ctest --test-dir build/windows-msvc-debug-tests --output-on-failure</code>
+运行同一套测试。</p>
+<h2 id="visual-studio-2022">Visual Studio 2022 调试<a class="headerlink" href="#visual-studio-2022" title="Permanent link">&para;</a></h2>
 <ol>
-<li>选择信息补充器的 <code>.exe</code>，可按需启用“打开软件自动启动信息服务器”；或在外部手动启动该程序。</li>
-<li>如果服务地址不是默认的 <code>127.0.0.1:56790</code>，修改四个爬虫 API 地址。</li>
-<li>使用设置页的“测试”按钮探测 <code>{Bridge 根地址}/api/v1/exist</code>。</li>
+<li>使用 <strong>File → Open → Folder</strong> 打开仓库根目录；Visual Studio 会读取 <code>CMakePresets.json</code>。</li>
+<li>在工具栏的配置下拉框选择 <code>windows-msvc-debug</code>；若要调试测试，选择 <code>windows-msvc-debug-tests</code>。</li>
+<li>在 CMake Targets View 中将 <code>Darkeye</code> 设为启动项，等待首次 CMake 配置和构建完成。</li>
+<li>在 C++ 源文件中设置断点，按 <code>F5</code> 开始调试；使用 <code>Ctrl+F5</code> 直接运行而不附加调试器。</li>
 </ol>
-<p>信息补充器未运行且没有配置其他可用服务地址时，上述四个爬虫 API 会调用失败；
-这不影响主程序内部的 <code>56789</code> 服务启动。</p>
-<h3 id="_4">代码规范<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
-<p>官方样式指南，约定包括：
-缩进：4 个空格，不用 Tab 混用。
-行长：常见约定每行 ≤79（文档/注释）或 ≤88/100（很多项目用工具放宽）。
-命名：模块/包 lowercase；类 CapWords；函数/方法/变量 lower_with_underscores；常量 ALL_CAPS；私有约定 _leading_underscore。
-qt信号，小驼峰</p>
-<p>导入：标准库 → 第三方 → 本地，各组空一行；尽量不用 import *。
-空格：运算符两侧、逗号后等留白习惯；不在括号里无故加空格。
-字符串：与同文件已有风格一致；无特殊理由可优先双引号或统一用一种。
-PEP 257
-docstring 的写法和格式约定。</p>
-<p>类型注解
-PEP 484 及后续（typing / | 联合类型等），是否强制由项目决定。</p>
-<p>使用black作为代码的风格的整理</p>
-<h2 id="_5">打包发布<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
-<p>日常开发使用 <code>venv</code> 环境；正式打包请切换到专用的 <code>pack</code> 环境。<code>pack</code> 环境完全根据 <code>pyproject.toml</code> 安装依赖，只保留项目运行和打包需要的包，避免开发环境里的额外依赖污染打包结果，也能减少 Nuitka 的依赖分析范围。</p>
-<p>在 powershell 里运行：</p>
-<pre><code>conda activate pack
-python scripts/build-nuitka.py --debug
+<p>若 Visual Studio 提示找不到 Qt 或 vcpkg，请在启动 Visual Studio 前设置 <code>Qt6_DIR</code>、<code>VCPKG_ROOT</code>，然后执行
+<strong>Project → Delete Cache and Reconfigure</strong>。切换 Debug/Release 或切换依赖配置后，也应重新配置。</p>
+<h2 id="vs-code">VS Code 调试<a class="headerlink" href="#vs-code" title="Permanent link">&para;</a></h2>
+<p>安装 Microsoft 的 C/C++ 与 CMake Tools 扩展后，打开仓库根目录：</p>
+<ol>
+<li>在 CMake Tools 的配置预设中选择 <code>windows-msvc-debug</code>。</li>
+<li>执行 <strong>CMake: Configure</strong>，再执行 <strong>CMake: Build</strong>。</li>
+<li>选择 <code>Darkeye</code> 作为启动目标；在源文件添加断点后按 <code>F5</code>。</li>
+</ol>
+<p>VS Code 必须从已设置 <code>Qt6_DIR</code>、<code>VCPKG_ROOT</code> 的 Developer PowerShell 启动，或在系统环境变量中配置它们；否则 CMake 无法定位 Qt 和 vcpkg 工具链。</p>
+<h2 id="_3">安装目录与发布构建<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>Release 构建不等同于安装包。构建完成后执行 <code>cmake --install</code>，才能得到可分发目录：</p>
+<pre><code class="language-powershell">cmake --preset windows-msvc-release-data
+cmake --build --preset release-data
+cmake --install build/windows-msvc-release-data --config Release
 </code></pre>
-<p>debug 版本用于本地验证：不启用 LTO、强制显示控制台、会生成 <code>report.xml</code>，不会生成发布压缩包。
-编译后的可移动目录在 <code>dist/main.dist</code>，运行 <code>dist/main.dist/DarkEye.exe</code> 即可启动。</p>
-<p>确认无问题后，发布版使用：</p>
-<pre><code>conda activate pack
-python scripts/build-nuitka.py --release
-</code></pre>
-<p>release 版本会启用 LTO、隐藏控制台，编译完成后自动运行 <code>scripts/pack.py</code>，生成 <code>tar.zst</code>、<code>zip</code> 和 <code>update/latest.json</code>。</p>
-<p>现在的打包属于激进排除，几乎把不需要的 dll 文件全删除了，所以当需要用到新的东西时很可能少 dll。需要重新修改 <code>scripts/build-nuitka.py</code> 里的打包配置。</p>
-<p>本仓库的发布脚本只负责打包 DarkEye 主程序，不提供外部信息补充器的构建脚本；
-信息补充器的构建与发布需要在对应项目中完成。</p>
+<p>输出目录为 <code>out/install/release-data</code>。<code>release-data</code> 会一并安装 <code>data/</code>；若发布包不需要数据，使用
+<code>windows-msvc-release-no-data</code> / <code>release-no-data</code>，输出到 <code>out/install/release-no-data</code>。</p>
+<p>安装步骤会复制程序、<code>resources/</code>、Qt 运行时和所需的 vcpkg DLL。交付前请在未安装开发环境的 Windows
+机器上验证 <code>Darkeye.exe</code> 能否直接启动。</p>
+<h2 id="_4">常见问题<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<h3 id="cmake-qt6">CMake 找不到 Qt6<a class="headerlink" href="#cmake-qt6" title="Permanent link">&para;</a></h3>
+<p>确认 <code>Qt6_DIR</code> 指向类似
+<code>C:/Qt/6.10.3/msvc2022_64/lib/cmake/Qt6</code> 的目录，而不是 Qt 安装根目录；然后删除 CMake 缓存并重新配置。</p>
+<h3 id="vcpkg_1">vcpkg 工具链或依赖找不到<a class="headerlink" href="#vcpkg_1" title="Permanent link">&para;</a></h3>
+<p>确认 <code>VCPKG_ROOT</code> 是 vcpkg 根目录，其中包含 <code>scripts/buildsystems/vcpkg.cmake</code>。不要用全局安装的包替代 manifest
+依赖；<code>vcpkg.json</code> 的 baseline 应随依赖更新一并提交。</p>
+<h3 id="qt-dll">程序启动时缺少 Qt DLL 或插件<a class="headerlink" href="#qt-dll" title="Permanent link">&para;</a></h3>
+<p>先重新执行对应的 <code>cmake --build --preset ...</code>。默认构建会在可执行文件旁运行 <code>windeployqt</code>；如果关闭了
+<code>DARKEYE_DEPLOY_QT_RUNTIME</code>，需自行部署 Qt runtime，或改用 <code>cmake --install</code> 生成安装目录。</p>
 
 
 
