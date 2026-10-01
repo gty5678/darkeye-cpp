@@ -14,7 +14,7 @@
 
 ![Qt 6.10][badge-qt]
 ![C++][badge-cpp]
-![CMake][badge-cmake]
+![CMake 3.25+][badge-cmake]
 ![MSVC 2022][badge-msvc]
 [![SQLite][badge-sqlite]](https://sqlite.org/)
 ![Platform][badge-platform]
@@ -290,7 +290,7 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 [badge-readme-ja]: https://img.shields.io/badge/README%20%C2%B7%20%E6%97%A5%E6%9C%AC%E8%AA%9E-2ea44f?style=for-the-badge
 [badge-qt]: https://img.shields.io/badge/Qt-6.10.3-41CD52?logo=qt&logoColor=white
 [badge-cpp]: https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus
-[badge-cmake]: https://img.shields.io/badge/CMake-CMake-064F8C?logo=cmake
+[badge-cmake]: https://img.shields.io/badge/CMake-3.25%2B-064F8C?logo=cmake&logoColor=white
 [badge-msvc]: https://img.shields.io/badge/MSVC-2022-5C2D91?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB2aWV3Qm94PSIwIDAgMjQgMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI%2BPHBhdGggZmlsbD0iI0YyNTAyMiIgZD0iTTEgMWgxMHYxMEgxeiIvPjxwYXRoIGZpbGw9IiM3RkJBMDAiIGQ9Ik0xMyAxaDEwdjEwSDEzeiIvPjxwYXRoIGZpbGw9IiMwMEE0RUYiIGQ9Ik0xIDEzaDEwdjEwSDF6Ii8%2BPHBhdGggZmlsbD0iI0ZGQjkwMCIgZD0iTTEzIDEzaDEwdjEwSDEzeiIvPjwvc3ZnPg%3D%3D
 [badge-sqlite]: https://img.shields.io/badge/SQLite-local%20storage-003B57?logo=sqlite&logoColor=white
 [badge-platform]: https://img.shields.io/badge/Platform-Windows-0078D4?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU%2BV2luZG93czwvdGl0bGU%2BPHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0wIDMuNDQ5TDkuNzUgMi4xdjkuNDUxSDBtMTAuOTQ5LTkuNjAyTDI0IDB2MTEuNEgxMC45NDlNMCAxMi42aDkuNzV2OS40NTFMMCAyMC42OTlNMTAuOTQ5IDEyLjZIMjRWMjRsLTEyLjktMS44MDEiLz48L3N2Zz4%3D
