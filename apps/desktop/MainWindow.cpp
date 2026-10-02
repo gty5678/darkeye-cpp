@@ -388,7 +388,7 @@ void MainWindow::registerApplicationActions()
               });
     addAction(QStringLiteral("add_quick_work"), QStringLiteral("快速添加番号"),
               QStringLiteral("W"), [this] {
-                  AddQuickWorkDialog dialog(*m_crawlerScheduler, m_themeService, this);
+                  AddQuickWorkDialog dialog(m_publicDatabase, *m_crawlerScheduler, m_themeService, this);
                   dialog.exec();
               });
     addAction(QStringLiteral("add_makelove_record"), QStringLiteral("添加做爱记录"),
@@ -890,7 +890,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
         });
         connect(settings, &SettingsPage::quickWorkRequested, this,
                 [this](const QStringList &serials) {
-            AddQuickWorkDialog dialog(*m_crawlerScheduler, m_themeService, this);
+            AddQuickWorkDialog dialog(m_publicDatabase, *m_crawlerScheduler, m_themeService, this);
             dialog.loadSerials(serials);
             dialog.exec();
         });
