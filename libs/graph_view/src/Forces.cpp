@@ -256,6 +256,9 @@ void ManyBodyForce::applyParallel(float alpha)
     // Each thread accumulates its own force for node i, then writes.
     // This avoids race conditions on vel[j] — only vel[i] is written per i.
 
+#ifdef _MSC_VER
+#pragma warning(suppress : 6993) // MSVC code analysis does not model OpenMP execution.
+#endif
 #pragma omp parallel for schedule(static)
     for (int i = 0; i < N; ++i) {
         float xi = pos[2 * i];

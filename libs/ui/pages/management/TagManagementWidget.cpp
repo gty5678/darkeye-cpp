@@ -183,9 +183,13 @@ void TagManagementWidget::refresh()
 
 void TagManagementWidget::refreshTagTypes()
 {
+    QComboBox *const typeCombo = m_type;
+    if (typeCombo == nullptr)
+        return;
+
     const std::optional<qint64> selected =
-        m_type != nullptr && m_type->currentData().isValid()
-            ? std::optional<qint64>(m_type->currentData().toLongLong())
+        typeCombo->currentData().isValid()
+            ? std::optional<qint64>(typeCombo->currentData().toLongLong())
             : std::nullopt;
     QString errorMessage;
     const QList<TagTypeRecord> types = m_repository.listTagTypes(&errorMessage);
@@ -194,14 +198,14 @@ void TagManagementWidget::refreshTagTypes()
         Toast::showError(window(), errorMessage, &m_themes);
         return;
     }
-    m_type->clear();
-    m_type->addItem(QStringLiteral("未分类"), QVariant());
+    typeCombo->clear();
+    typeCombo->addItem(QStringLiteral("未分类"), QVariant());
     for (const TagTypeRecord &type : types)
-        m_type->addItem(type.name, type.id);
+        typeCombo->addItem(type.name, type.id);
     if (selected.has_value())
     {
-        const int index = m_type->findData(*selected);
-        m_type->setCurrentIndex(index >= 0 ? index : 0);
+        const int index = typeCombo->findData(*selected);
+        typeCombo->setCurrentIndex(index >= 0 ? index : 0);
     }
 }
 

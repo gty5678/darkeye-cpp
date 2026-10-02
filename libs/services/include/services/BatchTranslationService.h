@@ -46,7 +46,7 @@ signals:
     void finished(const darkeye::BatchTranslationResult &result);
 
 private:
-    struct Private;
+    class Private;
     Private *d = nullptr;
 };
 
