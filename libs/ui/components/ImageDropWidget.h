@@ -3,6 +3,7 @@
 #include <QWidget>
 
 class QContextMenuEvent;
+class QColor;
 class QDragEnterEvent;
 class QDropEvent;
 class QEvent;
@@ -29,7 +30,7 @@ public:
     void setQualityBadgeEnabled(bool enabled);
     /// Overrides the low-quality badge appearance.  The editor supplies its
     /// theme tokens so this reusable widget stays independent of ThemeService.
-    void setQualityBadgeStyleSheet(const QString &styleSheet);
+    void setQualityBadgeStyleSheet(const QString &styleSheet, const QColor &textColor);
     void setImagePath(const QString &path);
     [[nodiscard]] QString imagePath() const;
     [[nodiscard]] QString resolvedImagePath() const;
@@ -70,6 +71,7 @@ private:
     QString m_imagePath;
     AsyncImageLabel *m_preview = nullptr;
     QLabel *m_qualityBadge = nullptr;
+    QLabel *m_qualityBadgeText = nullptr;
     qreal m_previewAspectRatio = 0.0;
     bool m_qualityBadgeEnabled = false;
     bool m_dirty = false;

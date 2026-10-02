@@ -144,7 +144,8 @@ void AddWorkTabPage3::lazyLoad()
                            "border-radius: %4; font-family: %5; font-size: %6; "
                            "font-weight: 600; padding: 1px 6px; }")
                 .arg(tokens.background, tokens.warning, tokens.borderWidth,
-                     tokens.radiusMd, tokens.fontFamilyBase, tokens.fontSizeBase));
+                     tokens.radiusMd, tokens.fontFamilyBase, tokens.fontSizeBase),
+            QColor(tokens.warning));
     };
     applyQualityBadgeTheme();
     connect(&m_themes, &ThemeService::themeChanged, this,

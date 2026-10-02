@@ -621,14 +621,37 @@ void WorkPageTest::downloadedCoverEnablesModifyAction()
     QVERIFY(qualityBadge->styleSheet().contains(QStringLiteral("border: 2px solid #ed6c02")));
     QVERIFY(!save->isEnabled());
 
-    imageDrop->setImagePath(
-        QDir(temporaryDirectory.path()).filePath(QStringLiteral("downloaded-cover.jpg")));
+    const QString downloadedCover =
+        QDir(temporaryDirectory.path()).filePath(QStringLiteral("downloaded-cover.jpg"));
+    QImage lowQualityCover(80, 120, QImage::Format_RGB32);
+    lowQualityCover.fill(Qt::blue);
+    QVERIFY(lowQualityCover.save(downloadedCover, "JPEG", 80));
+    editor.show();
+    imageDrop->setImagePath(downloadedCover);
     imageDrop->setDirty(true);
+    QApplication::processEvents();
 
     QVERIFY(imageDrop->isDirty());
     QVERIFY(imageDrop->property("addWorkModified").toBool());
     QVERIFY(save->isEnabled());
     QCOMPARE(save->text(), QStringLiteral("修改"));
+    QVERIFY(qualityBadge->isVisible());
+    QCOMPARE(qualityBadge->accessibleName(), QStringLiteral("非高清图"));
+
+    const QImage renderedBadge = qualityBadge->grab().toImage();
+    const QColor warning(QStringLiteral("#ed6c02"));
+    bool foundWarningTextPixel = false;
+    for (int y = renderedBadge.height() / 4;
+         y < renderedBadge.height() * 3 / 4 && !foundWarningTextPixel; ++y)
+        for (int x = renderedBadge.width() / 4; x < renderedBadge.width() * 3 / 4; ++x)
+            if (renderedBadge.pixelColor(x, y) == warning)
+            {
+                foundWarningTextPixel = true;
+                break;
+            }
+    if (QApplication::platformName() != QStringLiteral("offscreen"))
+        QVERIFY2(foundWarningTextPixel,
+                 "the low-quality badge must render warning-coloured text");
 }
 
 void WorkPageTest::addWorkBasicInfoSerialMatchesPythonBehavior()

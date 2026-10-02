@@ -46,6 +46,13 @@ ImageDropWidget::ImageDropWidget(QString managedDirectory, QWidget *parent)
         "QLabel#coverQualityBadge { background-color: rgba(0, 0, 0, 160);"
         " color: #FFD54F; border: 1px solid #FFD54F; border-radius: 8px;"
         " font-size: 12px; font-weight: 600; padding: 1px 6px; }"));
+    m_qualityBadgeText = new QLabel(QStringLiteral("非高清图"), m_qualityBadge);
+    m_qualityBadgeText->setObjectName(QStringLiteral("coverQualityBadgeText"));
+    m_qualityBadgeText->setAlignment(Qt::AlignCenter);
+    m_qualityBadgeText->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_qualityBadgeText->setStyleSheet(QStringLiteral(
+        "QLabel#coverQualityBadgeText { background: transparent; color: #FFD54F;"
+        " border: none; padding: 0; margin: 0; }"));
     m_qualityBadge->hide();
     m_qualityBadge->installEventFilter(this);
     refreshStyle();
@@ -83,9 +90,19 @@ void ImageDropWidget::setQualityBadgeEnabled(bool enabled)
     updateQualityBadge();
 }
 
-void ImageDropWidget::setQualityBadgeStyleSheet(const QString &styleSheet)
+void ImageDropWidget::setQualityBadgeStyleSheet(const QString &styleSheet,
+                                                const QColor &textColor)
 {
     m_qualityBadge->setStyleSheet(styleSheet);
+    // QStyleSheetStyle may repaint the badge panel over QLabel's own content
+    // on Windows.  Keep the Python-compatible panel on the parent and put the
+    // caption on a transparent child layer that is painted afterwards.
+    m_qualityBadgeText->setFont(m_qualityBadge->font());
+    m_qualityBadgeText->setStyleSheet(
+        QStringLiteral("QLabel#coverQualityBadgeText { background: transparent; color: %1;"
+                       " border: none; padding: 0; margin: 0; }")
+            .arg(textColor.name(QColor::HexRgb)));
+    m_qualityBadge->setAccessibleName(QStringLiteral("非高清图"));
     updateQualityBadge();
 }
 
@@ -358,6 +375,8 @@ void ImageDropWidget::updateQualityBadge()
     if (!showBadge)
         return;
     m_qualityBadge->adjustSize();
+    m_qualityBadgeText->setGeometry(m_qualityBadge->contentsRect());
+    m_qualityBadgeText->raise();
     constexpr int margin = 6;
     m_qualityBadge->move(m_preview->geometry().right() - m_qualityBadge->width() - margin + 1,
                          m_preview->geometry().top() + margin);
