@@ -33,6 +33,7 @@ signals:
     void graphNeighborDepthChanged(int value);
     void arrowEnabledChanged(bool enabled);
     void arrowScaleChanged(float value);
+    void imageOverlayEnabledChanged(bool enabled);
     void nodeColorChanged(const QString &group, const QColor &color);
     void fitInViewRequested();
     void restartRequested();

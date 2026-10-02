@@ -95,6 +95,8 @@ ForceViewSettingsPanel::ForceViewSettingsPanel(ThemeService &themeService, QWidg
     auto *displayForm = new QFormLayout;
     auto *showArrow = new ToggleSwitch(48, 24, &themeService, content);
     showArrow->setChecked(true);
+    auto *showImage = new ToggleSwitch(48, 24, &themeService, content);
+    showImage->setChecked(true);
     auto *arrowSize = slider(3, 30, 10, content);
     auto *textFade = slider(10, 1000, 100, content);
     auto *nodeSize = slider(10, 300, 100, content);
@@ -103,6 +105,7 @@ ForceViewSettingsPanel::ForceViewSettingsPanel(ThemeService &themeService, QWidg
     auto *graphNeighborDepth = slider(1, 5, 3, content);
     displayForm->addRow(new DesignLabel(QStringLiteral("显示箭头"), content), showArrow);
     displayForm->addRow(new DesignLabel(QStringLiteral("箭头大小"), content), arrowSize);
+    displayForm->addRow(new DesignLabel(QStringLiteral("显示图片"), content), showImage);
     displayForm->addRow(new DesignLabel(QStringLiteral("文字渐隐"), content), textFade);
     displayForm->addRow(new DesignLabel(QStringLiteral("节点大小"), content), nodeSize);
     displayForm->addRow(new DesignLabel(QStringLiteral("连线宽度"), content), lineWidth);
@@ -131,6 +134,8 @@ ForceViewSettingsPanel::ForceViewSettingsPanel(ThemeService &themeService, QWidg
     display->addWidget(displayContent);
     connect(showArrow, &ToggleSwitch::toggled, this,
             &ForceViewSettingsPanel::arrowEnabledChanged);
+    connect(showImage, &ToggleSwitch::toggled, this,
+            &ForceViewSettingsPanel::imageOverlayEnabledChanged);
     connect(arrowSize, &QSlider::valueChanged, this,
             [this](int value) { emit arrowScaleChanged(float(value) / 10.0F); });
     connect(textFade, &QSlider::valueChanged, this,

@@ -96,6 +96,8 @@ ForceDirectPage::ForceDirectPage(ThemeService &themeService, graph::GraphManager
             m_graphView, &graph_view::GraphViewWidget::setEgoRadius);
     connect(m_settingsPanel, &ForceViewSettingsPanel::arrowEnabledChanged,
             view, &ForceViewRhiWidget::setArrowEnabled);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::imageOverlayEnabledChanged,
+            m_graphView, &graph_view::GraphViewWidget::setImageOverlayEnabled);
     connect(m_settingsPanel, &ForceViewSettingsPanel::arrowScaleChanged,
             view, &ForceViewRhiWidget::setArrowScale);
     connect(m_settingsPanel, &ForceViewSettingsPanel::nodeColorChanged,

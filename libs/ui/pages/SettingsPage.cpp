@@ -47,6 +47,7 @@
 #include <QSaveFile>
 #include <QSpinBox>
 #include <QTableWidget>
+#include <QTextCursor>
 #include <QVBoxLayout>
 #include <QUrl>
 #include <QProgressDialog>
@@ -1068,6 +1069,25 @@ void TranslationSettingsPage::lazyLoad()
 
     layout->addWidget(new DesignLabel(QStringLiteral("<h3>llama.cpp 辅助</h3>"), this));
     auto *llamaForm = new QFormLayout;
+    auto *llamaLinks = new QWidget(this);
+    auto *llamaLinksLayout = new QHBoxLayout(llamaLinks);
+    llamaLinksLayout->setContentsMargins(0, 0, 0, 0);
+    const auto addLlamaLink = [this, llamaLinksLayout](const QString &text, const QString &url) {
+        auto *button = new DesignButton(text, this);
+        connect(button, &QPushButton::clicked, this,
+                [url] { QDesktopServices::openUrl(QUrl(url)); });
+        llamaLinksLayout->addWidget(button);
+    };
+    addLlamaLink(QStringLiteral("打开 llama.cpp Releases"),
+                 QStringLiteral("https://github.com/ggml-org/llama.cpp/releases"));
+    addLlamaLink(QStringLiteral("打开 7B 模型页"),
+                 QStringLiteral("https://huggingface.co/SakuraLLM/Sakura-7B-Qwen2.5-v1.0-GGUF/tree/main"));
+    addLlamaLink(QStringLiteral("打开 14B 模型页"),
+                 QStringLiteral("https://huggingface.co/SakuraLLM/Sakura-14B-Qwen3-v1.5-GGUF/tree/main"));
+    addLlamaLink(QStringLiteral("打开教程"),
+                 QStringLiteral("https://de4321.github.io/darkeye/usage/#llamacpp"));
+    llamaLinksLayout->addStretch();
+    llamaForm->addRow(new DesignLabel(QStringLiteral("快速下载"), this), llamaLinks);
     line(llamaForm, QStringLiteral("llama-server.exe"), values.llama.serverExecutable,
          &m_serverExecutable);
     line(llamaForm, QStringLiteral("GGUF 模型"), values.llama.modelPath, &m_modelPath);
@@ -1095,6 +1115,13 @@ void TranslationSettingsPage::lazyLoad()
     m_mode->setCurrentIndex(m_mode->findData(values.llama.mode.trimmed().toLower()));
     if (m_mode->currentIndex() < 0) m_mode->setCurrentIndex(0);
     llamaForm->addRow(new DesignLabel(QStringLiteral("运行模式"), this), m_mode);
+    m_llamaPreset = new DesignComboBox(this);
+    m_llamaPreset->addItem(QStringLiteral("不应用预设"), QStringLiteral("none"));
+    m_llamaPreset->addItem(QStringLiteral("8G 显卡预设"), QStringLiteral("gpu_8g"));
+    m_llamaPreset->addItem(QStringLiteral("低显存预设"), QStringLiteral("gpu_low"));
+    m_llamaPreset->addItem(QStringLiteral("8核 CPU 预设"), QStringLiteral("cpu_8"));
+    m_llamaPreset->addItem(QStringLiteral("16核 CPU 预设"), QStringLiteral("cpu_16"));
+    llamaForm->addRow(new DesignLabel(QStringLiteral("参数预设"), this), m_llamaPreset);
     m_contextSize = spin(256, 32768, values.llama.contextSize);
     m_gpuLayers = spin(0, 200, values.llama.gpuLayers);
     m_threads = spin(1, 256, values.llama.threads);
@@ -1123,13 +1150,19 @@ void TranslationSettingsPage::lazyLoad()
     auto *controls = new QWidget(this);
     auto *controlsLayout = new QHBoxLayout(controls);
     controlsLayout->setContentsMargins(0, 0, 0, 0);
-    auto *start = new DesignButton(QStringLiteral("启动 llama-server"), controls);
-    auto *stop = new DesignButton(QStringLiteral("停止"), controls);
+    m_startLlamaButton = new DesignButton(QStringLiteral("启动 llama-server"), controls);
+    m_stopLlamaButton = new DesignButton(QStringLiteral("停止"), controls);
     auto *probe = new DesignButton(QStringLiteral("测试 /v1/models"), controls);
-    controlsLayout->addWidget(start); controlsLayout->addWidget(stop); controlsLayout->addWidget(probe); controlsLayout->addStretch();
+    controlsLayout->addWidget(m_startLlamaButton); controlsLayout->addWidget(m_stopLlamaButton); controlsLayout->addWidget(probe); controlsLayout->addStretch();
     llamaForm->addRow(new DesignLabel(QStringLiteral("控制"), this), controls);
     m_llamaStatus = new DesignLabel(QStringLiteral("状态：未启动"), this);
     llamaForm->addRow(new DesignLabel(QStringLiteral("运行状态"), this), m_llamaStatus);
+    m_llamaLog = new QPlainTextEdit(this);
+    m_llamaLog->setReadOnly(true);
+    m_llamaLog->setFixedHeight(96);
+    llamaForm->addRow(new DesignLabel(QStringLiteral("日志输出"), this), m_llamaLog);
+    llamaForm->addRow(new DesignLabel(QStringLiteral("提示"), this),
+                      new DesignLabel(QStringLiteral("显存不足请先降 GPU layers；启动后可点 /v1/models 检查。"), this));
     layout->addLayout(llamaForm);
     layout->addWidget(new DesignLabel(QStringLiteral("翻译测试"), this));
     m_testInput = new QPlainTextEdit(this);
@@ -1150,13 +1183,15 @@ void TranslationSettingsPage::lazyLoad()
             [this](int) { save(); updateLlmFields(); });
     connect(m_mode, qOverload<int>(&QComboBox::currentIndexChanged), this,
             [this](int) { updateModeFields(); save(); });
+    connect(m_llamaPreset, qOverload<int>(&QComboBox::currentIndexChanged), this,
+            [this](int) { applyLlamaPreset(); });
     connect(m_mlock, &ToggleSwitch::toggled, this, [this](bool) { save(); });
     connect(m_autoSync, &ToggleSwitch::toggled, this, [this](bool) { save(); });
     connect(m_autoStart, &ToggleSwitch::toggled, this, [this](bool) { save(); });
     connect(serverBrowse, &QPushButton::clicked, this, &TranslationSettingsPage::browseServerExecutable);
     connect(modelBrowse, &QPushButton::clicked, this, &TranslationSettingsPage::browseModel);
-    connect(start, &QPushButton::clicked, this, &TranslationSettingsPage::startLlamaServer);
-    connect(stop, &QPushButton::clicked, this, &TranslationSettingsPage::stopLlamaServer);
+    connect(m_startLlamaButton, &QPushButton::clicked, this, &TranslationSettingsPage::startLlamaServer);
+    connect(m_stopLlamaButton, &QPushButton::clicked, this, &TranslationSettingsPage::stopLlamaServer);
     connect(probe, &QPushButton::clicked, this, &TranslationSettingsPage::testLlamaServer);
     connect(testTranslationButton, &QPushButton::clicked, this, &TranslationSettingsPage::testTranslation);
     const auto refreshPreview = [this] { updateCommandPreview(); };
@@ -1174,12 +1209,26 @@ void TranslationSettingsPage::lazyLoad()
     m_llamaProcess = new QProcess(this);
     connect(qApp, &QCoreApplication::aboutToQuit, this, [this] { stopLlamaServer(); });
     connect(m_llamaProcess, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
-            [this](int, QProcess::ExitStatus) { setLlamaStatus(QStringLiteral("已停止")); });
+            [this](int exitCode, QProcess::ExitStatus) {
+                appendLlamaLog(QStringLiteral("llama-server 已退出，exit_code=%1").arg(exitCode));
+                setLlamaStatus(QStringLiteral("已停止"));
+                updateLlamaRunButtons();
+            });
     connect(m_llamaProcess, &QProcess::errorOccurred, this,
-            [this](QProcess::ProcessError) { setLlamaStatus(QStringLiteral("失败：") + m_llamaProcess->errorString()); });
+            [this](QProcess::ProcessError) {
+                const QString error = m_llamaProcess->errorString();
+                appendLlamaLog(QStringLiteral("错误：") + error);
+                setLlamaStatus(QStringLiteral("失败：") + error);
+                updateLlamaRunButtons();
+            });
+    connect(m_llamaProcess, &QProcess::readyReadStandardOutput, this,
+            [this] { appendLlamaLog(QString::fromLocal8Bit(m_llamaProcess->readAllStandardOutput())); });
+    connect(m_llamaProcess, &QProcess::readyReadStandardError, this,
+            [this] { appendLlamaLog(QString::fromLocal8Bit(m_llamaProcess->readAllStandardError())); });
     updateLlmFields();
     updateModeFields();
     updateCommandPreview();
+    updateLlamaRunButtons();
 }
 
 void TranslationSettingsPage::save()
@@ -1251,6 +1300,54 @@ void TranslationSettingsPage::setLlamaStatus(const QString &status)
     if (m_llamaStatus) m_llamaStatus->setText(QStringLiteral("状态：") + status);
 }
 
+void TranslationSettingsPage::appendLlamaLog(const QString &text)
+{
+    if (!m_llamaLog) return;
+    QStringList lines = m_llamaLog->toPlainText().split(u'\n', Qt::SkipEmptyParts);
+    for (const QString &line : text.split(u'\n', Qt::SkipEmptyParts)) {
+        const QString trimmed = line.trimmed();
+        if (!trimmed.isEmpty()) lines.append(trimmed);
+    }
+    constexpr qsizetype maxLogLines = 120;
+    if (lines.size() > maxLogLines)
+        lines = lines.sliced(lines.size() - maxLogLines);
+    m_llamaLog->setPlainText(lines.join(u'\n'));
+    m_llamaLog->moveCursor(QTextCursor::End);
+}
+
+void TranslationSettingsPage::applyLlamaPreset()
+{
+    if (!m_llamaPreset) return;
+    const QString preset = m_llamaPreset->currentData().toString();
+    if (preset == QStringLiteral("gpu_8g")) {
+        m_mode->setCurrentIndex(m_mode->findData(QStringLiteral("gpu")));
+        m_gpuLayers->setValue(99); m_batchSize->setValue(512);
+        m_microBatchSize->setValue(256); m_contextSize->setValue(1024);
+    } else if (preset == QStringLiteral("gpu_low")) {
+        m_mode->setCurrentIndex(m_mode->findData(QStringLiteral("gpu")));
+        m_gpuLayers->setValue(30); m_batchSize->setValue(128);
+        m_microBatchSize->setValue(64); m_contextSize->setValue(1024);
+    } else if (preset == QStringLiteral("cpu_8")) {
+        m_mode->setCurrentIndex(m_mode->findData(QStringLiteral("cpu")));
+        m_gpuLayers->setValue(0); m_threads->setValue(8); m_threadsBatch->setValue(8);
+        m_batchSize->setValue(128); m_microBatchSize->setValue(128); m_contextSize->setValue(1024);
+    } else if (preset == QStringLiteral("cpu_16")) {
+        m_mode->setCurrentIndex(m_mode->findData(QStringLiteral("cpu")));
+        m_gpuLayers->setValue(0); m_threads->setValue(16); m_threadsBatch->setValue(16);
+        m_batchSize->setValue(128); m_microBatchSize->setValue(128); m_contextSize->setValue(1024);
+    }
+    updateModeFields();
+    save();
+    updateCommandPreview();
+}
+
+void TranslationSettingsPage::updateLlamaRunButtons()
+{
+    const bool running = m_llamaProcess && m_llamaProcess->state() != QProcess::NotRunning;
+    if (m_startLlamaButton) m_startLlamaButton->setEnabled(!running);
+    if (m_stopLlamaButton) m_stopLlamaButton->setEnabled(running);
+}
+
 void TranslationSettingsPage::startLlamaServer()
 {
     save(); updateCommandPreview();
@@ -1260,15 +1357,21 @@ void TranslationSettingsPage::startLlamaServer()
         QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("请先选择 llama-server.exe 和 GGUF 模型。"));
         return;
     }
+    appendLlamaLog(QStringLiteral("正在启动 llama-server …"));
     m_llamaProcess->setProgram(executable);
     m_llamaProcess->setArguments(llamaArguments());
     m_llamaProcess->setWorkingDirectory(QFileInfo(executable).absolutePath());
     m_llamaProcess->start();
     if (!m_llamaProcess->waitForStarted(5000)) {
-        setLlamaStatus(QStringLiteral("启动失败：") + m_llamaProcess->errorString());
+        const QString error = m_llamaProcess->errorString();
+        appendLlamaLog(QStringLiteral("启动失败：") + error);
+        setLlamaStatus(QStringLiteral("启动失败：") + error);
+        updateLlamaRunButtons();
         return;
     }
     setLlamaStatus(QStringLiteral("运行中（PID %1）").arg(m_llamaProcess->processId()));
+    appendLlamaLog(QStringLiteral("llama-server 已启动，PID=%1").arg(m_llamaProcess->processId()));
+    updateLlamaRunButtons();
 }
 
 void TranslationSettingsPage::stopLlamaServer()
@@ -1290,12 +1393,15 @@ void TranslationSettingsPage::stopLlamaServer()
         m_llamaProcess->waitForFinished(1000);
     }
     if (m_llamaStatus) setLlamaStatus(QStringLiteral("已停止"));
+    appendLlamaLog(QStringLiteral("已停止 llama-server。"));
+    updateLlamaRunButtons();
 }
 
 void TranslationSettingsPage::testLlamaServer()
 {
     QUrl endpoint(QStringLiteral("http://%1:%2/v1/models").arg(
         m_host->text().trimmed().isEmpty() ? QStringLiteral("127.0.0.1") : m_host->text().trimmed()).arg(m_port->value()));
+    appendLlamaLog(QStringLiteral("检测 /v1/models …"));
     setLlamaStatus(QStringLiteral("检测 /v1/models…"));
     auto *manager = new QNetworkAccessManager(this);
     auto *reply = manager->get(QNetworkRequest(endpoint));
@@ -1303,7 +1409,10 @@ void TranslationSettingsPage::testLlamaServer()
     connect(timeout, &QTimer::timeout, reply, [reply] { reply->abort(); });
     connect(reply, &QNetworkReply::finished, this, [this, reply, manager] {
         const bool reachable = reply->error() == QNetworkReply::NoError;
-        setLlamaStatus(reachable ? QStringLiteral("/v1/models 可用") : QStringLiteral("不可达：") + reply->errorString());
+        const QString result = reachable ? QStringLiteral("/v1/models 可用")
+                                         : QStringLiteral("不可达：") + reply->errorString();
+        appendLlamaLog(result);
+        setLlamaStatus(result);
         reply->deleteLater(); manager->deleteLater();
     });
     timeout->start(5000);
@@ -1330,7 +1439,7 @@ void TranslationSettingsPage::browseServerExecutable()
     const QString path = QFileDialog::getOpenFileName(
         this, QStringLiteral("选择 llama-server.exe"), QString{},
         QStringLiteral("可执行文件 (*.exe);;所有文件 (*.*)"));
-    if (!path.isEmpty()) { m_serverExecutable->setText(path); save(); }
+    if (!path.isEmpty()) { m_serverExecutable->setText(path); save(); updateCommandPreview(); }
 }
 
 void TranslationSettingsPage::browseModel()
@@ -1338,7 +1447,7 @@ void TranslationSettingsPage::browseModel()
     const QString path = QFileDialog::getOpenFileName(
         this, QStringLiteral("选择 GGUF 模型文件"), QString{},
         QStringLiteral("GGUF (*.gguf);;所有文件 (*.*)"));
-    if (!path.isEmpty()) { m_modelPath->setText(path); save(); }
+    if (!path.isEmpty()) { m_modelPath->setText(path); save(); updateCommandPreview(); }
 }
 
 DatabaseSettingsPage::DatabaseSettingsPage(QSqlDatabase publicDatabase,

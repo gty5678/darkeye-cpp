@@ -158,6 +158,14 @@ void GraphViewWidget::setNodeColor(const QString &group, const QColor &color)
     if (!m_showingTestGraph) reloadView();
 }
 
+void GraphViewWidget::setImageOverlayEnabled(bool enabled)
+{
+    m_imageOverlayEnabled = enabled;
+    // Match Python's image-overlay switch: hiding is immediate, and no
+    // position updates remain active while the feature is disabled.
+    if (!m_imageOverlayEnabled) hideNodeImage();
+}
+
 void GraphViewWidget::refreshGraph()
 {
     QString error;
@@ -243,7 +251,7 @@ QString GraphViewWidget::imageFilePath(const QString &nodeId) const
 
 void GraphViewWidget::showNodeImage(const QString &nodeId, float radius, bool dragging)
 {
-    if (dragging || nodeId.isEmpty()
+    if (!m_imageOverlayEnabled || dragging || nodeId.isEmpty()
         || (nodeId.front() != QLatin1Char('a') && nodeId.front() != QLatin1Char('w'))) {
         hideNodeImage();
         return;

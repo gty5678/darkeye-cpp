@@ -33,6 +33,8 @@ public:
     void showTestGraph();
     void setEgoRadius(int radius);
     void setNodeColor(const QString &group, const QColor &color);
+    /** Enable or disable the image overlay shown while hovering a graph node. */
+    void setImageOverlayEnabled(bool enabled);
     /** Override the default image directories inferred from the public database path. */
     void setImageDirectories(QString actressDirectory, QString workCoverDirectory);
     void refreshGraph();
@@ -61,6 +63,7 @@ private:
     bool m_loaded = false;
     bool m_pendingVisibleLoad = false;
     bool m_showingTestGraph = false;
+    bool m_imageOverlayEnabled = true;
     QString m_actressImageDirectory;
     QString m_workCoverDirectory;
     QString m_hoveredNodeId;

@@ -16,6 +16,7 @@ class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
 class QProcess;
+class QPushButton;
 class QSpinBox;
 
 namespace darkeye
@@ -176,6 +177,9 @@ private:
     void updateCommandPreview();
     QStringList llamaArguments() const;
     void setLlamaStatus(const QString &status);
+    void appendLlamaLog(const QString &text);
+    void applyLlamaPreset();
+    void updateLlamaRunButtons();
 
     QComboBox *m_engine = nullptr;
     QLineEdit *m_model = nullptr;
@@ -186,6 +190,7 @@ private:
     QLineEdit *m_modelPath = nullptr;
     QLineEdit *m_host = nullptr;
     QComboBox *m_mode = nullptr;
+    QComboBox *m_llamaPreset = nullptr;
     ToggleSwitch *m_mlock = nullptr;
     ToggleSwitch *m_autoSync = nullptr;
     ToggleSwitch *m_autoStart = nullptr;
@@ -199,9 +204,12 @@ private:
     QSpinBox *m_batchSize = nullptr;
     QSpinBox *m_microBatchSize = nullptr;
     QPlainTextEdit *m_commandPreview = nullptr;
+    QPlainTextEdit *m_llamaLog = nullptr;
     QPlainTextEdit *m_testInput = nullptr;
     QPlainTextEdit *m_testOutput = nullptr;
     QLabel *m_llamaStatus = nullptr;
+    QPushButton *m_startLlamaButton = nullptr;
+    QPushButton *m_stopLlamaButton = nullptr;
     QProcess *m_llamaProcess = nullptr;
 };
 
