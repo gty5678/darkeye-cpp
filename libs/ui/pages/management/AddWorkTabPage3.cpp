@@ -50,6 +50,7 @@
 #include <QShowEvent>
 #include <QStandardPaths>
 #include <QScrollArea>
+#include <QSignalBlocker>
 #include <QSpinBox>
 #include <QStyle>
 #include <QThreadPool>
@@ -57,8 +58,10 @@
 #include <QUrl>
 #include <QTemporaryDir>
 #include <QTextEdit>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <algorithm>
+#include <limits>
 #include <utility>
 
 namespace darkeye
@@ -106,12 +109,17 @@ auto withShortDatabase(const QString &databasePath, bool readOnly, QString *erro
 AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
                                    CrawlerScheduler &crawlerScheduler,
                                    QString coverDirectory, QString fanartDirectory,
-                                   QUrl imageFetchEndpoint, QWidget *parent)
-    : QWidget(parent), m_database(database), m_repository(database), m_references(database),
+                                   QUrl imageFetchEndpoint, graph::GraphManager *graphManager,
+                                   QWidget *parent)
+    : LazyWidget(parent), m_database(database), m_repository(database), m_references(database),
       m_people(std::move(database)), m_themes(themes), m_coverDirectory(std::move(coverDirectory)),
       m_fanartDirectory(std::move(fanartDirectory)),
       m_imageFetchEndpoint(std::move(imageFetchEndpoint)),
-      m_crawlerScheduler(crawlerScheduler)
+      m_crawlerScheduler(crawlerScheduler), m_graphManager(graphManager)
+{
+}
+
+void AddWorkTabPage3::lazyLoad()
 {
     if (m_fanartDirectory.isEmpty() && !m_coverDirectory.isEmpty())
         m_fanartDirectory =
@@ -125,7 +133,27 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
     m_imageDrop->setPreviewAspectRatio(0.7);
     m_imageDrop->setFitMode(ImageFitMode::RightCover);
     m_imageDrop->setQualityBadgeEnabled(true);
+    const auto applyQualityBadgeTheme = [this]
+    {
+        const ThemeTokens tokens = m_themes.currentTokens();
+        // Keep this identical to Python's _quality_badge_qss_from_tokens():
+        // theme background, with warning-coloured text and border.
+        m_imageDrop->setQualityBadgeStyleSheet(
+            QStringLiteral("QLabel#coverQualityBadge {"
+                           "background-color: %1; color: %2; border: %3 solid %2; "
+                           "border-radius: %4; font-family: %5; font-size: %6; "
+                           "font-weight: 600; padding: 1px 6px; }")
+                .arg(tokens.background, tokens.warning, tokens.borderWidth,
+                     tokens.radiusMd, tokens.fontFamilyBase, tokens.fontSizeBase));
+    };
+    applyQualityBadgeTheme();
+    connect(&m_themes, &ThemeService::themeChanged, this,
+            [this, applyQualityBadgeTheme](ThemeId) {
+                applyQualityBadgeTheme();
+                updateLocalVideoButtonStyle();
+            });
     m_crawlerImageFetch = new ImageFetchService(m_imageFetchEndpoint, this);
+    m_highQualityCoverFetch = new ImageFetchService(m_imageFetchEndpoint, this);
     connect(m_crawlerImageFetch, &ImageFetchService::requestFinished, this,
             [this](quint64, bool succeeded, const QString &destinationPath,
                    const QString &errorMessage)
@@ -157,6 +185,23 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
                 Toast::showWarning(window(), QStringLiteral("信息已采集，但封面下载失败：%1")
                                        .arg(errorMessage), &m_themes);
             });
+    connect(m_highQualityCoverFetch, &ImageFetchService::requestFinished, this,
+            [this](quint64, bool succeeded, const QString &destinationPath,
+                   const QString &errorMessage)
+            {
+                m_highQualityCoverFetching = false;
+                if (!succeeded)
+                {
+                    Toast::showWarning(window(), QStringLiteral("高清图下载失败：%1")
+                                                   .arg(errorMessage), &m_themes);
+                    return;
+                }
+                m_imageDrop->setImagePath(destinationPath);
+                m_imageDrop->setDirty(true);
+                m_imageUrl->setText(destinationPath);
+                Toast::showSuccess(window(), QStringLiteral("高清封面已更新，请保存作品"),
+                                   &m_themes);
+            });
 
     auto *form = new QFormLayout;
     m_serialNumber = new CompleterLineEdit(
@@ -180,14 +225,13 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
                                      [](QSqlDatabase connection)
                                      { return WorkRepository(connection).directorSuggestions(); });
         }, this);
+    m_director->setProperty("workControlId", QStringLiteral("WorkDirectorInput"));
     m_releaseDate = new DesignLineEdit(this);
     m_releaseDate->setPlaceholderText(QStringLiteral("YYYY-MM-DD"));
     m_runtime = new TokenSpinBox(this);
     // Keep the same upper bound as Python's AddWorkTabPage3.  Imported works
     // occasionally contain long-running compilation or bonus-disc durations.
     m_runtime->setRange(0, 9999);
-    m_runtime->setSpecialValueText(QStringLiteral("未知"));
-    m_runtime->setSuffix(QStringLiteral(" 分钟"));
     m_imageUrl = new DesignLineEdit(this);
     m_imageUrl->setProperty("workControlId", QStringLiteral("WorkImageUrlInput"));
     m_videoUrl = new DesignLineEdit(this);
@@ -290,13 +334,14 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
     auto *localVideoRow = new QWidget(this);
     auto *localVideoLayout = new QHBoxLayout(localVideoRow);
     localVideoLayout->setContentsMargins(0, 0, 0, 0);
-    m_playButton = new IconButton(QStringLiteral("tv"), &m_themes, localVideoRow);
+    m_playButton = new QToolButton(localVideoRow);
     auto *playButton = m_playButton;
-    playButton->setToolTip(QStringLiteral("播放已保存的本地视频"));
+    playButton->setAutoRaise(false);
+    playButton->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+    playButton->setToolTip(QStringLiteral("播放本地视频（与 DVD 书架相同，按 video_url）"));
+    playButton->setFixedSize(36, 28);
     localVideoLayout->addWidget(playButton);
     localVideoLayout->addStretch();
-    playButton->setIconPixelSize(16);
-    playButton->setButtonPixelSize(28);
     localVideoRow->setMinimumHeight(kFormControlMinimumHeight);
     localVideoRow->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     addFormRow(QStringLiteral("本地视频："), localVideoRow);
@@ -357,7 +402,7 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
     connect(saveButton, &QPushButton::clicked, this, &AddWorkTabPage3::save);
     connect(loadButton, &QPushButton::clicked, this, &AddWorkTabPage3::loadWorkBySerial);
     connect(detailButton, &QPushButton::clicked, this, &AddWorkTabPage3::openCurrentWorkDetail);
-    connect(playButton, &QPushButton::clicked, this, &AddWorkTabPage3::playLocalVideo);
+    connect(playButton, &QToolButton::clicked, this, &AddWorkTabPage3::playLocalVideo);
     connect(crawlButton, &QPushButton::clicked, this, &AddWorkTabPage3::crawlSelectedFields);
     connect(&m_crawlerScheduler, &CrawlerScheduler::workFetched, this,
             &AddWorkTabPage3::applyCrawledData);
@@ -371,6 +416,8 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
     connect(m_imageDrop, &ImageDropWidget::imageChanged, m_imageUrl, &QLineEdit::setText);
     connect(m_imageDrop, &ImageDropWidget::imageRejected, this,
             [this](const QString &message) { Toast::showError(window(), message, &m_themes); });
+    connect(m_imageDrop, &ImageDropWidget::qualityBadgeClicked, this,
+            &AddWorkTabPage3::fetchHighQualityCover);
     connect(m_imageUrl, &QLineEdit::editingFinished, this,
             [this]() { m_imageDrop->setImagePath(m_imageUrl->text()); });
     connect(m_fanart, &FanartStripWidget::fanartChanged, this,
@@ -383,6 +430,22 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
             [this](const QString &message) { Toast::showError(window(), message, &m_themes); });
     const auto trackEditorChange = [this] { markEditorChanged(); };
     connect(m_serialNumber, &QLineEdit::textChanged, this, [this] {
+        if (m_normalizingSerial)
+            return;
+        // The Python view-model stores serials as trimmed upper-case text.
+        // Normalize the visible field too, so completion, lookup, crawling and
+        // the eventual cover filename all operate on the same value.
+        const QString normalized = m_serialNumber->text().trimmed().toUpper();
+        if (normalized != m_serialNumber->text())
+        {
+            m_normalizingSerial = true;
+            {
+                const QSignalBlocker blocker(m_serialNumber);
+                m_serialNumber->setText(normalized);
+                m_serialNumber->setCursorPosition(normalized.size());
+            }
+            m_normalizingSerial = false;
+        }
         if (!m_loadingEditor)
         {
             m_serialLookupWorkId.reset();
@@ -412,6 +475,8 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
     connect(m_tags, &WorkTagSelector::selectionChanged, this, trackEditorChange);
     connect(m_imageDrop, &ImageDropWidget::imageChanged, this,
             [this](const QString &) { markEditorChanged(); });
+    connect(m_imageDrop, &ImageDropWidget::dirtyChanged, this,
+            [this](bool) { markEditorChanged(); });
 
     // Python 版将这些内容放入 MyADS 工作区而非一个固定表单；保持相同的独立内容槽，
     // 使用户可以拆分、合并和保存标签布局。
@@ -429,8 +494,14 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
     auto *basicLayout = container(QStringLiteral("basic"), QStringLiteral("基础信息"));
     QWidget *basicPane = m_slotWidgets.value(QStringLiteral("basic"));
     basicPane->setMinimumHeight(kBasicPaneMinimumHeight);
+    // Python builds each base-information entry as a QHBoxLayout: its label
+    // and editor always stay on the same line.  WrapLongRows made the C++
+    // QFormLayout move an editor below its label as a dock was narrowed,
+    // producing a different (and unstable) compact layout.
     form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    form->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    form->setRowWrapPolicy(QFormLayout::DontWrapRows);
+    form->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    form->setHorizontalSpacing(6);
     basicLayout->addLayout(form);
     basicLayout->addWidget(saveButton);
     auto *cnLayout = container(QStringLiteral("cn_text"), QStringLiteral("中文标题与剧情"));
@@ -522,7 +593,10 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
     {
         buildDefaultWorkspace();
     }
-    refreshReferences();
+    // Python's Maker/Label/Series selectors dispatch their initial reloads to
+    // QThreadPool.  Keep the first management frame independent of these
+    // reference queries and populate the combos when the worker completes.
+    loadInitialReferencesAsync();
     m_currentWork = Work{};
     clearEditor();
     m_serialNumber->setReadOnly(false);
@@ -560,6 +634,7 @@ AddWorkTabPage3::createWorkspaceContent(const QJsonObject &descriptor) const
 
 void AddWorkTabPage3::buildDefaultWorkspace()
 {
+    m_workspace->beginLayoutUpdate();
     auto *root = m_workspace->rootPane();
     auto *basic = m_workspace->split(root, myads::Placement::Right, 70);
     auto *tag = m_workspace->split(basic, myads::Placement::Right, 25);
@@ -568,6 +643,7 @@ void AddWorkTabPage3::buildDefaultWorkspace()
     auto *force = m_workspace->split(tag, myads::Placement::Right, 50);
     auto *actress = m_workspace->split(root, myads::Placement::Bottom, 50);
     auto *editor = m_workspace->split(force, myads::Placement::Bottom, 40);
+    m_workspace->endLayoutUpdate();
     m_workspace->fillPane(root, contentConfig(QStringLiteral("settings")));
     m_workspace->fillPane(root, contentConfig(QStringLiteral("crawler")));
     m_workspace->fillPane(root, contentConfig(QStringLiteral("nav")));
@@ -609,9 +685,16 @@ void AddWorkTabPage3::saveWorkspaceLayout()
 
 void AddWorkTabPage3::restoreDefaultWorkspace()
 {
-    // 布局文件已删除，下一次进入同样会从 Python 基线的默认拆分开始。
+    // Python restores the dock layout immediately, as well as removing the
+    // persisted override for the next start.
+    // resetToSingleEmptyPane() deletes the old pane hierarchy.  The slot
+    // widgets are reused by buildDefaultWorkspace(), so detach them first.
+    for (QWidget *widget : std::as_const(m_slotWidgets))
+        widget->setParent(this);
+    m_workspace->resetToSingleEmptyPane();
+    buildDefaultWorkspace();
     QFile::remove(m_workspaceLayoutPath);
-    Toast::showSuccess(window(), QStringLiteral("默认布局将在下次打开页面时恢复"), &m_themes);
+    Toast::showSuccess(window(), QStringLiteral("已恢复初始布局"), &m_themes);
 }
 
 void AddWorkTabPage3::loadWorkBySerial()
@@ -638,7 +721,7 @@ void AddWorkTabPage3::loadWorkBySerial()
 
 void AddWorkTabPage3::checkSerialAvailability()
 {
-    if (m_loadingEditor || (m_currentWork.has_value() && m_currentWork->id > 0))
+    if (m_loadingEditor)
         return;
 
     const QString serial = currentSerialNumber();
@@ -651,17 +734,54 @@ void AddWorkTabPage3::checkSerialAvailability()
             [&serial, &errorMessage](QSqlDatabase connection)
             { return WorkRepository(connection).findIdBySerial(serial, &errorMessage); });
     }
+
+    const bool isCurrentWork = m_currentWork.has_value() && m_currentWork->id > 0
+        && serial::equal(serial, m_currentWork->serialNumber);
+    if (!isCurrentWork)
+    {
+        // This follows the Python editor's serialNumberChanged handling: an
+        // unknown serial starts a clean add form (while retaining the serial),
+        // and an existing serial waits for the explicit Load action.
+        m_currentWork = Work{};
+        if (!m_serialLookupWorkId.has_value())
+            clearEditorExceptSerial();
+    }
     updateEditorActions();
+}
+
+void AddWorkTabPage3::updateLocalVideoButtonStyle()
+{
+    if (m_playButton == nullptr)
+        return;
+    const ThemeTokens tokens = m_themes.currentTokens();
+    const QString borderRadius = tokens.radiusMd;
+    if (m_playButton->isEnabled())
+    {
+        m_playButton->setStyleSheet(
+            QStringLiteral("QToolButton { background: %1; color: %2; border: none; "
+                           "border-radius: %3; padding: 4px; }"
+                           "QToolButton:hover { background: %4; }")
+                .arg(tokens.primary, tokens.textInverse, borderRadius, tokens.primaryHover));
+        return;
+    }
+    m_playButton->setStyleSheet(
+        QStringLiteral("QToolButton { background: %1; color: %2; border: %3 solid %4; "
+                       "border-radius: %5; padding: 4px; }")
+            .arg(tokens.inputBackground, tokens.textDisabled,
+                 tokens.borderWidth, tokens.border, borderRadius));
 }
 
 void AddWorkTabPage3::openCurrentWorkDetail()
 {
-    if (!m_currentWork.has_value() || m_currentWork->id <= 0)
+    const std::optional<qint64> workId =
+        m_currentWork.has_value() && m_currentWork->id > 0
+            ? std::optional<qint64>(m_currentWork->id) : m_serialLookupWorkId;
+    if (!workId.has_value())
     {
         Toast::showWarning(window(), QStringLiteral("请先加载或保存作品"), &m_themes);
         return;
     }
-    emit workLinkRequested(m_currentWork->id);
+    emit workLinkRequested(*workId);
 }
 
 void AddWorkTabPage3::playLocalVideo()
@@ -778,6 +898,7 @@ void AddWorkTabPage3::addManualNavigation(QVBoxLayout *layout)
 
 void AddWorkTabPage3::beginCreate()
 {
+    initialize();
     if (!m_associationsLoaded)
         refreshAssociations();
     m_loadingEditor = true;
@@ -803,6 +924,7 @@ void AddWorkTabPage3::beginCreateAndCrawl(const QString &serialNumber)
 
 bool AddWorkTabPage3::loadWork(qint64 workId)
 {
+    initialize();
     if (!m_associationsLoaded)
         refreshAssociations();
     QString errorMessage;
@@ -837,7 +959,7 @@ bool AddWorkTabPage3::loadWork(qint64 workId)
     m_loadedActorIds = actorIds;
     m_loadedTagIds = tagIds;
     m_loadingEditor = false;
-    m_serialNumber->setReadOnly(true);
+    m_serialNumber->setReadOnly(false);
     updateEditorActions();
     updateRelationGraph();
     return true;
@@ -845,6 +967,7 @@ bool AddWorkTabPage3::loadWork(qint64 workId)
 
 void AddWorkTabPage3::loadWorkAsync(qint64 workId)
 {
+    initialize();
     if (!m_associationsLoaded)
         refreshAssociations();
 
@@ -906,26 +1029,32 @@ void AddWorkTabPage3::applyLoadedWork(std::optional<WorkDetails> details, QStrin
     m_loadedActorIds = actorIds;
     m_loadedTagIds = tagIds;
     m_loadingEditor = false;
-    m_serialNumber->setReadOnly(true);
+    m_serialNumber->setReadOnly(false);
     updateEditorActions();
     updateRelationGraph();
 }
 
 void AddWorkTabPage3::refreshAssociations()
 {
+    if (!isInitialized())
+    {
+        m_associationsLoaded = false;
+        return;
+    }
     const auto loadPeople = [this](PersonKind kind)
     {
         PersonSearch search;
         search.kind = kind;
+        // Python's ActressSelector/ActorSelector each issue one unbounded
+        // SELECT.  Avoid the extra COUNT round trip that was only being used
+        // to derive a LIMIT for the same query.
+        search.limit = std::numeric_limits<int>::max();
         QString errorMessage;
         const QList<IdLabelOption> options = withShortDatabase(
             m_database.databaseName(), true, &errorMessage,
             [&search, &errorMessage](QSqlDatabase connection)
             {
                 PersonRepository repository(connection);
-                const std::optional<int> count = repository.count(search, &errorMessage);
-                if (!count.has_value()) return QList<IdLabelOption>{};
-                search.limit = qMax(1, *count);
                 QList<IdLabelOption> people;
                 for (const PersonSummary &person : repository.search(search, &errorMessage))
                     people.append({person.id, person.name, {}});
@@ -948,13 +1077,87 @@ void AddWorkTabPage3::refreshAssociations()
 
 void AddWorkTabPage3::showEvent(QShowEvent *event)
 {
-    QWidget::showEvent(event);
+    LazyWidget::showEvent(event);
     if (!m_associationsLoaded)
         refreshAssociations();
 }
 
+void AddWorkTabPage3::loadInitialReferencesAsync()
+{
+    const quint64 requestSequence = ++m_referenceLoadSequence;
+    const QString databasePath = m_database.databaseName();
+    QPointer<AddWorkTabPage3> target(this);
+    QThreadPool::globalInstance()->start(
+        [target, databasePath, requestSequence]
+        {
+            QList<ReferenceRecord> makers;
+            QList<ReferenceRecord> labels;
+            QList<ReferenceRecord> series;
+            QString errorMessage;
+            SqliteConnection connection;
+            if (!connection.open(databasePath, true, &errorMessage))
+            {
+                // Keep the empty results and report the connection failure on
+                // the GUI thread below.
+            }
+            else
+            {
+                ReferenceRepository repository(connection.database());
+                makers = repository.list(ReferenceKind::Maker, &errorMessage);
+                if (errorMessage.isEmpty())
+                    labels = repository.list(ReferenceKind::Label, &errorMessage);
+                if (errorMessage.isEmpty())
+                    series = repository.list(ReferenceKind::Series, &errorMessage);
+            }
+            if (target.isNull()) return;
+            QMetaObject::invokeMethod(
+                target,
+                [target, requestSequence, makers = std::move(makers),
+                 labels = std::move(labels), series = std::move(series),
+                 errorMessage = std::move(errorMessage)]
+                {
+                    if (target.isNull() || requestSequence != target->m_referenceLoadSequence)
+                        return;
+                    if (!errorMessage.isEmpty())
+                    {
+                        Toast::showError(target->window(), errorMessage, &target->m_themes);
+                        return;
+                    }
+                    const auto populate = [](QComboBox *combo,
+                                             const QList<ReferenceRecord> &records,
+                                             std::optional<qint64> selectedId)
+                    {
+                        const QSignalBlocker blocker(combo);
+                        combo->clear();
+                        combo->addItem(QStringLiteral("未选择"), QVariant());
+                        for (const ReferenceRecord &record : records)
+                        {
+                            const QString name = record.chineseName.trimmed().isEmpty()
+                                ? record.japaneseName : record.chineseName;
+                            combo->addItem(name, record.id);
+                        }
+                        const int index = selectedId.has_value()
+                            ? combo->findData(*selectedId) : 0;
+                        combo->setCurrentIndex(index >= 0 ? index : 0);
+                    };
+                    const std::optional<Work> current = target->m_currentWork;
+                    populate(target->m_maker, makers,
+                             current.has_value() ? current->makerId : std::nullopt);
+                    populate(target->m_label, labels,
+                             current.has_value() ? current->labelId : std::nullopt);
+                    populate(target->m_series, series,
+                             current.has_value() ? current->seriesId : std::nullopt);
+                    target->updateModifiedFieldHighlights();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
 void AddWorkTabPage3::refreshReferences()
 {
+    if (!isInitialized())
+        return;
+    ++m_referenceLoadSequence;
     populateReferenceCombo(m_maker, ReferenceKind::Maker,
                            m_currentWork.has_value() ? m_currentWork->makerId : std::nullopt);
     populateReferenceCombo(m_label, ReferenceKind::Label,
@@ -965,7 +1168,7 @@ void AddWorkTabPage3::refreshReferences()
 
 QString AddWorkTabPage3::currentSerialNumber() const
 {
-    return m_serialNumber->text().trimmed();
+    return m_serialNumber == nullptr ? QString() : m_serialNumber->text().trimmed().toUpper();
 }
 
 void AddWorkTabPage3::translateJapaneseTitle()
@@ -1039,10 +1242,10 @@ void AddWorkTabPage3::initializeRelationGraph()
     if (m_relationGraph != nullptr) return;
     auto *container = m_slotWidgets.value(QStringLiteral("force"));
     if (container == nullptr) return;
-    // The Python page owns a per-editor ForceDirectedViewWidget and starts it
-    // with an EmptyFilter.  Keep the same isolation here rather than sharing
-    // the full-graph page's filter state.
-    m_graphManager = std::make_unique<graph::GraphManager>(m_database);
+    // Python's editor reuses the application-wide GraphManager and gives its
+    // own view session an empty/ego filter.  Reusing the same topology avoids
+    // a second full database graph load on the first management-page visit.
+    if (m_graphManager == nullptr) return;
     m_relationGraph = new ForceDirectPage(m_themes, *m_graphManager, container);
     auto *layout = qobject_cast<QVBoxLayout *>(container->layout());
     if (layout == nullptr) return;
@@ -1262,10 +1465,45 @@ void AddWorkTabPage3::fetchNextCrawledCover()
     Q_UNUSED(requestId);
 }
 
+void AddWorkTabPage3::fetchHighQualityCover()
+{
+    if (m_highQualityCoverFetching)
+        return;
+    const QString serialNumber = currentSerialNumber().trimmed();
+    if (serialNumber.isEmpty())
+    {
+        Toast::showWarning(window(), QStringLiteral("请先填写番号，再更新高清图"), &m_themes);
+        return;
+    }
+
+    // Same Fanza/DMM PL-cover convention as Python's
+    // _on_low_quality_cover_badge_clicked().  Keep the fetch independent of
+    // crawler cover downloads so its completion cannot alter crawler state.
+    const QString fanzaId = serial::convertFanza(serialNumber.toUpper());
+    const QUrl sourceUrl(QStringLiteral("https://awsimgsrc.dmm.co.jp/pics_dig/digital/video/%1/%1pl.jpg")
+                             .arg(fanzaId));
+    const QString cacheRoot = QStandardPaths::writableLocation(
+        QStandardPaths::CacheLocation);
+    const QString highQualityDirectory = QDir(cacheRoot).filePath(
+        QStringLiteral("high-quality-covers"));
+    if (!QDir().mkpath(highQualityDirectory))
+    {
+        Toast::showWarning(window(), QStringLiteral("无法创建高清封面临时目录"), &m_themes);
+        return;
+    }
+    QString safeFileName = serialNumber.toUpper();
+    for (const QChar character : QStringLiteral("\\/:*?\"<>|"))
+        safeFileName.replace(character, QChar('_'));
+    m_highQualityCoverFetching = true;
+    const quint64 requestId = m_highQualityCoverFetch->fetchToJpeg(
+        sourceUrl, QDir(highQualityDirectory).filePath(safeFileName + QStringLiteral(".jpg")));
+    Q_UNUSED(requestId);
+}
+
 Work AddWorkTabPage3::editorWork() const
 {
     Work work = m_currentWork.value_or(Work{});
-    work.serialNumber = m_serialNumber->text().trimmed();
+    work.serialNumber = currentSerialNumber();
     work.chineseTitle = m_chineseTitle->toPlainText();
     work.japaneseTitle = m_japaneseTitle->toPlainText();
     work.director = m_director->text();
@@ -1394,7 +1632,7 @@ void AddWorkTabPage3::save()
         workId = *inserted;
         work.id = workId;
         m_currentWork = work;
-        m_serialNumber->setReadOnly(true);
+        m_serialNumber->setReadOnly(false);
     }
     else if (!withShortDatabase(
                  m_database.databaseName(), false, &errorMessage,
@@ -1484,6 +1722,18 @@ void AddWorkTabPage3::clearEditor()
     if (m_relationGraph != nullptr) m_relationGraph->showEmptyGraph();
 }
 
+void AddWorkTabPage3::clearEditorExceptSerial()
+{
+    const QString serial = currentSerialNumber();
+    m_loadingEditor = true;
+    clearEditor();
+    {
+        const QSignalBlocker blocker(m_serialNumber);
+        m_serialNumber->setText(serial);
+    }
+    m_loadingEditor = false;
+}
+
 void AddWorkTabPage3::markEditorChanged()
 {
     if (!m_loadingEditor)
@@ -1503,8 +1753,9 @@ void AddWorkTabPage3::updateEditorActions()
     const bool hasLocalVideo = hasSavedWork
         && !m_currentWork->videoUrl.trimmed().isEmpty();
 
-    m_detailButton->setEnabled(hasSavedWork);
+    m_detailButton->setEnabled(hasSavedWork || hasExistingSerial);
     m_playButton->setEnabled(hasLocalVideo);
+    updateLocalVideoButtonStyle();
     const bool canLoad = hasExistingSerial || hasSavedWork;
     m_loadButton->setEnabled(canLoad);
     m_loadButton->setVariant(canLoad

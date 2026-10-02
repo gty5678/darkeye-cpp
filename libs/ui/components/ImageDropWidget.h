@@ -27,6 +27,9 @@ public:
     void setFitMode(ImageFitMode mode);
     void setPreviewAspectRatio(qreal aspectRatio);
     void setQualityBadgeEnabled(bool enabled);
+    /// Overrides the low-quality badge appearance.  The editor supplies its
+    /// theme tokens so this reusable widget stays independent of ThemeService.
+    void setQualityBadgeStyleSheet(const QString &styleSheet);
     void setImagePath(const QString &path);
     [[nodiscard]] QString imagePath() const;
     [[nodiscard]] QString resolvedImagePath() const;
@@ -40,6 +43,13 @@ public:
 signals:
     void imageChanged(const QString &path);
     void imageRejected(const QString &message);
+    /// Emitted whenever the pending-image state changes, including
+    /// programmatic replacements such as a downloaded high-quality cover.
+    void dirtyChanged(bool dirty);
+    /// Emitted when the visible low-quality-cover badge is clicked.  Consumers
+    /// can offer a source-specific replacement without coupling this reusable
+    /// drop widget to a downloader.
+    void qualityBadgeClicked();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;

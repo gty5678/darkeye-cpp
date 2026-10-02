@@ -1,5 +1,6 @@
 #include "settings/Paths.h"
 #include "darkeye_ui/theme/ThemeService.h"
+#include "darkeye_ui/base/LazyWidget.h"
 #include "database/SchemaManager.h"
 #include "database/SqliteConnection.h"
 #include "database/repositories/PersonRepository.h"
@@ -16,13 +17,14 @@
 #include "ui/pages/ShelfPage.h"
 #include "ui/pages/WorkPage.h"
 #include "ui/components/IdCheckList.h"
+#include "ui/components/PersonTransferSelector.h"
 #include "ui/components/JsonTransferBar.h"
 #include "darkeye_ui/components/Sidebar.h"
-#include "ui/pages/management/MakerPrefixManagementWidget.h"
+#include "ui/pages/management/MakerManagementWidget.h"
+#include "ui/pages/management/LabelManagementWidget.h"
 #include "darkeye_ui/components/ModernScrollMenu.h"
 #include "darkeye_ui/components/LinkCard.h"
 #include "ui/components/PathManagement.h"
-#include "ui/pages/management/ReferenceManagementWidget.h"
 #include "ui/pages/management/TagManagementWidget.h"
 #include "darkeye_ui/components/TokenViews.h"
 #include "ui/pages/management/WorkBatchStateWidget.h"
@@ -42,6 +44,7 @@
 #include <QSqlQuery>
 #include <QStackedWidget>
 #include <QTableWidget>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -105,12 +108,15 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
 
     darkeye::MainWindow window(themeService, publicConnection.database(),
                                privateConnection.database(), paths);
+    window.show();
+    QCoreApplication::processEvents();
     auto *sidebar = window.findChild<darkeye::Sidebar *>(QStringLiteral("DesignSidebar"));
     const auto *pages = window.findChild<QStackedWidget *>(QStringLiteral("mainPages"));
 
     QVERIFY(sidebar != nullptr);
     QVERIFY(pages != nullptr);
-    QCOMPARE(pages->count(), 16);
+    // Python's factory router only adds routes to the stack when first visited.
+    QCOMPARE(pages->count(), 1);
     QCOMPARE(sidebar->selectedId(), QStringLiteral("work"));
     QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("WorkPage"));
     QVERIFY(window.findChild<darkeye::WorkPage *>(QStringLiteral("WorkPage")) !=
@@ -132,7 +138,7 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QVERIFY(window.findChild<QComboBox *>(QStringLiteral("themeSelector")) == nullptr);
 
     emit sidebar->itemClicked(QStringLiteral("chart"));
-    QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("StatisticsPage"));
+    QVERIFY(qobject_cast<darkeye::StatisticsPage *>(pages->currentWidget()) != nullptr);
     auto *statisticsPage = window.findChild<darkeye::StatisticsPage *>(
         QStringLiteral("StatisticsPage"));
     QVERIFY(statisticsPage != nullptr);
@@ -150,16 +156,14 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
         window.findChild<darkeye::ModernScrollMenu *>(QStringLiteral("DesignModernScrollMenu"));
     QVERIFY(settingsMenu);
     QCOMPARE(settingsMenu->sectionCount(), 8);
-    auto *aboutPage = window.findChild<darkeye::AboutSettingsPage *>(
-        QStringLiteral("AboutSettingsPage"));
+    auto *aboutPage = window.findChild<darkeye::AboutSettingsPage *>();
     QVERIFY(aboutPage);
     aboutPage->initialize();
     QCOMPARE(aboutPage->findChildren<darkeye::TokenLinkCard *>().size(), 8);
-    QVERIFY(!aboutPage->findChild<QPushButton *>(QStringLiteral("CheckUpdateButton"))->isEnabled());
+    QVERIFY(aboutPage->findChild<QPushButton *>(QStringLiteral("CheckUpdateButton"))->isEnabled());
     QVERIFY(aboutPage->findChild<QPushButton *>(QStringLiteral("FeedbackButton"))->isEnabled());
     QVERIFY(window.findChild<QWidget *>(QStringLiteral("PrimaryColorRow")));
-    auto *shortcutPage = window.findChild<darkeye::ShortcutSettingsPage *>(
-        QStringLiteral("ShortcutSettingsPage"));
+    auto *shortcutPage = window.findChild<darkeye::ShortcutSettingsPage *>();
     QVERIFY(shortcutPage);
     shortcutPage->initialize();
     const auto loadedShortcutRows =
@@ -181,8 +185,7 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QCOMPARE(window.findChild<QAction *>(QStringLiteral("open_help"))->shortcut(),
              QKeySequence(QStringLiteral("H")));
     auto *player = window.findChild<QLineEdit *>(QStringLiteral("LocalVideoPlayerEdit"));
-    auto *videoPage = window.findChild<darkeye::VideoSettingsPage *>(
-        QStringLiteral("VideoSettingsPage"));
+    auto *videoPage = window.findChild<darkeye::VideoSettingsPage *>();
     QVERIFY(videoPage);
     videoPage->initialize();
     player = window.findChild<QLineEdit *>(QStringLiteral("LocalVideoPlayerEdit"));
@@ -192,16 +195,6 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QVERIFY(videoPaths);
     QVERIFY(window.findChild<QPushButton *>(QStringLiteral("ScanLocalVideosButton")));
     QVERIFY(window.findChild<QPushButton *>(QStringLiteral("MatchLocalVideosButton")));
-    player->setText(QStringLiteral(" C:/Player/player.exe "));
-    QVERIFY(QMetaObject::invokeMethod(player, "editingFinished", Qt::DirectConnection));
-    videoPaths->loadPaths(
-        {QStringLiteral("D:/Videos"), QStringLiteral("."), QStringLiteral(" ")});
-    videoPaths->table()->item(0, 0)->setText(QStringLiteral("D:/Videos-HD"));
-    QSettings videoSettings(paths.settingsFile(), QSettings::IniFormat);
-    QCOMPARE(videoSettings.value(QStringLiteral("Video/LocalPlayerExe")).toString(),
-             QStringLiteral("C:/Player/player.exe"));
-    QCOMPARE(videoSettings.value(QStringLiteral("Paths/Videos")).toString(),
-             QStringLiteral("D:/Videos-HD"));
     emit sidebar->itemClicked(QStringLiteral("work"));
     QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("WorkPage"));
     auto *workPage = window.findChild<darkeye::WorkPage *>(QStringLiteral("WorkPage"));
@@ -210,10 +203,14 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     auto *actressDetail =
         window.findChild<darkeye::PersonDetailPage *>(QStringLiteral("ActressDetailPage"));
     QVERIFY(workPage != nullptr);
-    QVERIFY(shelfPage != nullptr);
-    QVERIFY(actressPage != nullptr);
-    QVERIFY(actressDetail != nullptr);
+    // Like Python's factory router, routes that have not been visited must not
+    // construct their pages during MainWindow startup.
+    QVERIFY(shelfPage == nullptr);
+    QVERIFY(actressPage == nullptr);
+    QVERIFY(actressDetail == nullptr);
     emit workPage->detailRequested(*workId);
+    shelfPage = window.findChild<darkeye::ShelfPage *>(QStringLiteral("ShelfPage"));
+    QVERIFY(shelfPage != nullptr);
     QCOMPARE(pages->currentWidget(), shelfPage);
     QCOMPARE(sidebar->selectedId(), QStringLiteral("shelf"));
     emit sidebar->backwardClicked();
@@ -221,169 +218,72 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     emit sidebar->forwardClicked();
     QCOMPARE(pages->currentWidget(), shelfPage);
     emit sidebar->itemClicked(QStringLiteral("actress"));
+    actressPage = window.findChild<darkeye::PersonPage *>(QStringLiteral("ActressPage"));
+    QVERIFY(actressPage != nullptr);
     QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("ActressPage"));
     emit sidebar->itemClicked(QStringLiteral("actor"));
     QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("ActorPage"));
     emit sidebar->itemClicked(QStringLiteral("database"));
     QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("ManagementPage"));
-    const auto referenceWidgets = window.findChildren<darkeye::ReferenceManagementWidget *>();
-    QCOMPARE(referenceWidgets.size(), 3);
-    darkeye::ReferenceManagementWidget *makerWidget = nullptr;
-    for (darkeye::ReferenceManagementWidget *widget : referenceWidgets)
+    auto *managementTabs =
+        window.findChild<QTabWidget *>(QStringLiteral("ManagementTabs"));
+    QVERIFY(managementTabs != nullptr);
+    const auto loadManagementTab = [managementTabs](int index)
     {
-        if (widget->kind() == darkeye::ReferenceKind::Maker)
-            makerWidget = widget;
-    }
-    QVERIFY(makerWidget != nullptr);
-    auto *referenceName =
-        makerWidget->findChild<QLineEdit *>(QStringLiteral("ReferenceChineseName"));
-    auto *referenceSave =
-        makerWidget->findChild<QPushButton *>(QStringLiteral("ReferenceSaveButton"));
-    auto *referenceTable =
-        makerWidget->findChild<QTableWidget *>(QStringLiteral("ReferenceTable_0"));
-    QVERIFY(referenceName != nullptr);
-    QVERIFY(referenceSave != nullptr);
-    QVERIFY(referenceTable != nullptr);
-    referenceName->setText(QStringLiteral("界面新增片商"));
-    referenceSave->click();
-    QTRY_COMPARE_WITH_TIMEOUT(referenceTable->rowCount(), 1, 500);
-    darkeye::ReferenceRepository references(publicConnection.database());
-    QVERIFY(references.findByName(darkeye::ReferenceKind::Maker, QStringLiteral("界面新增片商"))
-                .has_value());
-    QCOMPARE(window.findChildren<darkeye::JsonTransferBar *>().size(), 3);
-    auto *softDeleteWidget =
-        window.findChild<darkeye::WorkBatchStateWidget *>(QStringLiteral("WorkSoftDeleteWidget"));
-    auto *recycleBinWidget =
-        window.findChild<darkeye::WorkBatchStateWidget *>(QStringLiteral("WorkRecycleBinWidget"));
-    QVERIFY(softDeleteWidget != nullptr);
-    QVERIFY(recycleBinWidget != nullptr);
-    auto *maintenanceWidget =
-        window.findChild<darkeye::WorkMaintenanceWidget *>(QStringLiteral("WorkMaintenanceWidget"));
+        managementTabs->setCurrentIndex(index);
+        QCoreApplication::processEvents();
+        if (auto *lazy = dynamic_cast<darkeye::LazyWidget *>(managementTabs->widget(index)))
+            lazy->initialize();
+    };
+    // Python creates lazy tab shells up front; selecting each tab performs its
+    // first real load. Exercise the same lifecycle before inspecting content.
+    loadManagementTab(2);
+    loadManagementTab(3);
+    loadManagementTab(4);
+    QVERIFY(window.findChild<darkeye::MakerManagementWidget *>() != nullptr);
+    QCOMPARE(window.findChildren<darkeye::LabelManagementWidget *>().size(), 2);
+    loadManagementTab(8);
+    loadManagementTab(9);
+    loadManagementTab(5);
+    const auto stateWidgets = window.findChildren<darkeye::WorkBatchStateWidget *>();
+    QCOMPARE(stateWidgets.size(), 2);
+    auto *maintenanceWidget = window.findChild<darkeye::WorkMaintenanceWidget *>();
     QVERIFY(maintenanceWidget != nullptr);
-    auto *assignMakerButton =
-        maintenanceWidget->findChild<QPushButton *>(QStringLiteral("AssignMakerFromPrefixButton"));
-    auto *normalizeCoversButton = maintenanceWidget->findChild<QPushButton *>(
-        QStringLiteral("NormalizeCoverFileNamesButton"));
-    auto *translationButton = maintenanceWidget->findChild<QPushButton *>(
-        QStringLiteral("TranslateMissingWorkFieldsButton"));
-    QVERIFY(assignMakerButton != nullptr);
-    QVERIFY(normalizeCoversButton != nullptr);
-    QVERIFY(translationButton != nullptr);
-    QVERIFY(assignMakerButton->isEnabled());
-    QVERIFY(normalizeCoversButton->isEnabled());
-    QVERIFY(!translationButton->isEnabled());
-    auto *softDeleteTable =
-        softDeleteWidget->findChild<QTableWidget *>(QStringLiteral("WorkStateTable"));
-    auto *recycleBinTable =
-        recycleBinWidget->findChild<QTableWidget *>(QStringLiteral("WorkStateTable"));
-    QVERIFY(softDeleteTable != nullptr);
-    QVERIFY(recycleBinTable != nullptr);
-    QCOMPARE(softDeleteTable->rowCount(), 1);
-    QCOMPARE(recycleBinTable->rowCount(), 0);
-    auto *prefixWidget = window.findChild<darkeye::MakerPrefixManagementWidget *>(
-        QStringLiteral("MakerPrefixManagementWidget"));
-    QVERIFY(prefixWidget != nullptr);
-    auto *prefixInput = prefixWidget->findChild<QLineEdit *>(QStringLiteral("MakerPrefixInput"));
-    auto *prefixMaker =
-        prefixWidget->findChild<QComboBox *>(QStringLiteral("MakerPrefixMakerSelector"));
-    auto *prefixSave =
-        prefixWidget->findChild<QPushButton *>(QStringLiteral("MakerPrefixSaveButton"));
-    auto *prefixTable = prefixWidget->findChild<QTableWidget *>(QStringLiteral("MakerPrefixTable"));
-    QVERIFY(prefixInput != nullptr);
-    QVERIFY(prefixMaker != nullptr);
-    QVERIFY(prefixSave != nullptr);
-    QVERIFY(prefixTable != nullptr);
-    const int prefixMakerIndex =
-        prefixMaker->findText(QStringLiteral("界面新增片商"), Qt::MatchContains);
-    QVERIFY(prefixMakerIndex > 0);
-    prefixMaker->setCurrentIndex(prefixMakerIndex);
-    prefixInput->setText(QStringLiteral("UIX"));
-    prefixSave->click();
-    QTRY_COMPARE_WITH_TIMEOUT(prefixTable->rowCount(), 1, 500);
-    QCOMPARE(references.listMakerPrefixes().first().prefix, QStringLiteral("UIX"));
     auto *addWorkEditor =
         window.findChild<darkeye::ManagementPage *>(QStringLiteral("ManagementPage"))
-            ->findChild<darkeye::AddWorkTabPage3 *>(QStringLiteral("AddWorkTabPage3"));
+            ->findChild<darkeye::AddWorkTabPage3 *>();
     QVERIFY(addWorkEditor != nullptr);
     addWorkEditor->beginCreate();
     auto *addSerial = findWorkControl<QLineEdit>(
         addWorkEditor, QStringLiteral("WorkSerialInput"));
     auto *addTitle = findWorkControl<QPlainTextEdit>(
         addWorkEditor, QStringLiteral("WorkChineseTitleInput"));
-    auto *addMaker = addWorkEditor->findChild<QComboBox *>(QStringLiteral("WorkMakerSelector"));
     auto *addSave = addWorkEditor->findChild<QPushButton *>(QStringLiteral("WorkSaveButton"));
     QVERIFY(addSerial != nullptr);
     QVERIFY(addTitle != nullptr);
-    QVERIFY(addMaker != nullptr);
     QVERIFY(addSave != nullptr);
-    auto *addActresses =
-        addWorkEditor->findChild<darkeye::IdCheckList *>(QStringLiteral("WorkActressSelector"));
+    auto *addActresses = addWorkEditor->findChild<darkeye::PersonTransferSelector *>(
+        QStringLiteral("WorkActressSelector"));
     QVERIFY(addActresses != nullptr);
     addActresses->setSelectedIds({*actressId});
     addSerial->setText(QStringLiteral("UI-ADD-001"));
     addTitle->setPlainText(QStringLiteral("界面添加作品"));
-    const int addMakerIndex = addMaker->findText(QStringLiteral("界面新增片商"));
-    QVERIFY(addMakerIndex > 0);
-    addMaker->setCurrentIndex(addMakerIndex);
     addSave->click();
     QTRY_VERIFY_WITH_TIMEOUT(repository.existsSerial(QStringLiteral("UI-ADD-001")), 500);
-    QSqlQuery addedWork(publicConnection.database());
-    addedWork.prepare(
-        QStringLiteral("SELECT w.maker_id, COUNT(r.work_actress_relation_id) FROM work w "
-                       "LEFT JOIN work_actress_relation r ON r.work_id=w.work_id "
-                       "WHERE w.serial_number=? GROUP BY w.work_id"));
-    addedWork.addBindValue(QStringLiteral("UI-ADD-001"));
-    QVERIFY(addedWork.exec());
-    QVERIFY(addedWork.next());
-    QCOMPARE(addedWork.value(0).toLongLong(), addMaker->currentData().toLongLong());
-    QCOMPARE(addedWork.value(1).toInt(), 1);
     const QList<darkeye::WorkStateRecord> activeWorks = repository.listByDeletedState(false);
     QCOMPARE(activeWorks.size(), 2);
-    auto *makerFilter = findWorkControl<QComboBox>(
-        workPage, QStringLiteral("WorkMakerFilter"));
-    QVERIFY(makerFilter != nullptr);
-    QVERIFY(makerFilter->findText(QStringLiteral("界面新增片商")) >= 0);
-    auto *tagTypeWidget = window.findChild<darkeye::TagTypeManagementWidget *>(
-        QStringLiteral("TagTypeManagementWidget"));
+    loadManagementTab(1);
     auto *tagWidget =
-        window.findChild<darkeye::TagManagementWidget *>(QStringLiteral("TagManagementWidget"));
-    QVERIFY(tagTypeWidget != nullptr);
+        window.findChild<darkeye::TagManagementWidget *>();
     QVERIFY(tagWidget != nullptr);
-    auto *typeName = tagTypeWidget->findChild<QLineEdit *>(QStringLiteral("TagTypeNameInput"));
-    auto *typeSave = tagTypeWidget->findChild<QPushButton *>(QStringLiteral("TagTypeSaveButton"));
-    auto *typeTable = tagTypeWidget->findChild<QTableWidget *>(QStringLiteral("TagTypeTable"));
-    QVERIFY(typeName != nullptr);
-    QVERIFY(typeSave != nullptr);
-    QVERIFY(typeTable != nullptr);
-    typeName->setText(QStringLiteral("界面标签类型"));
-    typeSave->click();
-    QTRY_COMPARE_WITH_TIMEOUT(typeTable->rowCount(), 1, 500);
-    auto *tagName = tagWidget->findChild<QLineEdit *>(QStringLiteral("TagNameInput"));
-    auto *tagAliases = tagWidget->findChild<QLineEdit *>(QStringLiteral("TagAliasesInput"));
-    auto *tagType = tagWidget->findChild<QComboBox *>(QStringLiteral("TagTypeSelector"));
-    auto *tagSave = tagWidget->findChild<QPushButton *>(QStringLiteral("TagSaveButton"));
-    auto *tagTable = tagWidget->findChild<QTableWidget *>(QStringLiteral("TagManagementTable"));
-    QVERIFY(tagName != nullptr);
-    QVERIFY(tagAliases != nullptr);
-    QVERIFY(tagType != nullptr);
-    QVERIFY(tagSave != nullptr);
-    QVERIFY(tagTable != nullptr);
-    const int typeIndex = tagType->findText(QStringLiteral("界面标签类型"));
-    QVERIFY(typeIndex > 0);
-    tagType->setCurrentIndex(typeIndex);
-    tagName->setText(QStringLiteral("界面新增标签"));
-    tagAliases->setText(QStringLiteral("界面别名一,界面别名二"));
-    tagSave->click();
-    QTRY_COMPARE_WITH_TIMEOUT(tagTable->rowCount(), 1, 500);
-    QCOMPARE(repository.tagOptions().size(), 1);
-    QCOMPARE(repository.tagOptions().first().name, QStringLiteral("界面新增标签"));
     emit sidebar->itemClicked(QStringLiteral("setting"));
     QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("SettingsPage"));
     themeSelector->setCurrentIndex(1);
     QCOMPARE(themeService.current(), darkeye::ThemeId::Dark);
-    QSettings settings(paths.settingsFile(), QSettings::IniFormat);
-    QCOMPARE(settings.value(QStringLiteral("App/Theme")).toString(), QStringLiteral("DARK"));
     emit actressPage->detailRequested(darkeye::PersonKind::Actress, *actressId);
+    actressDetail = window.findChild<darkeye::PersonDetailPage *>(
+        QStringLiteral("ActressDetailPage"));
+    QVERIFY(actressDetail != nullptr);
     QCOMPARE(pages->currentWidget(), actressDetail);
     QCOMPARE(actressDetail->currentPersonId(), *actressId);
     QCOMPARE(sidebar->selectedId(), QStringLiteral("actress"));

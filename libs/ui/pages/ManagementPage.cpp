@@ -50,14 +50,15 @@ ManagementPage::ManagementPage(QSqlDatabase database, ThemeService &themes,
                                CrawlerScheduler &crawlerScheduler, QSqlDatabase privateDatabase,
                                QString coverDirectory,
                                QString actressImageDirectory, QString fanartDirectory, QUrl imageFetchEndpoint,
-                               QUrl topActressesEndpoint, QWidget *parent)
+                               QUrl topActressesEndpoint, graph::GraphManager *graphManager,
+                               QWidget *parent)
     : LazyWidget(parent), m_database(std::move(database)), m_privateDatabase(std::move(privateDatabase)), m_themes(themes),
       m_coverDirectory(std::move(coverDirectory)),
       m_actressImageDirectory(std::move(actressImageDirectory)),
       m_fanartDirectory(std::move(fanartDirectory)),
       m_imageFetchEndpoint(std::move(imageFetchEndpoint)),
       m_topActressesEndpoint(std::move(topActressesEndpoint)),
-      m_crawlerScheduler(crawlerScheduler)
+      m_crawlerScheduler(crawlerScheduler), m_graphManager(graphManager)
 {
 }
 
@@ -72,31 +73,30 @@ void ManagementPage::lazyLoad()
     {
         m_tabs->addTab(new DeferredTab(std::move(factory), m_tabs), title);
     };
-    addDeferredTab(QStringLiteral("添加/修改作品"), [this](QWidget *parent)
+    // Python puts AddWorkTabPage3 itself in the first tab, so keep the editor
+    // directly attached here and let its first showEvent perform lazy loading.
+    m_workEditor = new AddWorkTabPage3(m_database, m_themes, m_crawlerScheduler,
+                                       m_coverDirectory, m_fanartDirectory,
+                                       m_imageFetchEndpoint, m_graphManager, m_tabs);
+    connect(m_workEditor, &AddWorkTabPage3::workSaved, this, [this](qint64 workId, bool)
     {
-        m_workEditor = new AddWorkTabPage3(m_database, m_themes, m_crawlerScheduler,
-                                           m_coverDirectory, m_fanartDirectory,
-                                           m_imageFetchEndpoint, parent);
-        connect(m_workEditor, &AddWorkTabPage3::workSaved, this, [this](qint64 workId, bool)
-        {
-            if (m_softDelete != nullptr)
-                m_softDelete->refresh();
-            emit workChanged(workId);
-        });
-        connect(m_workEditor, &AddWorkTabPage3::actressesCreated, this,
-                &ManagementPage::actressesCreated);
-        connect(m_workEditor, &AddWorkTabPage3::workLinkRequested, this,
-                &ManagementPage::workRequested);
-        connect(m_workEditor, &AddWorkTabPage3::actressLinkRequested, this,
-                &ManagementPage::actressRequested);
-        connect(this, &ManagementPage::referencesChanged, m_workEditor,
-                &AddWorkTabPage3::refreshReferences);
-        connect(this, &ManagementPage::tagsChanged, m_workEditor,
-                &AddWorkTabPage3::refreshAssociations);
-        connect(this, &ManagementPage::actressesChanged, m_workEditor,
-                &AddWorkTabPage3::refreshAssociations);
-        return m_workEditor;
+        if (m_softDelete != nullptr)
+            m_softDelete->refresh();
+        emit workChanged(workId);
     });
+    connect(m_workEditor, &AddWorkTabPage3::actressesCreated, this,
+            &ManagementPage::actressesCreated);
+    connect(m_workEditor, &AddWorkTabPage3::workLinkRequested, this,
+            &ManagementPage::workRequested);
+    connect(m_workEditor, &AddWorkTabPage3::actressLinkRequested, this,
+            &ManagementPage::actressRequested);
+    connect(this, &ManagementPage::referencesChanged, m_workEditor,
+            &AddWorkTabPage3::refreshReferences);
+    connect(this, &ManagementPage::tagsChanged, m_workEditor,
+            &AddWorkTabPage3::refreshAssociations);
+    connect(this, &ManagementPage::actressesChanged, m_workEditor,
+            &AddWorkTabPage3::refreshAssociations);
+    m_tabs->addTab(m_workEditor, QStringLiteral("添加/修改作品"));
     addDeferredTab(QStringLiteral("作品标签管理"), [this](QWidget *parent)
     {
         auto *tagPage = new QWidget(parent);
@@ -183,7 +183,7 @@ void ManagementPage::ensureTabLoaded(int index)
     if (index < 0)
         return;
 
-    if (auto *tab = dynamic_cast<DeferredTab *>(m_tabs->widget(index)); tab != nullptr)
+    if (auto *tab = dynamic_cast<LazyWidget *>(m_tabs->widget(index)); tab != nullptr)
         tab->initialize();
 }
 

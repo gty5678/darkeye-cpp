@@ -22,6 +22,7 @@ private slots:
     void savesAtomically();
     void paneTransfersCompleteContent();
     void workspacePreservesContentWhileSplitting();
+    void workspaceBatchesProgrammaticSplits();
     void workspaceMovesTabsAcrossPanes();
     void workspaceSavesAndRestoresContent();
     void unknownSchemaDoesNotDestroyWorkspace();
@@ -150,6 +151,37 @@ void MyAdsTest::workspacePreservesContentWhileSplitting()
     QVERIFY(tabBar);
     QVERIFY(tabBar->isVisible());
     QCOMPARE(tabBar->height(), 32);
+}
+
+void MyAdsTest::workspaceBatchesProgrammaticSplits()
+{
+    WorkspaceWidget workspace;
+    QSignalSpy layoutChanges(&workspace, &WorkspaceWidget::layoutChanged);
+    PaneWidget *root = workspace.rootPane();
+
+    workspace.beginLayoutUpdate();
+    PaneWidget *basic = workspace.split(root, Placement::Right, 70);
+    PaneWidget *tag = workspace.split(basic, Placement::Right, 25);
+    PaneWidget *text = workspace.split(basic, Placement::Bottom, 42);
+    PaneWidget *fanart = workspace.split(tag, Placement::Bottom, 20);
+    PaneWidget *force = workspace.split(tag, Placement::Right, 50);
+    PaneWidget *actress = workspace.split(root, Placement::Bottom, 50);
+    PaneWidget *editor = workspace.split(force, Placement::Bottom, 40);
+
+    QVERIFY(basic);
+    QVERIFY(tag);
+    QVERIFY(text);
+    QVERIFY(fanart);
+    QVERIFY(force);
+    QVERIFY(actress);
+    QVERIFY(editor);
+    QCOMPARE(layoutChanges.size(), 0);
+
+    workspace.endLayoutUpdate();
+    QCOMPARE(layoutChanges.size(), 1);
+    QCOMPARE(workspace.panes().size(), 8);
+    QCOMPARE(workspace.pane(root->paneId()), root);
+    QCOMPARE(workspace.pane(editor->paneId()), editor);
 }
 
 void MyAdsTest::workspaceMovesTabsAcrossPanes()
@@ -327,5 +359,4 @@ void MyAdsTest::activePaneFollowsUserInteraction()
 
 QTEST_MAIN(MyAdsTest)
 #include "MyAdsTest.moc"
-
 

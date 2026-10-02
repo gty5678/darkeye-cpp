@@ -15,6 +15,7 @@ class ThemeService;
 class AddWorkTabPage3;
 class WorkBatchStateWidget;
 class CrawlerScheduler;
+namespace graph { class GraphManager; }
 
 class ManagementPage final : public LazyWidget
 {
@@ -30,6 +31,7 @@ public:
         QUrl imageFetchEndpoint = QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/image")),
         QUrl topActressesEndpoint =
             QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/top-actresses")),
+        graph::GraphManager *graphManager = nullptr,
         QWidget *parent = nullptr);
 
     bool loadWork(qint64 workId);
@@ -75,6 +77,7 @@ private:
     QUrl m_imageFetchEndpoint;
     QUrl m_topActressesEndpoint;
     CrawlerScheduler &m_crawlerScheduler;
+    graph::GraphManager *m_graphManager = nullptr;
     QTabWidget *m_tabs = nullptr;
     AddWorkTabPage3 *m_workEditor = nullptr;
     WorkBatchStateWidget *m_softDelete = nullptr;

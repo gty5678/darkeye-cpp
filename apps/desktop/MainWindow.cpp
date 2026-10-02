@@ -550,23 +550,45 @@ void MainWindow::showWorkInShelf(qint64 workId)
 
 void MainWindow::registerPage(const QString &menuTitle, const QString &routeName)
 {
-    auto *page = createPage(menuTitle, routeName, m_pages);
-    const int index = m_pages->addWidget(page);
-    m_routeIndexes.insert(routeName, index);
-    m_routePages.insert(routeName, page);
+    // Match Python Router.register(factory): registration stores metadata only.
+    // The page is added to the stack on its first navigation.
+    m_routeIndexes.insert(routeName, -1);
+    m_routeTitles.insert(routeName, menuTitle);
+    m_routePages.insert(routeName, nullptr);
 }
 
 QWidget *MainWindow::ensurePage(const QString &routeName)
 {
-    const auto page = m_routePages.constFind(routeName);
-    if (page == m_routePages.cend())
+    if (!m_routePages.contains(routeName))
     {
         return nullptr;
     }
-    QWidget *widget = page.value();
-    if (auto *lazyWidget = dynamic_cast<LazyWidget *>(widget))
+    QWidget *widget = m_routePages.value(routeName);
+    if (widget == nullptr)
     {
-        lazyWidget->initialize();
+        const QString menuTitle = m_routeTitles.value(routeName);
+        widget = createPage(menuTitle, routeName, m_pages);
+        if (widget == nullptr)
+            return nullptr;
+        static const QMap<QString, QString> routeObjectNames = {
+            {QStringLiteral("actress"), QStringLiteral("ActressPage")},
+            {QStringLiteral("actor"), QStringLiteral("ActorPage")},
+            {QStringLiteral("actress_detail"), QStringLiteral("ActressDetailPage")},
+            {QStringLiteral("actor_detail"), QStringLiteral("ActorDetailPage")},
+        };
+        if (routeObjectNames.contains(routeName))
+        {
+            widget->setObjectName(routeObjectNames.value(routeName));
+        }
+        else if (widget->objectName().isEmpty())
+        {
+            const QString className = QString::fromLatin1(widget->metaObject()->className());
+            widget->setObjectName(className.section(QStringLiteral("::"), -1));
+        }
+
+        const int index = m_pages->addWidget(widget);
+        m_routeIndexes[routeName] = index;
+        m_routePages[routeName] = widget;
     }
     return widget;
 }
@@ -756,7 +778,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
                                m_paths.workCoverDirectory(), m_paths.actressImageDirectory(),
                                m_paths.fanartDirectory(),
                                settings::crawler().coverFetchApiUrl,
-                               settings::crawler().topActressesApiUrl, parent);
+                               settings::crawler().topActressesApiUrl, m_graphManager.get(), parent);
         auto *management = m_managementPage;
         connect(management, &ManagementPage::referencesChanged, this,
                 [this](ReferenceKind) {
@@ -926,7 +948,7 @@ void MainWindow::navigateTo(const QString &routeName, bool recordHistory)
     {
         if (m_historyIndex >= 0 && m_history.value(m_historyIndex) == routeName)
         {
-            m_pages->setCurrentIndex(m_routeIndexes.value(routeName));
+            m_pages->setCurrentWidget(widget);
             return;
         }
         while (m_history.size() > m_historyIndex + 1)
@@ -934,7 +956,7 @@ void MainWindow::navigateTo(const QString &routeName, bool recordHistory)
         m_history.append(routeName);
         m_historyIndex = m_history.size() - 1;
     }
-    m_pages->setCurrentIndex(m_routeIndexes.value(routeName));
+    m_pages->setCurrentWidget(widget);
     if (routeName == QStringLiteral("chart"))
     {
         m_statisticsPage->refresh();

@@ -346,6 +346,7 @@ void AboutSettingsPage::lazyLoad()
     versionRow->addWidget(version);
 
     auto *checkUpdate = new DesignButton(QStringLiteral("检查更新"), this);
+    checkUpdate->setObjectName(QStringLiteral("CheckUpdateButton"));
     checkUpdate->setToolTip(QStringLiteral("检查官方发布的最新版本。"));
     connect(checkUpdate, &QPushButton::clicked, this, [this, checkUpdate] {
         checkUpdate->setEnabled(false);
@@ -418,15 +419,19 @@ void AboutSettingsPage::lazyLoad()
     });
     versionRow->addWidget(localUpdate);
 
-    const auto addExternalButton = [this, versionRow](const QString &text, const QString &url)
+    const auto addExternalButton = [this, versionRow](const QString &text, const QString &url,
+                                                       const QString &objectName = QString())
     {
         auto *button = new DesignButton(text, this);
+        if (!objectName.isEmpty())
+            button->setObjectName(objectName);
         connect(button, &QPushButton::clicked, this,
                 [url] { QDesktopServices::openUrl(QUrl(url)); });
         versionRow->addWidget(button);
     };
     addExternalButton(QStringLiteral("意见反馈"),
-                      QStringLiteral("https://github.com/de4321/darkeye/issues"));
+                      QStringLiteral("https://github.com/de4321/darkeye/issues"),
+                      QStringLiteral("FeedbackButton"));
     addExternalButton(QStringLiteral("版本记录"),
                       QStringLiteral("https://de4321.github.io/darkeye/CHANGELOG/"));
     versionRow->addStretch();
@@ -535,6 +540,7 @@ void VideoSettingsPage::lazyLoad()
     auto *playerRow = new QHBoxLayout;
     playerRow->addWidget(new DesignLabel(QStringLiteral("本地播放器（可选）："), this));
     m_player = new DesignLineEdit(this);
+    m_player->setObjectName(QStringLiteral("LocalVideoPlayerEdit"));
     m_player->setPlaceholderText(
         QStringLiteral("留空则使用系统默认程序；书架/DVD 与作品页播放本地文件时生效"));
     m_player->setClearButtonEnabled(true);
@@ -547,15 +553,18 @@ void VideoSettingsPage::lazyLoad()
     layout->addLayout(playerRow);
 
     m_paths = new MultiplePathManagement(QStringLiteral("视频文件夹路径管理："), this);
+    m_paths->setObjectName(QStringLiteral("VideoPathManagement"));
     m_paths->setMinimumHeight(300);
     m_paths->loadPaths(appSettings.videoPaths);
     layout->addWidget(m_paths);
 
     auto *scan = new DesignButton(QStringLiteral("扫描本地视频提取番号并录入数据库"), this);
+    scan->setObjectName(QStringLiteral("ScanLocalVideosButton"));
     scan->setToolTip(
         QStringLiteral("扫描本地视频的路径下的所有视频，并提取视频番号，将没有的番号尝试去抓取信息"));
     layout->addWidget(scan);
     auto *match = new DesignButton(QStringLiteral("同步作品本地视频路径"), this);
+    match->setObjectName(QStringLiteral("MatchLocalVideosButton"));
     match->setToolTip(QStringLiteral(
         "扫描已配置文件夹中的视频，从文件名提取番号并与库中作品匹配，"
         "将匹配到的本地绝对路径写入作品表的 video_url（多条英文逗号分隔、去重）；"
@@ -732,14 +741,17 @@ void ShortcutSettingsPage::lazyLoad()
     for (const auto &definition : definitions)
     {
         auto *row = new QWidget(this);
+        row->setObjectName(QStringLiteral("ShortcutSettingRow_%1").arg(definition.id));
         auto *rowLayout = new QHBoxLayout(row);
         auto *label = new DesignLabel(definition.name, row);
         label->setFixedWidth(100);
         auto *editor = new TokenKeySequenceEdit(row);
+        editor->setObjectName(QStringLiteral("ShortcutEditor_%1").arg(definition.id));
         editor->setFixedWidth(150);
         editor->setKeySequence(QKeySequence(
             m_userShortcuts.value(definition.id).toString(definition.key)));
         auto *reset = new DesignButton(QStringLiteral("恢复"), row);
+        reset->setObjectName(QStringLiteral("ShortcutReset_%1").arg(definition.id));
         reset->setFixedWidth(50);
         rowLayout->addWidget(label);
         rowLayout->addWidget(editor);
@@ -805,6 +817,7 @@ void CommonSettingsPage::lazyLoad()
     auto *layout = new QFormLayout(this);
 
     m_primaryColorRow = new QWidget(this);
+    m_primaryColorRow->setObjectName(QStringLiteral("PrimaryColorRow"));
     auto *primaryLayout = new QHBoxLayout(m_primaryColorRow);
     primaryLayout->setContentsMargins(0, 0, 0, 0);
     const QString initialPrimary = m_themeService.customPrimary().isEmpty()
@@ -816,6 +829,7 @@ void CommonSettingsPage::lazyLoad()
     primaryLayout->addStretch();
 
     m_themeSelector = new DesignComboBox(this);
+    m_themeSelector->setObjectName(QStringLiteral("themeSelector"));
     m_themeSelector->setAccessibleName(QStringLiteral("主题"));
 
     layout->addRow(new DesignLabel(QStringLiteral("主色"), this), m_primaryColorRow);

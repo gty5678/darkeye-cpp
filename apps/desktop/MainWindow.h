@@ -111,6 +111,7 @@ private:
     QComboBox *m_themeSelector = nullptr;
     QStackedWidget *m_pages = nullptr;
     QMap<QString, int> m_routeIndexes;
+    QMap<QString, QString> m_routeTitles;
     QMap<QString, QWidget *> m_routePages;
     QStringList m_history;
     int m_historyIndex = -1;

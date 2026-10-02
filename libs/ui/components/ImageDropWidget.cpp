@@ -39,12 +39,15 @@ ImageDropWidget::ImageDropWidget(QString managedDirectory, QWidget *parent)
     m_preview->installEventFilter(this);
     m_qualityBadge = new QLabel(QStringLiteral("非高清图"), this);
     m_qualityBadge->setObjectName(QStringLiteral("coverQualityBadge"));
-    m_qualityBadge->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_qualityBadge->setAlignment(Qt::AlignCenter);
+    m_qualityBadge->setCursor(Qt::PointingHandCursor);
+    m_qualityBadge->setToolTip(QStringLiteral("点击从 Fanza 下载可能的大图封面"));
     m_qualityBadge->setStyleSheet(QStringLiteral(
         "QLabel#coverQualityBadge { background-color: rgba(0, 0, 0, 160);"
         " color: #FFD54F; border: 1px solid #FFD54F; border-radius: 8px;"
         " font-size: 12px; font-weight: 600; padding: 1px 6px; }"));
     m_qualityBadge->hide();
+    m_qualityBadge->installEventFilter(this);
     refreshStyle();
 }
 
@@ -77,6 +80,12 @@ void ImageDropWidget::setPreviewAspectRatio(qreal aspectRatio)
 void ImageDropWidget::setQualityBadgeEnabled(bool enabled)
 {
     m_qualityBadgeEnabled = enabled;
+    updateQualityBadge();
+}
+
+void ImageDropWidget::setQualityBadgeStyleSheet(const QString &styleSheet)
+{
+    m_qualityBadge->setStyleSheet(styleSheet);
     updateQualityBadge();
 }
 
@@ -122,6 +131,7 @@ void ImageDropWidget::setDirty(bool dirty)
         return;
     m_dirty = dirty;
     refreshStyle();
+    emit dirtyChanged(m_dirty);
 }
 
 void ImageDropWidget::clearImage()
@@ -219,6 +229,17 @@ bool ImageDropWidget::persistAsJpeg(const QString &fileName, QString *relativePa
 
 bool ImageDropWidget::eventFilter(QObject *watched, QEvent *event)
 {
+    if (watched == m_qualityBadge)
+    {
+        if (event->type() == QEvent::MouseButtonPress)
+        {
+            const auto *mouseEvent = static_cast<QMouseEvent *>(event);
+            if (mouseEvent->button() == Qt::LeftButton)
+                emit qualityBadgeClicked();
+        }
+        // Do not let a badge click fall through to the preview's image picker.
+        return true;
+    }
     if (watched == m_preview && event->type() == QEvent::MouseButtonPress)
     {
         const auto *mouseEvent = static_cast<QMouseEvent *>(event);

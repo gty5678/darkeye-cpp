@@ -1,5 +1,6 @@
 #pragma once
 
+#include "darkeye_ui/base/LazyWidget.h"
 #include "database/repositories/PersonRepository.h"
 #include "database/repositories/ReferenceRepository.h"
 #include "database/repositories/WorkRepository.h"
@@ -8,16 +9,15 @@
 #include <QJsonObject>
 #include <QList>
 #include <QUrl>
-#include <QWidget>
 #include <QHash>
 #include <optional>
-#include <memory>
 
 class QComboBox;
 class QLineEdit;
 class QPlainTextEdit;
 class QShowEvent;
 class QSpinBox;
+class QToolButton;
 class QVBoxLayout;
 
 namespace darkeye
@@ -40,7 +40,7 @@ namespace graph { class GraphManager; }
 
 // Python 的 ui/pages/management/AddWorkTabPage3.py 对应页面。它也作为作品页的
 // 共用编辑器使用，因此不再额外维护一套添加作品逻辑。
-class AddWorkTabPage3 final : public QWidget
+class AddWorkTabPage3 final : public LazyWidget
 {
     Q_OBJECT
 
@@ -50,6 +50,7 @@ public:
         QString coverDirectory = {},
         QString fanartDirectory = {},
         QUrl imageFetchEndpoint = QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/image")),
+        graph::GraphManager *graphManager = nullptr,
         QWidget *parent = nullptr);
     ~AddWorkTabPage3() override;
 
@@ -74,14 +75,17 @@ protected:
     void showEvent(QShowEvent *event) override;
 
 private:
+    void lazyLoad() override;
     void applyLoadedWork(std::optional<WorkDetails> details, QString errorMessage,
                          quint64 requestSequence);
     void applyWork(const Work &work);
     [[nodiscard]] Work editorWork() const;
     void save();
     void clearEditor();
+    void clearEditorExceptSerial();
     void populateReferenceCombo(QComboBox *combo, ReferenceKind kind,
                                 std::optional<qint64> selectedId = std::nullopt);
+    void loadInitialReferencesAsync();
     void buildDefaultWorkspace();
     void saveWorkspaceLayout();
     void restoreDefaultWorkspace();
@@ -89,6 +93,7 @@ private:
     void openCurrentWorkDetail();
     void playLocalVideo();
     void checkSerialAvailability();
+    void updateLocalVideoButtonStyle();
     void updateEditorActions();
     void updateModifiedFieldHighlights();
     void markEditorChanged();
@@ -101,6 +106,7 @@ private:
     void applyCrawledData(const QString &serialNumber, const QJsonObject &payload,
                           const QSet<QString> &selectedFields, bool withGui);
     void fetchNextCrawledCover();
+    void fetchHighQualityCover();
     [[nodiscard]] myads::ContentConfig contentConfig(const QString &slot) const;
     [[nodiscard]] std::optional<myads::ContentConfig>
     createWorkspaceContent(const QJsonObject &descriptor) const;
@@ -115,15 +121,19 @@ private:
     QUrl m_imageFetchEndpoint;
     CrawlerScheduler &m_crawlerScheduler;
     ImageFetchService *m_crawlerImageFetch = nullptr;
+    ImageFetchService *m_highQualityCoverFetch = nullptr;
     QString m_crawlSerial;
     QStringList m_crawlCoverUrls;
     int m_crawlCoverIndex = 0;
+    bool m_highQualityCoverFetching = false;
     QString m_workspaceLayoutPath;
     std::optional<Work> m_currentWork;
     bool m_associationsLoaded = false;
     bool m_fanartDirty = false;
     bool m_loadingEditor = false;
+    bool m_normalizingSerial = false;
     quint64 m_loadRequestSequence = 0;
+    quint64 m_referenceLoadSequence = 0;
     QList<qint64> m_loadedActressIds;
     QList<qint64> m_loadedActorIds;
     QList<qint64> m_loadedTagIds;
@@ -151,11 +161,11 @@ private:
     DesignButton *m_loadButton = nullptr;
     DesignButton *m_saveButton = nullptr;
     IconButton *m_detailButton = nullptr;
-    IconButton *m_playButton = nullptr;
+    QToolButton *m_playButton = nullptr;
     IconButton *m_translateTitleButton = nullptr;
     IconButton *m_translateStoryButton = nullptr;
     myads::WorkspaceWidget *m_workspace = nullptr;
-    std::unique_ptr<graph::GraphManager> m_graphManager;
+    graph::GraphManager *m_graphManager = nullptr;
     ForceDirectPage *m_relationGraph = nullptr;
     QHash<QString, QWidget *> m_slotWidgets;
 };

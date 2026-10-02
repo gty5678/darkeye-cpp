@@ -26,6 +26,7 @@
 #include <QGraphicsView>
 #include <QHBoxLayout>
 #include <QFileInfo>
+#include <QFormLayout>
 #include <QImage>
 #include <QLabel>
 #include <QPlainTextEdit>
@@ -76,6 +77,9 @@ class WorkPageTest final : public QObject
     void groupsAndSelectsTags();
     void importsCoverAndRollsBackOnDatabaseFailure();
     void loadingCrLfStoriesDoesNotMarkWorkModified();
+    void downloadedCoverEnablesModifyAction();
+    void addWorkBasicInfoSerialMatchesPythonBehavior();
+    void addWorkBasicInfoKeepsRowsHorizontalWhenNarrow();
     void workCardCopiesSerialAndActivatesOnlyCover();
     void matchesPythonWorkListSqlContract();
     void loadsConfiguredRealDatabaseWhenAvailable();
@@ -575,6 +579,125 @@ void WorkPageTest::loadingCrLfStoriesDoesNotMarkWorkModified()
     }
     QVERIFY(checkedChineseStory);
     QVERIFY(checkedJapaneseStory);
+}
+
+void WorkPageTest::downloadedCoverEnablesModifyAction()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    darkeye::SqliteConnection connection;
+    QString errorMessage;
+    QVERIFY(connection.open(QDir(temporaryDirectory.path()).filePath("public.db"), false,
+                             &errorMessage));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        connection, darkeye::DatabaseKind::Public, &errorMessage));
+
+    darkeye::Work work;
+    work.serialNumber = QStringLiteral("IPZZ-730");
+    work.imageUrl = QStringLiteral("IPZZ-730.jpg");
+    darkeye::WorkRepository repository(connection.database());
+    const auto workId = repository.insertComplete(work, {}, {}, {}, &errorMessage);
+    QVERIFY2(workId.has_value(), qPrintable(errorMessage));
+
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    QVERIFY(application != nullptr);
+    darkeye::ThemeService themeService(*application);
+    darkeye::CrawlerScheduler crawlerScheduler(
+        QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/work")));
+    darkeye::AddWorkTabPage3 editor(connection.database(), themeService, crawlerScheduler,
+                                    QDir(temporaryDirectory.path()).filePath("covers"),
+                                    QDir(temporaryDirectory.path()).filePath("fanart"));
+
+    QVERIFY(editor.loadWork(*workId));
+    auto *imageDrop = editor.findChild<darkeye::ImageDropWidget *>(
+        QStringLiteral("WorkCoverDropWidget"));
+    auto *qualityBadge = editor.findChild<QLabel *>(QStringLiteral("coverQualityBadge"));
+    auto *save = editor.findChild<QPushButton *>(QStringLiteral("WorkSaveButton"));
+    QVERIFY(imageDrop != nullptr);
+    QVERIFY(qualityBadge != nullptr);
+    QVERIFY(save != nullptr);
+    QVERIFY(qualityBadge->styleSheet().contains(QStringLiteral("background-color: #ffffff")));
+    QVERIFY(qualityBadge->styleSheet().contains(QStringLiteral("color: #ed6c02")));
+    QVERIFY(qualityBadge->styleSheet().contains(QStringLiteral("border: 2px solid #ed6c02")));
+    QVERIFY(!save->isEnabled());
+
+    imageDrop->setImagePath(
+        QDir(temporaryDirectory.path()).filePath(QStringLiteral("downloaded-cover.jpg")));
+    imageDrop->setDirty(true);
+
+    QVERIFY(imageDrop->isDirty());
+    QVERIFY(imageDrop->property("addWorkModified").toBool());
+    QVERIFY(save->isEnabled());
+    QCOMPARE(save->text(), QStringLiteral("修改"));
+}
+
+void WorkPageTest::addWorkBasicInfoSerialMatchesPythonBehavior()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    darkeye::SqliteConnection connection;
+    QString errorMessage;
+    QVERIFY(connection.open(QDir(temporaryDirectory.path()).filePath("public.db"), false,
+                             &errorMessage));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        connection, darkeye::DatabaseKind::Public, &errorMessage));
+
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    QVERIFY(application != nullptr);
+    darkeye::ThemeService themeService(*application);
+    darkeye::CrawlerScheduler crawlerScheduler(
+        QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/work")));
+    darkeye::AddWorkTabPage3 editor(connection.database(), themeService, crawlerScheduler);
+    editor.beginCreate();
+
+    auto *serial = findWorkControl<QLineEdit>(&editor, QStringLiteral("WorkSerialInput"));
+    auto *director = findWorkControl<QLineEdit>(&editor, QStringLiteral("WorkDirectorInput"));
+    auto *save = editor.findChild<QPushButton *>(QStringLiteral("WorkSaveButton"));
+    QVERIFY(serial != nullptr);
+    QVERIFY(director != nullptr);
+    QVERIFY(save != nullptr);
+
+    serial->setText(QStringLiteral("  abp-001  "));
+    QCOMPARE(serial->text(), QStringLiteral("ABP-001"));
+    QVERIFY(save->isEnabled());
+    director->setText(QStringLiteral("待清除导演"));
+    serial->setText(QStringLiteral("new-002"));
+    QCOMPARE(serial->text(), QStringLiteral("NEW-002"));
+    QCOMPARE(director->text(), QString());
+    QVERIFY(save->isEnabled());
+}
+
+void WorkPageTest::addWorkBasicInfoKeepsRowsHorizontalWhenNarrow()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    darkeye::SqliteConnection connection;
+    QString errorMessage;
+    QVERIFY(connection.open(QDir(temporaryDirectory.path()).filePath("public.db"), false,
+                             &errorMessage));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        connection, darkeye::DatabaseKind::Public, &errorMessage));
+
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    QVERIFY(application != nullptr);
+    darkeye::ThemeService themeService(*application);
+    darkeye::CrawlerScheduler crawlerScheduler(
+        QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/work")));
+    darkeye::AddWorkTabPage3 editor(connection.database(), themeService, crawlerScheduler);
+
+    QWidget *basicPane = nullptr;
+    for (QWidget *widget : editor.findChildren<QWidget *>())
+    {
+        if (widget->property("addwork_slot").toString() == QStringLiteral("basic"))
+        {
+            basicPane = widget;
+            break;
+        }
+    }
+    QVERIFY(basicPane != nullptr);
+    auto *form = basicPane->findChild<QFormLayout *>();
+    QVERIFY(form != nullptr);
+    QCOMPARE(form->rowWrapPolicy(), QFormLayout::DontWrapRows);
 }
 
 void WorkPageTest::importsCoverAndRollsBackOnDatabaseFailure()

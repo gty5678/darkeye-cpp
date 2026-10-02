@@ -237,6 +237,23 @@ void WorkspaceWidget::rebuild(bool preserveContents)
     if (m_preview) m_preview->raise();
 }
 
+void WorkspaceWidget::beginLayoutUpdate()
+{
+    ++m_layoutUpdateDepth;
+}
+
+void WorkspaceWidget::endLayoutUpdate()
+{
+    if (m_layoutUpdateDepth <= 0) return;
+    --m_layoutUpdateDepth;
+    if (m_layoutUpdateDepth != 0 || !m_layoutRebuildPending) return;
+
+    m_layoutRebuildPending = false;
+    rebuild(true);
+    setActivePane(pane(m_activePaneId));
+    emit layoutChanged();
+}
+
 PaneWidget *WorkspaceWidget::split(PaneWidget *target, Placement placement, int percent)
 {
     if (!target || !m_panes.values().contains(target)) return nullptr;
@@ -246,6 +263,16 @@ PaneWidget *WorkspaceWidget::split(PaneWidget *target, Placement placement, int 
         placement == Placement::Left || placement == Placement::Right
             ? Qt::Horizontal : Qt::Vertical;
     m_tree.split(target->paneId(), orientation, before, id, percent);
+    if (m_layoutUpdateDepth > 0) {
+        // Python's LayoutTree mutates the live tree incrementally.  During a
+        // programmatic batch, register the new pane immediately so later
+        // splits can target it, but defer rebuilding the QWidget tree until
+        // the batch is complete.
+        PaneWidget *created = createPane(id);
+        m_activePaneId = id;
+        m_layoutRebuildPending = true;
+        return created;
+    }
     // 拆分会重建树，但已有窗格（及其中的内容 widget）必须继续复用；否则调用方
     // 持有的 PaneWidget 指针会在连续拆分中失效，并可能在销毁工作区时重复释放布局。
     rebuild(true);

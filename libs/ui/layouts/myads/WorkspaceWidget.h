@@ -55,6 +55,8 @@ public:
 
     ContentConfig createContentConfig(const QString &contentId = {});
     bool fillPane(PaneWidget *pane, const ContentConfig &content);
+    void beginLayoutUpdate();
+    void endLayoutUpdate();
     PaneWidget *split(PaneWidget *pane, Placement placement, int percent = 50);
     bool moveContent(const QString &sourcePaneId, const QString &contentId,
                      const QString &targetPaneId, DropZone zone);
@@ -113,8 +115,9 @@ private:
     DockTheme m_theme;
     QString m_activePaneId;
     int m_contentCounter = 0;
+    int m_layoutUpdateDepth = 0;
+    bool m_layoutRebuildPending = false;
 };
 
 } // namespace darkeye::myads
-
 
