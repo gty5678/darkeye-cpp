@@ -99,13 +99,12 @@ Application::Application(int &argc, char **argv)
                      [this] { stopLlamaServer(); });
 }
 
-void Application::prewarmGraphRenderer()
+void Application::prepareGraphRendererPrewarm()
 {
     // Python renders a small ForceViewRhiWidget during startup. On Windows,
-    // a fully offscreen window may never submit a frame, so keep this renderer
-    // visible underneath an opaque page widget.  It must be parented to the
-    // page stack rather than centralWidget: the latter starts at x = 0 and
-    // overlays the sidebar's transparent menu rows.
+    // the QRhiWidget must enter the top-level widget tree before that window's
+    // first show.  Mark it visible now; it will become exposed with MainWindow
+    // and remain underneath the opaque current page.
     auto *pageStack = m_mainWindow->centralWidget()->findChild<QStackedWidget *>(
         QStringLiteral("mainPages"));
     if (pageStack == nullptr) {
@@ -118,28 +117,32 @@ void Application::prewarmGraphRenderer()
 
     auto *layout = new QVBoxLayout(m_graphPrewarmWindow.get());
     layout->setContentsMargins(0, 0, 0, 0);
-    auto *view = new ForceViewRhiWidget(m_graphPrewarmWindow.get());
-    layout->addWidget(view);
-    view->setGraph(1, {}, {0.0f, 0.0f}, {QStringLiteral("prewarm")},
-                   {QStringLiteral("prewarm")}, {4.0f}, {QColor(QStringLiteral("#808080"))});
-
-    bool frameSubmitted = false;
-    const QMetaObject::Connection connection = QObject::connect(
-        view, &ForceViewRhiWidget::firstFrameSubmitted,
-        view, [&frameSubmitted] { frameSubmitted = true; });
+    m_graphPrewarmView = new ForceViewRhiWidget(m_graphPrewarmWindow.get());
+    layout->addWidget(m_graphPrewarmView);
+    m_graphPrewarmView->setGraph(
+        1, {}, {0.0f, 0.0f}, {QStringLiteral("prewarm")},
+        {QStringLiteral("prewarm")}, {4.0f}, {QColor(QStringLiteral("#808080"))});
+    QObject::connect(m_graphPrewarmView, &ForceViewRhiWidget::firstFrameSubmitted,
+                     m_graphPrewarmView,
+                     [this] { m_graphPrewarmFrameSubmitted = true; });
     m_graphPrewarmWindow->show();
     m_graphPrewarmWindow->lower();
+}
+
+void Application::prewarmGraphRenderer()
+{
+    if (m_graphPrewarmWindow == nullptr || m_graphPrewarmView == nullptr)
+        return;
     for (int frame = 0; frame < 10; ++frame) {
         m_application.processEvents(QEventLoop::AllEvents, 50);
         QThread::msleep(16);
     }
-    QObject::disconnect(connection);
-    view->pauseSimulation();
+    m_graphPrewarmView->pauseSimulation();
     // Prewarming requires one visible frame on Windows, but the helper must
     // not remain in the compositing tree afterwards: transparent application
     // widgets would otherwise reveal it.
     m_graphPrewarmWindow->hide();
-    if (!frameSubmitted) {
+    if (!m_graphPrewarmFrameSubmitted) {
         qWarning() << "Graph renderer prewarm did not submit a frame";
     }
 }
@@ -171,6 +174,7 @@ int Application::run()
         appSettings.firstLaunch = false;
         settings::saveApp(appSettings);
     }
+    prepareGraphRendererPrewarm();
     m_mainWindow->showInitial();
     prewarmGraphRenderer();
     QTimer::singleShot(0, &m_application, [this] { startBackgroundServices(); });
