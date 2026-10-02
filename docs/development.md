@@ -146,3 +146,17 @@ cmake --install build/windows-msvc-release-data --config Release
 
 先重新执行对应的 `cmake --build --preset ...`。默认构建会在可执行文件旁运行 `windeployqt`；如果关闭了
 `DARKEYE_DEPLOY_QT_RUNTIME`，需自行部署 Qt runtime，或改用 `cmake --install` 生成安装目录。
+
+# webdav测试
+
+```
+winget install Rclone.Rclone
+```
+
+```
+mkdir D:\webdav-test
+```
+
+```
+rclone serve webdav D:\webdav-test --addr 127.0.0.1:8090 --user test --pass 123456
+```
