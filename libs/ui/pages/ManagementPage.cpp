@@ -47,6 +47,9 @@ public:
         setObjectName(QStringLiteral("ManagementTabs"));
         setTabBar(new ManagementTabBar);
         tabBar()->setObjectName(QStringLiteral("DesignTabBar"));
+        // The token tabs use only the selected underline; Qt's native base
+        // otherwise leaves an extra grey edge above the transparent tabs.
+        tabBar()->setDrawBase(false);
     }
 };
 

@@ -13,7 +13,17 @@ import time
 from build import PROJECT_ROOT, build_project, run
 
 
-EXCLUDED_RUNTIME_FILES = ("vc_redist.x64.exe", "opengl32sw.dll")
+EXCLUDED_RUNTIME_FILES = (
+    "vc_redist.x64.exe",
+    "opengl32sw.dll",
+    # Darkeye only opens QSQLITE connections; keep qsqlite.dll.
+    "plugins/sqldrivers/qsqlibase.dll",
+    "plugins/sqldrivers/qsqlmimer.dll",
+    "plugins/sqldrivers/qsqloci.dll",
+    "plugins/sqldrivers/qsqlodbc.dll",
+    "plugins/sqldrivers/qsqlpsql.dll",
+)
+EXCLUDED_RUNTIME_DIRECTORIES = ("plugins/qmltooling",)
 
 
 def project_version():
@@ -30,13 +40,44 @@ def project_version():
     return match.group(1)
 
 
-def remove_unused_runtime(destination):
-    """Remove the optional deployed files before creating the archive."""
-    for name in EXCLUDED_RUNTIME_FILES:
-        path = destination / name
+def remove_unused_runtime(destination, dry_run=False):
+    """Prune unused SQL drivers, QML debugging and tooling-only metadata."""
+    destination = destination.absolute()
+    root = destination.resolve()
+    output_root = PROJECT_ROOT.resolve() / "out"
+    if output_root.resolve() != output_root or output_root not in root.parents:
+        raise RuntimeError(f"运行时清理必须位于项目 out 目录内：{destination}")
+    excluded_files = [destination / name for name in EXCLUDED_RUNTIME_FILES]
+    paths = list(excluded_files)
+    directories = [destination / name for name in EXCLUDED_RUNTIME_DIRECTORIES]
+    # .qmltypes describes types to IDE/lint tooling, not to the QML runtime.
+    # Restrict matching to deployed QML; leave qmldir and executable QML intact.
+    paths.extend(sorted((destination / "qml").rglob("*.qmltypes")))
+    # Validate all targets before deleting any of them, including directory links.
+    checks = [destination, *paths, *directories]
+    for directory in directories:
+        if directory.is_dir():
+            checks.extend(directory.rglob("*"))
+    for path in checks:
+        resolved = path.resolve()
+        if (resolved != root and root not in resolved.parents) or path.is_symlink() or getattr(
+            path, "is_junction", lambda: False
+        )():
+            raise RuntimeError(f"拒绝清理链接或安装目录以外的路径：{path}")
+    for path in paths:
         if path.is_file():
-            path.unlink()
-            print(f"移除：{path}")
+            print(f"移除{'（预览）' if dry_run else ''}：{path}")
+            if not dry_run:
+                path.unlink()
+        elif dry_run and path in excluded_files:
+            print(f"移除（如果存在）：{path}")
+    for directory in directories:
+        if directory.is_dir() or dry_run:
+            print(f"移除{'（如果存在）' if dry_run else ''}：{directory}")
+            if not dry_run:
+                shutil.rmtree(directory)
+    if dry_run:
+        print(f"移除安装后的 QML 类型元数据：{destination / 'qml'}/**/*.qmltypes")
 
 
 def find_seven_zip():
@@ -49,6 +90,28 @@ def find_seven_zip():
         if executable.is_file():
             return str(executable)
     raise RuntimeError("找不到 7-Zip，请安装并将 7z / 7zz 加入 PATH。")
+
+
+def remove_existing_outputs(destination, archive, dry_run=False):
+    """Replace only the named outputs inside the project's out directory."""
+    output_root = PROJECT_ROOT.resolve() / "out"
+    if output_root.resolve() != output_root:
+        raise RuntimeError(f"输出目录不能是链接目录：{output_root}")
+    paths = (destination, archive, archive.with_suffix(".7z.tmp"))
+    for path in paths:
+        resolved = path.resolve()
+        if output_root not in resolved.parents:
+            raise RuntimeError(f"打包输出必须位于项目 out 目录内：{path}")
+        if path.is_symlink() or getattr(path, "is_junction", lambda: False)():
+            raise RuntimeError(f"拒绝覆盖链接路径：{path}")
+    for path in paths:
+        if path.exists():
+            print(f"删除旧产物：{path}", flush=True)
+            if not dry_run:
+                if path.is_dir():
+                    shutil.rmtree(path)
+                else:
+                    path.unlink()
 
 
 def archive_install(destination, archive, seven_zip):
@@ -76,7 +139,7 @@ def archive_install(destination, archive, seven_zip):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--destination", type=Path, help="指定新的安装目录，7z 放在其旁边")
+    parser.add_argument("--destination", type=Path, help="指定项目 out 内的安装目录，自动覆盖同名产物")
     parser.add_argument("--dry-run", action="store_true", help="只显示构建、安装和打包步骤")
     args = parser.parse_args()
     started = time.perf_counter()
@@ -94,11 +157,9 @@ def package_project(args):
     seven_zip = find_seven_zip()
     version = project_version()
     print(f"软件版本：{version}", flush=True)
-    destination = (args.destination or PROJECT_ROOT / "out" / f"Daryeye-{version}").resolve()
+    destination = (args.destination or PROJECT_ROOT / "out" / f"Daryeye-{version}").absolute()
     archive = destination.parent / f"{destination.name}.7z"
-    for path in (destination, archive, archive.with_suffix(".7z.tmp")):
-        if path.exists():
-            raise RuntimeError(f"目标已存在，请指定新的 --destination：{path}")
+    remove_existing_outputs(destination, archive, args.dry_run)
 
     cmake, env, build_dir = build_project("Release", dry_run=args.dry_run, clean=True)
     if not args.dry_run:
@@ -107,8 +168,7 @@ def package_project(args):
          "--prefix", str(destination)], env, args.dry_run)
     # CMake's install rules deploy Qt and the vcpkg DLL dependencies.
     if args.dry_run:
-        for name in EXCLUDED_RUNTIME_FILES:
-            print(f"移除（如果存在）：{destination / name}")
+        remove_unused_runtime(destination, dry_run=True)
         print(f"7z: {archive}（工具：{seven_zip}）")
         return 0
     remove_unused_runtime(destination)

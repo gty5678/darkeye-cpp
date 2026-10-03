@@ -58,6 +58,7 @@ private:
     void buildUi();
     void applyFilters();
     void clearFilters();
+    void clearFilterInputs();
     void toggleTagPanel();
     void refreshData();
     int reloadDvdScene();

@@ -121,7 +121,9 @@ python tools/package.py --destination out/Darkeye-release
 每次打包前先删除对应的整个构建目录（Windows 为 `build/windows-msvc-release`），
 清除 CMake 缓存和旧编译产物后重新配置、全量编译。单独运行 `build.py` 仍采用增量编译。
 压缩包内保留一层安装目录名，主程序、DLL 和资源目录都位于其中。
-安装阶段由 CMake 部署 Qt 运行库和第三方 DLL；指定的目标目录必须不存在，避免混入旧文件。
+开始构建前自动删除同名安装目录、7z 文件和遗留的 `.7z.tmp` 文件，再重新生成。
+`--destination` 须指定项目 `out` 内的目录；`--dry-run` 只显示删除计划，不实际删除。
+安装阶段由 CMake 部署 Qt 运行库和第三方 DLL。
 收集完成后、生成 7z 前，脚本会删除 `vc_redist.x64.exe` 和 `opengl32sw.dll`。
 压缩后使用 `7z t` 验证完整性；Windows 自动查找常见安装目录，其他平台从 PATH 查找 `7zz` / `7z` / `7za`。
 压缩和校验时显示 7-Zip 实时进度；结束时显示压缩用时和整个打包流程的总用时，失败时也会显示总用时。

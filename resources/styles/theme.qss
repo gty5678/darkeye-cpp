@@ -27,6 +27,8 @@ QListWidget#mainSidebar::item:selected {
 
 QComboBox#themeSelector,
 QComboBox#DesignComboBox,
+QComboBox#ShelfScopeSelector,
+QComboBox#ShelfSortSelector,
 QComboBox#DesignMakerSelector,
 QComboBox#WorkSortSelector,
 QComboBox#PaginationPageSize,
@@ -44,6 +46,8 @@ QPlainTextEdit#DesignPlainTextEdit {
 
 QComboBox#themeSelector:hover,
 QComboBox#DesignComboBox:hover,
+QComboBox#ShelfScopeSelector:hover,
+QComboBox#ShelfSortSelector:hover,
 QComboBox#DesignMakerSelector:hover,
 QComboBox#WorkSortSelector:hover,
 QComboBox#PaginationPageSize:hover,
@@ -55,17 +59,23 @@ QPlainTextEdit#DesignPlainTextEdit:focus {
     background-color: @INPUT_BACKGROUND@;
 }
 
-QComboBox#DesignComboBox {
+QComboBox#DesignComboBox,
+QComboBox#ShelfScopeSelector,
+QComboBox#ShelfSortSelector {
     padding-right: 24px;
 }
 
-QComboBox#DesignComboBox::drop-down {
+QComboBox#DesignComboBox::drop-down,
+QComboBox#ShelfScopeSelector::drop-down,
+QComboBox#ShelfSortSelector::drop-down {
     border: none;
     width: 20px;
     background: transparent;
 }
 
-QComboBox#DesignComboBox::down-arrow {
+QComboBox#DesignComboBox::down-arrow,
+QComboBox#ShelfScopeSelector::down-arrow,
+QComboBox#ShelfSortSelector::down-arrow {
     image: none;
     width: 16px;
     height: 16px;

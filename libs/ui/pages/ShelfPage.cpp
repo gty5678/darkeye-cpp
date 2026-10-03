@@ -290,8 +290,10 @@ void ShelfPage::refreshTags()
 
 void ShelfPage::resetForRoute()
 {
-    m_filterTimer->stop();
-    clearFilters();
+    // Route handlers reload once, after all destination filters are in place.
+    const QSignalBlocker scopeBlocker(m_scopeSelector);
+    const QSignalBlocker sortBlocker(m_sortSelector);
+    clearFilterInputs();
     m_scopeSelector->setCurrentIndex(0);
     m_sortSelector->setCurrentIndex(0);
 }
@@ -349,6 +351,12 @@ void ShelfPage::applyFilters() { refreshData(); }
 
 void ShelfPage::clearFilters()
 {
+    clearFilterInputs();
+    applyFilters();
+}
+
+void ShelfPage::clearFilterInputs()
+{
     m_filterTimer->stop();
     const QList<QLineEdit *> inputs{m_serialFilter, m_actressFilter, m_titleFilter, m_notesFilter,
                                      m_directorFilter, m_actorFilter, m_makerFilter->lineEdit(),
@@ -358,7 +366,6 @@ void ShelfPage::clearFilters()
     m_labelFilter->setMaker(std::nullopt);
     m_seriesFilter->setMaker(std::nullopt);
     m_tagSelector->clearSelection();
-    applyFilters();
 }
 
 void ShelfPage::toggleTagPanel()
@@ -374,6 +381,10 @@ void ShelfPage::toggleTagPanel()
 
 void ShelfPage::refreshData()
 {
+    // Synchronous refreshes supersede any text/tag debounce, including signals
+    // emitted while resetting route filters. A late reload would close the
+    // newly opened DVD and invalidate its delayed expansion callback.
+    m_filterTimer->stop();
     const int total = reloadDvdScene();
     if (total < 0) return;
     m_countLabel->setText(total == 0 ? QStringLiteral("没有查询到数据")

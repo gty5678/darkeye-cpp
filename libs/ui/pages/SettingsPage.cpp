@@ -35,6 +35,7 @@
 #include <QFileDialog>
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -262,6 +263,15 @@ AboutSettingsPage::AboutSettingsPage(ThemeService &themeService, QWidget *parent
 void AboutSettingsPage::lazyLoad()
 {
     auto *layout = new QVBoxLayout(this);
+
+    auto *logo = new QLabel(this);
+    logo->setObjectName(QStringLiteral("AboutSoftwareLogo"));
+    logo->setFixedSize(192, 192);
+    logo->setAlignment(Qt::AlignCenter);
+    logo->setPixmap(QIcon(QStringLiteral(":/icons/logo.svg"))
+                        .pixmap(logo->size(), logo->devicePixelRatioF()));
+    layout->addWidget(logo, 0, Qt::AlignHCenter);
+    layout->addSpacing(16);
 
     auto *versionRow = new QHBoxLayout;
     auto *version = new DesignLabel(

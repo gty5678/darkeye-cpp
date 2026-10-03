@@ -9,6 +9,7 @@
 #include <QComboBox>
 #include <QLabel>
 #include <QLineEdit>
+#include <QQuickItem>
 #include <QQuickWidget>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -21,6 +22,8 @@ private slots:
     void filtersAndLoadsVirtualizedShelf();
     void filtersByPrivateScope();
     void routeJumpReplacesAnAlreadyExpandedWork();
+    void routeJumpClearsFiltersAndKeepsWorkExpanded_data();
+    void routeJumpClearsFiltersAndKeepsWorkExpanded();
 };
 
 void ShelfPageTest::filtersAndLoadsVirtualizedShelf()
@@ -139,6 +142,67 @@ void ShelfPageTest::routeJumpReplacesAnAlreadyExpandedWork()
     // previous work after a new route request has arrived.
     QTest::qWait(650);
     QCOMPARE(view->expandedWorkCode(), secondSerial);
+}
+
+void ShelfPageTest::routeJumpClearsFiltersAndKeepsWorkExpanded_data()
+{
+    QTest::addColumn<bool>("waitForFilter");
+    QTest::newRow("pending-filter") << false;
+    QTest::newRow("applied-filter") << true;
+}
+
+void ShelfPageTest::routeJumpClearsFiltersAndKeepsWorkExpanded()
+{
+    QFETCH(bool, waitForFilter);
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    darkeye::SqliteConnection connection;
+    darkeye::SqliteConnection privateConnection;
+    QString error;
+    QVERIFY(connection.open(temporaryDirectory.filePath(QStringLiteral("public.db")), false, &error));
+    QVERIFY(privateConnection.open(temporaryDirectory.filePath(QStringLiteral("private.db")), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(connection, darkeye::DatabaseKind::Public, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(privateConnection, darkeye::DatabaseKind::Private, &error));
+    darkeye::WorkRepository repository(connection.database());
+    darkeye::Work work;
+    work.serialNumber = QStringLiteral("ROUTE-FILTER-001");
+    const auto id = repository.insertComplete(work, {}, {}, {}, &error);
+    QVERIFY(id.has_value());
+
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    QVERIFY(application != nullptr);
+    darkeye::ThemeService themes(*application);
+    darkeye::ShelfPage page(connection.database(), privateConnection.database(), themes);
+    page.initialize();
+    auto *serial = page.findChild<QLineEdit *>(QStringLiteral("ShelfSerialFilter"));
+    auto *scope = page.findChild<QComboBox *>(QStringLiteral("ShelfScopeSelector"));
+    auto *sort = page.findChild<QComboBox *>(QStringLiteral("ShelfSortSelector"));
+    auto *count = page.findChild<QLabel *>(QStringLiteral("ShelfCountLabel"));
+    auto *view = page.findChild<darkeye::DvdShelfView *>(QStringLiteral("DvdShelfView"));
+    QVERIFY(serial != nullptr);
+    QVERIFY(scope != nullptr);
+    QVERIFY(sort != nullptr);
+    QVERIFY(count != nullptr);
+    QVERIFY(view != nullptr);
+    scope->setCurrentIndex(1);
+    sort->setCurrentIndex(3);
+    serial->setText(QStringLiteral("no-match"));
+    if (waitForFilter) QTest::qWait(100);
+
+    QVERIFY(page.showWork(*id));
+    QVERIFY(serial->text().isEmpty());
+    QCOMPARE(scope->currentIndex(), 0);
+    QCOMPARE(sort->currentIndex(), 0);
+    QCOMPARE(count->text(), QStringLiteral("过滤总数:1"));
+    QTRY_COMPARE(view->expandedWorkCode(), work.serialNumber);
+    // Both the 50 ms filter debounce and the 550 ms route expansion must finish
+    // without a stale filter reload discarding the destination selection.
+    QTest::qWait(700);
+    QCOMPARE(view->expandedWorkCode(), work.serialNumber);
+    auto *quickView = view->findChild<QQuickWidget *>();
+    QVERIFY(quickView != nullptr);
+    QVERIFY(quickView->rootObject() != nullptr);
+    QCOMPARE(quickView->rootObject()->property("expandedDelegateIndex").toInt(), 0);
 }
 
 QTEST_MAIN(ShelfPageTest)
