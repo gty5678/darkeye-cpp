@@ -215,7 +215,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override;
     // 处理鼠标离开，清理 hover 状态并发出离开信号。
     void leaveEvent(QEvent* event) override;
-    // 处理尺寸变化，更新视口并标记管线重建。
+    // 处理尺寸变化，在子画布同步绘制前更新视口并请求重绘。
     void resizeEvent(QResizeEvent* event) override;
 
 private slots:

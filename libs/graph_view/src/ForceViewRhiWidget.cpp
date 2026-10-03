@@ -1697,10 +1697,16 @@ void ForceViewRhiWidget::leaveEvent(QEvent* event)
 
 void ForceViewRhiWidget::resizeEvent(QResizeEvent* event)
 {
-    QWidget::resizeEvent(event);
+    // QWidget's layout resizes ForceRhiCanvas while handling the base event.
+    // QRhiWidget renders synchronously from its resizeEvent(), so publish the
+    // new logical viewport first; otherwise that frame combines a new render
+    // target with the previous projection and appears stretched until the next
+    // update.
     m_viewportW = std::max(1, event->size().width());
     m_viewportH = std::max(1, event->size().height());
     m_pipelineDirty = true;
+    QWidget::resizeEvent(event);
+    requestCanvasUpdate();
 }
 
 void ForceViewRhiWidget::setDragging(int nodeId, bool dragging)
