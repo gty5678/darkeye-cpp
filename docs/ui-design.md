@@ -1,5 +1,43 @@
 # 界面功能设计
 
+## C++ / Qt 双色 SVG 图标与主题切换
+
+双色图标可以将主体设为随主题变化的颜色，将点缀设为固定颜色。需要变化的填充使用 `fill="currentColor"`，需要变化的描边使用 `stroke="currentColor"`；点缀直接填写颜色值，例如 `#00aaff`。
+
+下面是可直接保存为 `.svg` 文件的示例，主体是圆形，点缀是蓝色小圆：
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <circle cx="12" cy="12" r="9" fill="currentColor"/>
+  <circle cx="16" cy="8" r="3" fill="#00aaff"/>
+</svg>
+```
+
+对于描边图标，可以在根元素设置 `fill="none" stroke="currentColor"`，并在点缀元素上单独指定固定的 `fill` 或 `stroke`。避免将需要跟随主题变化的部分写死为 `#000000` 或 `black`，否则它会一直保持黑色。
+
+### 当前颜色处理逻辑
+
+`libs/darkeye_ui/theme/IconProvider.cpp` 中的 `IconProvider::fromSvg()` 读取 SVG，将所有 `currentColor` 替换为调用方传入的颜色，然后通过 `QSvgRenderer` 渲染成图标。固定颜色会保留，不会将整张图标统一染色。
+
+普通图标使用 `ThemeTokens::icon`，当前亮暗主题的默认效果如下：
+
+| SVG 部分 | 亮色模式 | 暗色模式 |
+| --- | --- | --- |
+| 主体 `currentColor` | 深灰 `#333333` | 浅灰 `#e0e0e0` |
+| 点缀 `#00aaff` | 蓝色 `#00aaff` | 蓝色 `#00aaff` |
+
+因此主体可以随亮暗模式变成深色或浅色，但当前默认值并非纯黑与纯白。具体替换颜色由调用方决定，例如反色或选中状态可能使用 `textInverse`，激活状态可能使用主题主色 `primary`。
+
+### 加载方式与自动刷新
+
+- `IconButton`：传入 `ThemeService` 并通过 `setIconPath()` 设置 SVG 路径后，会监听 `themeChanged`，重新生成图标；普通状态使用 `tokens.icon`，反色状态使用 `tokens.textInverse`。未传入主题服务时使用亮色主题颜色。
+- `ChamferButton`：接入 `ThemeService` 后会在主题切换时重绘，通过 `IconProvider` 加载 SVG；普通状态使用 `tokens.icon`，选中状态使用 `tokens.textInverse`。
+- `DesignButton`：图标在构造时生成，未指定图标颜色时默认使用黑色。控件本身没有监听主题变化，调用方需要在主题切换时重新生成并设置图标。
+- 直接调用 `IconProvider::fromSvg()`：返回的是本次渲染生成的图标，后续主题变化需要调用方重新生成。
+- 直接用 `QIcon("xxx.svg")` 或 QML `Image` 加载：没有经过本项目的 `currentColor` 替换与主题刷新流程，不能依靠上述约定自动切换颜色。
+
+当前 `IconProvider` 只提供一个动态颜色参数。若点缀也需要随主题变化，需要额外的颜色替换逻辑或分别提供亮色、暗色 SVG；将主体与点缀都写成 `currentColor` 会使它们变为同一种颜色。
+
 
 每个界面就是ui.page下的xxxxPage.py
 

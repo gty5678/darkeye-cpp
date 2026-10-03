@@ -1,4 +1,5 @@
 #include "ui/pages/SettingsPage.h"
+#include "ui/pages/NfoImport.h"
 
 #include "darkeye_ui/components/AnimatedIndicators.h"
 #include "darkeye_ui/components/ColorPicker.h"
@@ -171,100 +172,6 @@ QWidget *pendingSettingsPage(const QString &name, QWidget *parent)
     return new PendingSettingsPage(name, parent);
 }
 
-struct ParsedNfo final
-{
-    struct Cast final { QString name; QString thumb; };
-    struct Fanart final { QString url; QString file; };
-    QString serial, title, plot, director, releaseDate, notes, studio, series;
-    std::optional<int> runtime;
-    QStringList genres, tags, coverCandidates;
-    QList<Cast> cast;
-    QList<Fanart> fanart;
-};
-
-std::optional<ParsedNfo> parseNfo(const QString &path, bool mdcz, QString *error)
-{
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) { *error = QStringLiteral("无法读取文件：%1").arg(file.errorString()); return std::nullopt; }
-    QXmlStreamReader xml(&file); ParsedNfo result;
-    while (!xml.atEnd()) {
-        xml.readNext(); if (!xml.isStartElement()) continue;
-        const QString name = xml.name().toString();
-        if (name == QStringLiteral("actor")) {
-            ParsedNfo::Cast cast;
-            while (!(xml.isEndElement() && xml.name() == QStringLiteral("actor")) && !xml.atEnd()) { xml.readNext(); if (xml.isStartElement() && xml.name() == QStringLiteral("name")) cast.name = xml.readElementText().trimmed(); else if (xml.isStartElement() && xml.name() == QStringLiteral("thumb")) cast.thumb = xml.readElementText().trimmed(); }
-            if (!cast.name.isEmpty()) result.cast.append(cast);
-        } else if (name == QStringLiteral("fanart")) {
-            while (!(xml.isEndElement() && xml.name() == QStringLiteral("fanart")) && !xml.atEnd()) { xml.readNext(); if (xml.isStartElement() && xml.name() == QStringLiteral("thumb")) { const QString url = xml.readElementText().trimmed(); if (!url.isEmpty()) result.fanart.append({url, {}}); } }
-        } else if (mdcz && name == QStringLiteral("set")) {
-            while (!(xml.isEndElement() && xml.name() == QStringLiteral("set")) && !xml.atEnd()) { xml.readNext(); if (xml.isStartElement() && xml.name() == QStringLiteral("name")) result.series = xml.readElementText().trimmed(); else if (xml.isCharacters() && !xml.isWhitespace() && result.series.isEmpty()) result.series = xml.text().toString().trimmed(); }
-        } else if (name == QStringLiteral("id") || name == QStringLiteral("num")) { if (result.serial.isEmpty()) result.serial = xml.readElementText().trimmed(); }
-        else if (name == QStringLiteral("uniqueid") && result.serial.isEmpty()) result.serial = xml.readElementText().trimmed();
-        else if (name == QStringLiteral("title")) result.title = xml.readElementText().trimmed();
-        else if (name == QStringLiteral("plot")) result.plot = xml.readElementText().trimmed();
-        else if (name == QStringLiteral("director")) result.director = xml.readElementText().trimmed();
-        else if (name == QStringLiteral("premiered") || name == QStringLiteral("releasedate") || name == QStringLiteral("release")) { if (result.releaseDate.isEmpty()) result.releaseDate = xml.readElementText().trimmed(); }
-        else if (name == QStringLiteral("runtime")) { bool ok = false; const int value = xml.readElementText().trimmed().toInt(&ok); if (ok) result.runtime = value; }
-        else if (name == QStringLiteral("source")) result.notes = xml.readElementText().trimmed();
-        else if (name == QStringLiteral("studio")) result.studio = xml.readElementText().trimmed();
-        else if (name == QStringLiteral("genre")) result.genres.append(xml.readElementText().trimmed());
-        else if (name == QStringLiteral("tag")) result.tags.append(xml.readElementText().trimmed());
-        else if (name == QStringLiteral("thumb")) { const QString thumb = xml.readElementText().trimmed(); if (!thumb.isEmpty()) result.coverCandidates.append(thumb); }
-        else if (mdcz && name == QStringLiteral("image")) { const QString url = xml.readElementText().trimmed(); if (!url.isEmpty()) result.fanart.append({url, {}}); }
-    }
-    if (xml.hasError()) { *error = QStringLiteral("XML 解析失败：%1").arg(xml.errorString()); return std::nullopt; }
-    result.serial = result.serial.toUpper(); if (result.serial.isEmpty()) { *error = QStringLiteral("NFO 中缺少番号（<id>/<num>/<uniqueid>）"); return std::nullopt; } return result;
-}
-
-bool isRemoteImage(const QString &source) { const QUrl url(source); return url.isValid() && (url.scheme() == QStringLiteral("http") || url.scheme() == QStringLiteral("https")); }
-bool saveImageAsJpeg(const QString &source, const QString &destination)
-{
-    QImageReader reader(source); const QImage image = reader.read();
-    return !image.isNull() && QDir().mkpath(QFileInfo(destination).absolutePath()) && image.save(destination, "JPEG", 90);
-}
-bool downloadImageAsJpeg(const QString &source, const QString &destination)
-{
-    QNetworkAccessManager manager; QNetworkReply *reply = manager.get(QNetworkRequest(QUrl(source))); QEventLoop loop; QTimer timeout; timeout.setSingleShot(true);
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit); QObject::connect(&timeout, &QTimer::timeout, reply, &QNetworkReply::abort); timeout.start(30000); loop.exec();
-    const QByteArray body = reply->readAll(); const bool ok = reply->error() == QNetworkReply::NoError; reply->deleteLater(); const QImage image = QImage::fromData(body);
-    return ok && !image.isNull() && QDir().mkpath(QFileInfo(destination).absolutePath()) && image.save(destination, "JPEG", 90);
-}
-QString resolveLocalImage(const QString &source, const QString &nfoPath)
-{
-    if (isRemoteImage(source)) return {}; if (QFileInfo(source).isFile()) return QFileInfo(source).absoluteFilePath();
-    const QString relative = QDir(QFileInfo(nfoPath).absolutePath()).filePath(source); return QFileInfo(relative).isFile() ? QFileInfo(relative).absoluteFilePath() : QString{};
-}
-QString pickCover(const ParsedNfo &nfo, const QString &path)
-{
-    QStringList large, neutral, small, remote;
-    for (const QString &candidate : nfo.coverCandidates) { if (isRemoteImage(candidate)) { remote.append(candidate); continue; } const QString local = resolveLocalImage(candidate, path); if (local.isEmpty()) continue; const QString lower = local.toLower().replace(u'\\', u'/'); if (lower.contains(QStringLiteral("bigpic")) || lower.contains(QStringLiteral("largepic")) || lower.contains(QStringLiteral("/large/"))) large.append(local); else if (lower.contains(QStringLiteral("smallpic")) || lower.contains(QStringLiteral("small_pic")) || lower.contains(QStringLiteral("/small/"))) small.append(local); else neutral.append(local); }
-    if (!large.isEmpty()) { std::sort(large.begin(), large.end(), [](const QString &left, const QString &right) { return (left.contains(QStringLiteral("bigpic"), Qt::CaseInsensitive) ? 0 : 1) < (right.contains(QStringLiteral("bigpic"), Qt::CaseInsensitive) ? 0 : 1); }); return large.first(); }
-    if (!neutral.isEmpty()) return neutral.first(); if (!small.isEmpty()) return small.first(); if (!remote.isEmpty()) return remote.first(); for (const auto &cast : nfo.cast) if (!cast.thumb.isEmpty()) return cast.thumb; return {};
-}
-QSet<QString> maleActorNames(const settings::Paths &paths)
-{
-    QFile file(QDir(paths.resourcesDirectory()).filePath(QStringLiteral("config/actors_cn_jp_export.json"))); if (!file.open(QIODevice::ReadOnly)) return {};
-    QSet<QString> names; for (const QJsonValue &value : QJsonDocument::fromJson(file.readAll()).array()) if (!value.toString().trimmed().isEmpty()) names.insert(value.toString().trimmed()); return names;
-}
-QString fanartJson(const QList<ParsedNfo::Fanart> &items) { QJsonArray array; for (const auto &item : items) if (!item.url.isEmpty() || !item.file.isEmpty()) array.append(QJsonObject{{QStringLiteral("url"), item.url}, {QStringLiteral("file"), item.file}}); return array.isEmpty() ? QString{} : QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)); }
-
-bool importNfo(QSqlDatabase database, const QString &path, bool mdcz, const settings::Paths &paths, QString *message)
-{
-    const auto parsed = parseNfo(path, mdcz, message); if (!parsed) return false;
-    WorkRepository works(database); if (works.findIdBySerial(parsed->serial)) { *message = QStringLiteral("番号「%1」已在库中，已跳过导入。").arg(parsed->serial); return false; }
-    ReferenceRepository references(database); PersonRepository people(database);
-    const auto resolveReference = [&references](ReferenceKind kind, const QString &name) { if (name.isEmpty()) return std::optional<qint64>{}; const auto existing = references.findByName(kind, name); return existing ? existing : references.create(kind, name); };
-    Work work; work.serialNumber = parsed->serial; work.japaneseTitle = parsed->title; work.japaneseStory = parsed->plot; work.director = parsed->director.isEmpty() ? QStringLiteral("----") : parsed->director; work.releaseDate = parsed->releaseDate; work.notes = parsed->notes; work.runtime = parsed->runtime;
-    const QStringList studioParts = parsed->studio.split(u'/', Qt::SkipEmptyParts); if (!studioParts.isEmpty()) work.makerId = resolveReference(ReferenceKind::Maker, studioParts.first().trimmed()); if (studioParts.size() > 1) work.labelId = resolveReference(ReferenceKind::Label, studioParts.at(1).trimmed()); work.seriesId = resolveReference(ReferenceKind::Series, mdcz ? parsed->series : (parsed->tags.isEmpty() ? QString{} : parsed->tags.first()));
-    QList<qint64> actressIds, actorIds, tagIds; const QSet<QString> maleNames = maleActorNames(paths);
-    for (const auto &cast : parsed->cast) { auto id = people.findByName(PersonKind::Actress, cast.name); if (id) { if (!actressIds.contains(*id)) actressIds.append(*id); continue; } id = people.findByName(PersonKind::Actor, cast.name); if (id) { if (!actorIds.contains(*id)) actorIds.append(*id); continue; } const PersonKind kind = maleNames.contains(cast.name) ? PersonKind::Actor : PersonKind::Actress; id = people.create(kind, cast.name, cast.name); if (id && kind == PersonKind::Actress && !actressIds.contains(*id)) actressIds.append(*id); if (id && kind == PersonKind::Actor && !actorIds.contains(*id)) actorIds.append(*id); }
-    const QList<TagOption> existingTags = works.tagOptions(); QStringList tagNames = parsed->genres; if (mdcz) tagNames.append(parsed->tags);
-    for (const QString &name : std::as_const(tagNames)) { if (name.isEmpty()) continue; std::optional<qint64> tagId; for (const TagOption &tag : existingTags) if (tag.name == name) { tagId = tag.id; break; } if (!tagId) tagId = references.createTag(name, 11, QStringLiteral("#cccccc"), {}); if (tagId && !tagIds.contains(*tagId)) tagIds.append(*tagId); }
-    const QString cover = mdcz ? QDir(QFileInfo(path).absolutePath()).filePath(QStringLiteral("fanart.jpg")) : pickCover(*parsed, path); const QString localCover = isRemoteImage(cover) ? QString{} : resolveLocalImage(cover, path); if (!cover.isEmpty() && (isRemoteImage(cover) || !localCover.isEmpty())) { const QString destination = QDir(paths.workCoverDirectory()).filePath(parsed->serial + QStringLiteral(".jpg")); if ((isRemoteImage(cover) ? downloadImageAsJpeg(cover, destination) : saveImageAsJpeg(localCover, destination))) work.imageUrl = QFileInfo(destination).fileName(); }
-    QList<ParsedNfo::Fanart> fanart = parsed->fanart;
-    if (mdcz) { const QDir sourceDir(QDir(QFileInfo(path).absolutePath()).filePath(QStringLiteral("extrafanart"))); const QFileInfoList sourceFiles = sourceDir.entryInfoList({QStringLiteral("*.jpg"), QStringLiteral("*.jpeg"), QStringLiteral("*.png"), QStringLiteral("*.webp")}, QDir::Files, QDir::Name); int index = 0; for (auto &item : fanart) { const QString base = QFileInfo(QUrl(item.url).path()).completeBaseName(); QFileInfo source(sourceDir.filePath(base + QStringLiteral(".jpg"))); if (!source.isFile() && index < sourceFiles.size()) source = sourceFiles.at(index++); if (!source.isFile()) continue; item.file = (base.isEmpty() ? source.completeBaseName() : base) + QStringLiteral(".jpg"); const QString destination = QDir(paths.fanartDirectory()).filePath(item.file); if (saveImageAsJpeg(source.absoluteFilePath(), destination)) QFile::remove(source.absoluteFilePath()); else item.file.clear(); } }
-    work.fanartJson = fanartJson(fanart); QString error; if (!works.insertComplete(work, actressIds, actorIds, tagIds, &error)) { *message = error.isEmpty() ? QStringLiteral("写入数据库失败") : error; return false; } *message = QStringLiteral("已从 NFO 导入作品：%1").arg(parsed->serial); return true;
-}
 
 } // namespace
 
@@ -294,7 +201,7 @@ void NfoSettingsPage::importFile(bool mdcz)
     const QString path = QFileDialog::getOpenFileName(this, QStringLiteral("选择 NFO 文件"), {}, QStringLiteral("NFO 文件 (*.nfo);;所有文件 (*.*)"));
     if (path.isEmpty()) return;
     QString message;
-    if (importNfo(m_publicDatabase, path, mdcz, m_paths, &message)) {
+    if (nfo::importNfo(m_publicDatabase, path, mdcz, m_paths, &message)) {
         emit referencesChanged(ReferenceKind::Maker); emit referencesChanged(ReferenceKind::Label);
         emit referencesChanged(ReferenceKind::Series); emit tagsChanged(); emit actressesChanged();
         emit actorsChanged(); emit worksChanged(); QMessageBox::information(this, QStringLiteral("导入成功"), message);
@@ -335,7 +242,7 @@ void NfoSettingsPage::importFolder(bool mdcz, bool useVideoPaths)
             if (cancelled->load()) { stopped = true; break; }
             const QString file = files.at(i);
             QMetaObject::invokeMethod(qApp, [guardedProgress, i, total = files.size(), file] { if (guardedProgress) { guardedProgress->setValue(i); guardedProgress->setLabelText(QStringLiteral("正在导入 (%1/%2)：%3").arg(i + 1).arg(total).arg(QFileInfo(file).fileName())); } }, Qt::QueuedConnection);
-            QString message; if (importNfo(connection.database(), file, mdcz, paths, &message)) ++imported;
+            QString message; if (nfo::importNfo(connection.database(), file, mdcz, paths, &message)) ++imported;
             else if (message.contains(QStringLiteral("已在库中"))) ++skipped;
             else { ++failed; if (errors.size() < 8) errors.append(QFileInfo(file).fileName() + QStringLiteral(": ") + message); }
         }

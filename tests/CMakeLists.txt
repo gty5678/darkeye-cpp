@@ -184,3 +184,6 @@ target_compile_definitions(darkeye_database_fixture_tests PRIVATE
 target_compile_definitions(darkeye_serial_number_tests PRIVATE
     DARKEYE_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
 )
+
+darkeye_add_qt_test(darkeye_nfo_import_tests integration/NfoImportTest.cpp)
+target_link_libraries(darkeye_nfo_import_tests PRIVATE darkeye::ui)
