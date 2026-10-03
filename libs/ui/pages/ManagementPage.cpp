@@ -1,7 +1,6 @@
 #include "ui/pages/ManagementPage.h"
 
 #include "darkeye_ui/theme/ThemeService.h"
-#include "darkeye_ui/components/TokenControls.h"
 #include "ui/pages/management/AddWorkTabPage3.h"
 #include "ui/pages/management/MakerManagementWidget.h"
 #include "ui/pages/management/LabelManagementWidget.h"
@@ -13,6 +12,8 @@
 #include "ui/pages/management/WorkMaintenanceWidget.h"
 
 #include <QTabWidget>
+#include <QTabBar>
+#include <QWheelEvent>
 #include <QVBoxLayout>
 
 #include <functional>
@@ -22,6 +23,32 @@ namespace darkeye
 
 namespace
 {
+
+class ManagementTabBar final : public QTabBar
+{
+protected:
+    void wheelEvent(QWheelEvent *event) override
+    {
+        // QTabWidget may restore a child's focus while changing pages.
+        // Keep both the switch and subsequent keyboard input on the tabs.
+        setFocus(Qt::MouseFocusReason);
+        QTabBar::wheelEvent(event);
+        setFocus(Qt::MouseFocusReason);
+    }
+};
+
+class ManagementTabWidget final : public QTabWidget
+{
+public:
+    explicit ManagementTabWidget(QWidget *parent) : QTabWidget(parent)
+    {
+        // setTabBar() can polish the bar immediately when a theme is already
+        // installed. Set the final selector name before that first polish.
+        setObjectName(QStringLiteral("ManagementTabs"));
+        setTabBar(new ManagementTabBar);
+        tabBar()->setObjectName(QStringLiteral("DesignTabBar"));
+    }
+};
 
 class DeferredTab final : public LazyWidget
 {
@@ -66,8 +93,7 @@ void ManagementPage::lazyLoad()
 {
     auto *root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
-    m_tabs = new TokenTabWidget(this);
-    m_tabs->setObjectName(QStringLiteral("ManagementTabs"));
+    m_tabs = new ManagementTabWidget(this);
 
     const auto addDeferredTab = [this](const QString &title, DeferredTab::Factory factory)
     {

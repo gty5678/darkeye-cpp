@@ -337,6 +337,33 @@ QTabBar#DesignTabBar::tab:selected {
     border-bottom-color: @PRIMARY@;
 }
 
+/* Match Python's TokenTabWidget in the management page. */
+QTabWidget#ManagementTabs > QTabBar {
+    background-color: transparent;
+    border: none;
+}
+QTabWidget#ManagementTabs > QTabBar::tab {
+    background-color: transparent;
+    color: @TEXT_PLACEHOLDER@;
+    padding: 5px 0px;
+    margin-right: 20px;
+    font-size: @FONT_SIZE_MIDDLE@;
+    font-family: "@FONT_FAMILY_BASE@";
+    border: none;
+}
+QTabWidget#ManagementTabs > QTabBar::tab:hover {
+    color: @TEXT@;
+}
+QTabWidget#ManagementTabs > QTabBar::tab:selected {
+    color: @TEXT@;
+    font-weight: bold;
+    border-bottom: @BORDER_WIDTH@ solid @PRIMARY@;
+}
+QTabWidget#ManagementTabs::pane {
+    border: none;
+    top: -1px;
+}
+
 QProgressBar#DesignProgressBar {
     color: @TEXT@;
     background-color: @INPUT_BACKGROUND@;

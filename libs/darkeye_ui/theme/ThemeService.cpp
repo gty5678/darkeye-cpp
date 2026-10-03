@@ -163,6 +163,9 @@ bool ThemeService::setTheme(ThemeId theme, const QString &customPrimary)
         {"@INFO@", values.info},
         {"@ICON@", values.icon},
         {"@ICON_DISABLED@", values.iconDisabled},
+        {"@FONT_SIZE_MIDDLE@", values.fontSizeMiddle},
+        {"@FONT_FAMILY_BASE@", values.fontFamilyBase},
+        {"@BORDER_WIDTH@", values.borderWidth},
     };
     for (auto iterator = replacements.cbegin(); iterator != replacements.cend(); ++iterator) {
         styleSheet.replace(iterator.key(), iterator.value());
