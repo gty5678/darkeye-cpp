@@ -64,6 +64,9 @@ function(darkeye_configure_packaging target)
     install(
         DIRECTORY "${PROJECT_SOURCE_DIR}/resources/"
         DESTINATION "${CMAKE_INSTALL_BINDIR}/resources"
+        PATTERN "*.db" EXCLUDE
+        PATTERN "*.db-wal" EXCLUDE
+        PATTERN "*.db-shm" EXCLUDE
     )
     # data 放在 exe 旁边
     if(DARKEYE_INSTALL_DATA)

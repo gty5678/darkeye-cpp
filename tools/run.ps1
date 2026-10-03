@@ -11,7 +11,7 @@ $Executable = Join-Path $BuildDirectory "Darkeye.exe"
 $QtBin = "C:\Qt\6.10.3\msvc2022_64\bin"
 
 if (-not (Test-Path -LiteralPath $Executable)) {
-    throw "程序尚未编译，请先运行 .\tools\build.ps1"
+    throw "程序尚未编译，请先运行 python .\tools\build.py --config $Configuration"
 }
 
 $env:PATH = "$QtBin;$env:PATH"

@@ -76,9 +76,55 @@ $env:X_VCPKG_ASSET_SOURCES="x-azurl,https://mirrors.ustc.edu.cn/vcpkg/assets/"
 | Release 构建并启用测试 | `windows-msvc-release-tests` | `release-tests` |
 
 首次配置时，vcpkg 会下载并构建 `vcpkg.json` 中锁定的依赖，耗时会比后续配置更长。
+如果 vcpkg 使用浅克隆，缺少锁定基线时先补取该提交（无需切换分支）：
+
+```powershell
+$VcpkgBaseline = (Get-Content vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
+git -C $env:VCPKG_ROOT fetch --depth=1 origin $VcpkgBaseline
+```
+
+若 vcpkg 的构建工具下载失败，可在当前终端临时使用已经安装的系统工具：
+
+```powershell
+$env:VCPKG_FORCE_SYSTEM_BINARIES = "1"
+python tools/package.py
+```
+
+此方式需要系统已有可用的 CMake、Ninja、Git 等工具；Windows 构建脚本会把 VS 自带工具加入环境。
+
 构建目录位于 `build/windows-msvc-*`；不要把生成文件提交到 Git。
 
 ## 命令行构建与运行
+
+安装 Python 3.9 或更高版本后，可使用统一构建入口（不需要额外 Python 包）：
+
+```powershell
+python tools/build.py                       # 默认 Release，不含 data
+python tools/build.py --config Debug        # Debug
+python tools/build.py --config Debug --test # 编译并运行测试
+python tools/build.py --dry-run             # 查看将执行的命令
+```
+
+Windows 下脚本自动查找 Visual Studio、加载 x64 MSVC / Windows SDK 环境，
+并使用上面的 CMake 预设。Linux / macOS 下使用 PATH 中的 CMake，构建目录为
+`build/<系统>-<配置>`；需自行安装相应编译器、Qt 和依赖，项目在这些平台上的构建尚未验证。
+
+编译 Release、安装并生成 7z（不含用户 data，需安装 7-Zip）：
+
+```powershell
+python tools/package.py
+python tools/package.py --destination out/Darkeye-release
+```
+
+版本号自动读取根目录 `CMakeLists.txt` 中的 `project(Darkeye VERSION ...)`，与软件显示版本一致。
+默认安装到 `out/Daryeye-<版本号>`，7z 位于同级的 `out/Daryeye-<版本号>.7z`，例如 `Daryeye-1.2.5.7z`。
+每次打包前先删除对应的整个构建目录（Windows 为 `build/windows-msvc-release`），
+清除 CMake 缓存和旧编译产物后重新配置、全量编译。单独运行 `build.py` 仍采用增量编译。
+压缩包内保留一层安装目录名，主程序、DLL 和资源目录都位于其中。
+安装阶段由 CMake 部署 Qt 运行库和第三方 DLL；指定的目标目录必须不存在，避免混入旧文件。
+收集完成后、生成 7z 前，脚本会删除 `vc_redist.x64.exe` 和 `opengl32sw.dll`。
+压缩后使用 `7z t` 验证完整性；Windows 自动查找常见安装目录，其他平台从 PATH 查找 `7zz` / `7z` / `7za`。
+压缩和校验时显示 7-Zip 实时进度；结束时显示压缩用时和整个打包流程的总用时，失败时也会显示总用时。
 
 在仓库根目录执行日常 Debug 构建：
 

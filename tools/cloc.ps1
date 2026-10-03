@@ -1,1 +1,1 @@
-cloc ./ --include-lang="C++,C/C++ Header,QML,GLSL,CMake,PowerShell" --exclude-dir=build,data,data2,out,tests,3rdparty
+cloc ./ --include-lang="C++,C/C++ Header,QML,GLSL,CMake,PowerShell" --exclude-dir=build,data,data2,out,tests,3rdparty,.github,.venv,.vs
