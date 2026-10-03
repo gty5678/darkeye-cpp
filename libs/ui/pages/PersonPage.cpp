@@ -24,6 +24,7 @@ PersonPage::PersonPage(PersonKind kind, QSqlDatabase publicDatabase, QSqlDatabas
       m_privateRepository(std::move(privateDatabase)), m_themeService(themeService),
       m_imageDirectory(std::move(imageDirectory))
 {
+    setFocusPolicy(Qt::ClickFocus);
 }
 
 void PersonPage::lazyLoad()
@@ -34,6 +35,8 @@ void PersonPage::lazyLoad()
     m_lazyArea->setLoader([this](int pageIndex, int pageSize)
                           { return loadCardPage(pageIndex, pageSize); });
     updateCount();
+    // Keep initial page focus off the name input and its completion popup.
+    setFocus(Qt::OtherFocusReason);
 }
 
 void PersonPage::buildUi()
