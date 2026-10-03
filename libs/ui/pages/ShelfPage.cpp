@@ -192,6 +192,15 @@ void ShelfPage::buildUi()
     auto *tagLayout = new QHBoxLayout(m_tagPanel);
     tagLayout->setContentsMargins(0, 0, 0, 0);
     m_tagSelector = new WorkTagSelector(tags, &m_themeService, m_tagPanel);
+    m_tagSelector->setSelectedColumnWidth(84);
+    for (const TagOption &tag : tags)
+    {
+        if (tag.name == QStringLiteral("绿色封面"))
+        {
+            m_tagSelector->setSelectedIds({tag.id});
+            break;
+        }
+    }
     m_tagSelector->setLoader([this] {
         QString loadError;
         SqliteConnection tagConnection;
