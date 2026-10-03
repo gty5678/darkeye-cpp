@@ -4,6 +4,7 @@
 
 #include <QObject>
 #include <QSqlDatabase>
+#include <functional>
 
 namespace darkeye
 {
@@ -35,6 +36,11 @@ class BatchTranslationService final : public QObject
     Q_OBJECT
 
 public:
+    using SettingsProvider = std::function<TranslationSettings()>;
+
+    explicit BatchTranslationService(QSqlDatabase database, QObject *parent = nullptr);
+    explicit BatchTranslationService(QSqlDatabase database, SettingsProvider settingsProvider,
+                                     QObject *parent = nullptr);
     explicit BatchTranslationService(QSqlDatabase database, TranslationSettings settings,
                                      QObject *parent = nullptr);
 

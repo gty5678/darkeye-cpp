@@ -12,6 +12,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QTemporaryDir>
+#include <QTimer>
 #include <QUrlQuery>
 #include <QXmlStreamReader>
 
@@ -44,6 +45,10 @@ QUrl remoteUrl(const CrawlerSettings::WebDav &settings, const QString &remotePat
 QString errorCode(QNetworkReply *reply)
 {
     const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    if (reply->property("webDavTimedOut").toBool() || reply->error() == QNetworkReply::TimeoutError)
+        return QStringLiteral("network_error: WebDAV 请求超时。");
+    if (reply->error() != QNetworkReply::NoError && status < 400)
+        return QStringLiteral("network_error: %1").arg(reply->errorString());
     switch (status)
     {
     case 401: return QStringLiteral("auth_failed");
@@ -62,12 +67,28 @@ QNetworkReply *send(QNetworkAccessManager &manager, QNetworkRequest request, con
     return manager.sendCustomRequest(request, verb, body);
 }
 
-bool waitFor(QNetworkReply *reply)
+void waitFor(QNetworkReply *reply)
 {
     QEventLoop loop;
+    QTimer timer;
+    timer.setSingleShot(true);
+    timer.setTimerType(Qt::PreciseTimer);
+    timer.setInterval(reply->request().transferTimeout());
+    QObject::connect(&timer, &QTimer::timeout, &loop, [reply] {
+        reply->setProperty("webDavTimedOut", true);
+        reply->abort();
+    });
+    // Match Python's socket inactivity timeout rather than limiting the total
+    // duration of a backup that is still making progress.
+    QObject::connect(reply, &QNetworkReply::readyRead, &timer, [&timer] { timer.start(); });
+    QObject::connect(reply, &QNetworkReply::uploadProgress, &timer,
+                     [&timer](qint64 sent, qint64) { if (sent > 0) timer.start(); });
     QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec();
-    return reply->error() == QNetworkReply::NoError;
+    if (!reply->isFinished())
+    {
+        timer.start();
+        loop.exec();
+    }
 }
 
 class Client final
@@ -97,15 +118,16 @@ public:
 
     WebDavActionResult propfind(const QString &path, const QString &depth, QByteArray *content = nullptr)
     {
-        QNetworkRequest request(remoteUrl(m_settings, path));
+        QNetworkRequest request = requestFor(path);
         request.setRawHeader("Depth", depth.toLatin1());
         QNetworkReply *reply = send(m_manager, request, "PROPFIND");
         waitFor(reply);
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (content) *content = reply->readAll();
         const QString code = errorCode(reply);
+        const bool succeeded = reply->error() == QNetworkReply::NoError && (status == 200 || status == 207);
         reply->deleteLater();
-        return (status == 200 || status == 207) ? WebDavActionResult{true} : failure(code);
+        return succeeded ? WebDavActionResult{true} : failure(code);
     }
 
     WebDavActionResult ensureDirectory(const QString &directory)
@@ -114,14 +136,17 @@ public:
         for (const QString &part : normalizedRoot(directory).split(QLatin1Char('/'), Qt::SkipEmptyParts))
         {
             current += QLatin1Char('/') + part;
-            if (propfind(current, QStringLiteral("0")).succeeded) continue;
-            QNetworkRequest request(remoteUrl(m_settings, current));
+            const auto found = propfind(current, QStringLiteral("0"));
+            if (found.succeeded) continue;
+            if (found.message.startsWith(QStringLiteral("network_error:"))) return found;
+            QNetworkRequest request = requestFor(current);
             QNetworkReply *reply = send(m_manager, request, "MKCOL");
             waitFor(reply);
             const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             const QString code = errorCode(reply);
             reply->deleteLater();
-            if (status != 201 && status != 301 && status != 405) return failure(code);
+            if (code.startsWith(QStringLiteral("network_error:")) ||
+                (status != 201 && status != 301 && status != 405)) return failure(code);
         }
         return {.succeeded = true};
     }
@@ -133,20 +158,23 @@ public:
         const QString parent = QFileInfo(path).path();
         const auto ready = ensureDirectory(parent);
         if (!ready.succeeded) return ready;
-        QNetworkReply *reply = m_manager.put(QNetworkRequest(remoteUrl(m_settings, path)), &file);
+        QNetworkReply *reply = m_manager.put(requestFor(path), &file);
         waitFor(reply);
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         const QString code = errorCode(reply);
+        const bool succeeded = reply->error() == QNetworkReply::NoError &&
+                               (status == 200 || status == 201 || status == 204);
         reply->deleteLater();
-        return (status == 200 || status == 201 || status == 204) ? WebDavActionResult{true} : failure(code);
+        return succeeded ? WebDavActionResult{true} : failure(code);
     }
 
     WebDavActionResult download(const QString &path, const QString &localPath)
     {
-        QNetworkReply *reply = m_manager.get(QNetworkRequest(remoteUrl(m_settings, path)));
+        QNetworkReply *reply = m_manager.get(requestFor(path));
         waitFor(reply);
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        if (status != 200) { const auto result = failure(errorCode(reply)); reply->deleteLater(); return result; }
+        if (reply->error() != QNetworkReply::NoError || status != 200)
+        { const auto result = failure(errorCode(reply)); reply->deleteLater(); return result; }
         QDir().mkpath(QFileInfo(localPath).absolutePath());
         QFile file(localPath);
         if (!file.open(QIODevice::WriteOnly)) { reply->deleteLater(); return failure(QStringLiteral("无法写入下载文件。")); }
@@ -156,6 +184,13 @@ public:
     }
 
 private:
+    QNetworkRequest requestFor(const QString &path) const
+    {
+        QNetworkRequest request(remoteUrl(m_settings, path));
+        request.setTransferTimeout(qBound(3, m_settings.timeoutSeconds, 300) * 1000);
+        return request;
+    }
+
     CrawlerSettings::WebDav m_settings;
     std::optional<WebDavCredentials> m_credentials;
     QNetworkAccessManager m_manager;
@@ -193,6 +228,28 @@ WebDavActionResult WebDavBackupService::uploadDatabaseBackup(QSqlDatabase databa
     if (!backup.succeeded) return {.message = backup.message};
     if (!settings.autoUploadOnBackup) return {.succeeded = true, .message = backup.message, .localPath = backup.outputPath};
     return uploadFile(backup.outputPath, settings);
+}
+
+WebDavActionResult WebDavBackupService::uploadPublicSnapshot(
+    QSqlDatabase database, const QString &snapshotRoot, const QString &workCoversDirectory,
+    const QString &fanartDirectory, const QString &actressImagesDirectory,
+    const QString &actorImagesDirectory, const CrawlerSettings::WebDav &settings)
+{
+    const auto snapshot = DatabaseMaintenanceService::createPublicSnapshot(
+        database, snapshotRoot, workCoversDirectory, fanartDirectory,
+        actressImagesDirectory, actorImagesDirectory);
+    if (!snapshot.succeeded) return {.message = snapshot.message, .localPath = snapshot.outputPath};
+    const auto archive = DatabaseMaintenanceService::compressPublicSnapshot(snapshot.outputPath);
+    if (!archive.succeeded) return {.message = archive.message, .localPath = snapshot.outputPath};
+    if (!settings.autoUploadOnBackup)
+        return {.succeeded = true, .message = archive.message, .localPath = archive.outputPath};
+    auto uploaded = uploadFile(archive.outputPath, settings);
+    if (!uploaded.succeeded)
+    {
+        uploaded.localPath = archive.outputPath;
+        uploaded.message = QStringLiteral("本地完整快照及 ZIP 已保存，云端上传失败：%1").arg(uploaded.message);
+    }
+    return uploaded;
 }
 
 WebDavActionResult WebDavBackupService::uploadFile(const QString &localPath, const CrawlerSettings::WebDav &settings)

@@ -6,12 +6,12 @@
 #include "settings/Settings.h"
 
 #include <QApplication>
-#include <QProcess>
 #include <memory>
 
 class QWidget;
 class ForceViewRhiWidget;
 class QQuickWidget;
+class QSplashScreen;
 
 namespace darkeye {
 
@@ -33,6 +33,9 @@ private:
     void prepareGraphicsPrewarm();
     void finishGraphicsPrewarm();
     void startBackgroundServices();
+    void startCollector();
+    void startLlamaServer();
+    void reportStartupStatus(const QString &text);
     void checkForUpdatesAutomatically();
     void stopLlamaServer();
 
@@ -40,6 +43,7 @@ private:
     settings::Paths m_paths;
     ThemeService m_themeService;
     DatabaseManager m_databaseManager;
+    std::unique_ptr<QSplashScreen> m_splash;
     std::unique_ptr<MainWindow> m_mainWindow;
     std::unique_ptr<QWidget> m_graphicsPrewarmWindow;
     QQuickWidget *m_quickPrewarmView = nullptr;
@@ -47,7 +51,6 @@ private:
     bool m_graphPrewarmFrameSubmitted = false;
     std::unique_ptr<LocalApiServer> m_localApiServer;
     std::unique_ptr<ManagedCollector> m_managedCollector;
-    std::unique_ptr<QProcess> m_llamaServer;
 };
 
 } // namespace darkeye

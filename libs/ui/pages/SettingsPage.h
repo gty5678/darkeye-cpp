@@ -210,7 +210,6 @@ private:
     QLabel *m_llamaStatus = nullptr;
     QPushButton *m_startLlamaButton = nullptr;
     QPushButton *m_stopLlamaButton = nullptr;
-    QProcess *m_llamaProcess = nullptr;
 };
 
 struct DatabaseMaintenanceResult;

@@ -5,6 +5,7 @@ set(DARKEYE_SERVICE_QOBJECT_HEADERS
     include/services/ActressSyncService.h
     include/services/AvwikiUpdateService.h
     include/services/BatchTranslationService.h
+    include/services/LlamaRuntime.h
     include/services/UpdateService.h
 )
 set_source_files_properties(${DARKEYE_SERVICE_QOBJECT_HEADERS} PROPERTIES SKIP_AUTOMOC ON)

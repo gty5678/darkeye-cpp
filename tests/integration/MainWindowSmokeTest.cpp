@@ -30,6 +30,7 @@
 #include "ui/pages/management/WorkBatchStateWidget.h"
 #include "ui/pages/management/AddWorkTabPage3.h"
 #include "ui/pages/management/WorkMaintenanceWidget.h"
+#include "ui/pages/management/SummaryQueryWidget.h"
 
 #include <QApplication>
 #include <QAction>
@@ -67,7 +68,87 @@ class MainWindowSmokeTest final : public QObject
 
 private slots:
     void exposesAllPrimaryNavigationPages();
+    void summarySearchKeyboardNavigation_data();
+    void summarySearchKeyboardNavigation();
 };
+
+void MainWindowSmokeTest::summarySearchKeyboardNavigation_data()
+{
+    QTest::addColumn<int>("key");
+    QTest::newRow("return") << int(Qt::Key_Return);
+    QTest::newRow("enter") << int(Qt::Key_Enter);
+}
+
+void MainWindowSmokeTest::summarySearchKeyboardNavigation()
+{
+    QFETCH(int, key);
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    darkeye::SqliteConnection connection;
+    QString errorMessage;
+    QVERIFY2(connection.open(directory.filePath(QStringLiteral("public.db")), false, &errorMessage),
+             qPrintable(errorMessage));
+    QVERIFY2(darkeye::SchemaManager::initializeEmptyDatabase(
+                 connection, darkeye::DatabaseKind::Public, &errorMessage), qPrintable(errorMessage));
+    darkeye::WorkRepository repository(connection.database());
+    for (int i = 1; i <= 3; ++i)
+    {
+        darkeye::Work work;
+        work.serialNumber = QStringLiteral("SEARCH-00%1").arg(i);
+        QVERIFY2(repository.insertComplete(work, {}, {}, {}, &errorMessage).has_value(),
+                 qPrintable(errorMessage));
+    }
+
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    QVERIFY(application != nullptr);
+    darkeye::ThemeService themes(*application);
+    darkeye::SummaryQueryWidget widget(connection.database(), themes);
+    auto *search = widget.findChild<QLineEdit *>();
+    auto *table = widget.findChild<QTableView *>();
+    QVERIFY(search != nullptr);
+    QVERIFY(table != nullptr);
+    QCOMPARE(table->selectionMode(), QAbstractItemView::SingleSelection);
+    QPushButton *previous = nullptr;
+    QPushButton *next = nullptr;
+    for (auto *button : widget.findChildren<QPushButton *>())
+    {
+        if (button->accessibleName() == QStringLiteral("上一个搜索结果")) previous = button;
+        if (button->accessibleName() == QStringLiteral("下一个搜索结果")) next = button;
+    }
+    QVERIFY(previous != nullptr);
+    QVERIFY(next != nullptr);
+    search->setText(QStringLiteral("SEARCH"));
+    QCOMPARE(table->currentIndex().row(), 0);
+    QCOMPARE(table->selectionModel()->selectedRows().size(), 1);
+    QTest::keyClick(search, Qt::Key(key));
+    QCOMPARE(table->currentIndex().row(), 1);
+    QCOMPARE(table->selectionModel()->selectedRows().size(), 1);
+    QTest::keyClick(search, Qt::Key(key), Qt::ShiftModifier);
+    QCOMPARE(table->currentIndex().row(), 0);
+    QCOMPARE(table->selectionModel()->selectedRows().size(), 1);
+    QTest::keyClick(search, Qt::Key(key), Qt::ShiftModifier);
+    QCOMPARE(table->currentIndex().row(), 2);
+    QCOMPARE(table->selectionModel()->selectedRows().size(), 1);
+    QTest::keyClick(search, Qt::Key(key));
+    QCOMPARE(table->currentIndex().row(), 0);
+    QCOMPARE(table->selectionModel()->selectedRows().size(), 1);
+    previous->click();
+    QCOMPARE(table->currentIndex().row(), 2);
+    QCOMPARE(table->selectionModel()->selectedRows().size(), 1);
+    next->click();
+    QCOMPARE(table->currentIndex().row(), 0);
+    QCOMPARE(table->selectionModel()->selectedRows().size(), 1);
+    QTest::keyClick(search, Qt::Key(key), Qt::ControlModifier);
+    QCOMPARE(table->currentIndex().row(), 0);
+    search->setText(QStringLiteral("missing"));
+    QVERIFY(!previous->isEnabled());
+    QVERIFY(!next->isEnabled());
+    QTest::keyClick(search, Qt::Key(key));
+    QTest::keyClick(search, Qt::Key(key), Qt::ShiftModifier);
+    search->clear();
+    QVERIFY(!previous->isEnabled());
+    QVERIFY(!next->isEnabled());
+}
 
 void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
 {

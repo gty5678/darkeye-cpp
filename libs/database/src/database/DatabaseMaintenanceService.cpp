@@ -1,5 +1,6 @@
 #include "database/DatabaseMaintenanceService.h"
 
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QDirIterator>
@@ -9,8 +10,10 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSet>
+#include <QTemporaryFile>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QtCore/private/qzipwriter_p.h>
 
 namespace darkeye
 {
@@ -39,7 +42,7 @@ bool copyTree(const QString &source, const QString &destination, QString *errorM
         return false;
     }
 
-    QDirIterator iterator(source, QDir::Files, QDirIterator::Subdirectories);
+    QDirIterator iterator(source, QDir::Files | QDir::Hidden, QDirIterator::Subdirectories);
     while (iterator.hasNext())
     {
         const QString sourceFile = iterator.next();
@@ -191,34 +194,108 @@ DatabaseMaintenanceResult DatabaseMaintenanceService::createPublicSnapshot(
 {
     const QString snapshotDirectory = QDir(snapshotRoot).filePath(
         QStringLiteral("snapshot-%1").arg(timestamp()));
+    if (QFileInfo::exists(snapshotDirectory) || QFileInfo::exists(snapshotDirectory + QStringLiteral(".zip")))
+        return failure(QStringLiteral("拒绝覆盖已有快照：%1").arg(snapshotDirectory));
     if (!QDir().mkpath(snapshotDirectory))
         return failure(QStringLiteral("无法创建快照目录：%1").arg(snapshotDirectory));
 
     auto backup = createBackup(database, snapshotDirectory, QStringLiteral("public"));
     if (!backup.succeeded) return backup;
     const QList<QPair<QString, QString>> resources = {
+        {actorImagesDirectory, QStringLiteral("actorimages")},
+        {actressImagesDirectory, QStringLiteral("actressimages")},
         {workCoversDirectory, QStringLiteral("workcovers")},
         {fanartDirectory, QStringLiteral("fanart")},
-        {actressImagesDirectory, QStringLiteral("actressimages")},
-        {actorImagesDirectory, QStringLiteral("actorimages")},
     };
+    QJsonArray resourceInfo;
     for (const auto &[source, name] : resources)
     {
         QString errorMessage;
-        if (!copyTree(source, QDir(snapshotDirectory).filePath(name), &errorMessage))
+        const QString resourceDirectory = QDir(snapshotDirectory).filePath(name);
+        if (!copyTree(source, resourceDirectory, &errorMessage))
             return failure(errorMessage);
+        qint64 fileCount = 0;
+        qint64 totalSize = 0;
+        QDirIterator iterator(resourceDirectory, QDir::Files | QDir::Hidden,
+                              QDirIterator::Subdirectories);
+        while (iterator.hasNext())
+        {
+            iterator.next();
+            ++fileCount;
+            totalSize += iterator.fileInfo().size();
+        }
+        resourceInfo.append(QJsonObject{
+            {QStringLiteral("name"), name},
+            {QStringLiteral("path"), name},
+            {QStringLiteral("file_count"), fileCount},
+            {QStringLiteral("total_size"), totalSize},
+        });
     }
     QJsonObject metadata;
     metadata.insert(QStringLiteral("version"), 1);
-    metadata.insert(QStringLiteral("database"), QFileInfo(backup.outputPath).fileName());
-    QJsonArray resourceNames;
-    for (const auto &[source, name] : resources) resourceNames.append(name);
-    metadata.insert(QStringLiteral("resources"), resourceNames);
+    metadata.insert(QStringLiteral("created_at"), QDateTime::currentDateTime().toString(Qt::ISODate));
+    metadata.insert(QStringLiteral("app_version"), QCoreApplication::applicationVersion());
+    metadata.insert(QStringLiteral("db"), QJsonObject{
+        {QStringLiteral("file"), QFileInfo(backup.outputPath).fileName()},
+        {QStringLiteral("type"), QStringLiteral("sqlite")},
+        {QStringLiteral("size"), QFileInfo(backup.outputPath).size()},
+    });
+    metadata.insert(QStringLiteral("resources"), resourceInfo);
     QFile meta(QDir(snapshotDirectory).filePath(QStringLiteral("meta.json")));
     if (!meta.open(QIODevice::WriteOnly)) return failure(QStringLiteral("无法写入快照元数据。"));
-    meta.write(QJsonDocument(metadata).toJson(QJsonDocument::Indented));
+    const QByteArray metadataJson = QJsonDocument(metadata).toJson(QJsonDocument::Indented);
+    if (meta.write(metadataJson) != metadataJson.size() || !meta.flush())
+        return failure(QStringLiteral("无法写入快照元数据。"));
     return {.succeeded = true, .message = QStringLiteral("公共库完整快照成功。"),
             .outputPath = snapshotDirectory};
+}
+
+DatabaseMaintenanceResult DatabaseMaintenanceService::compressPublicSnapshot(const QString &snapshotDirectory)
+{
+    const QDir directory(snapshotDirectory);
+    if (!directory.exists() || !QFileInfo(directory.filePath(QStringLiteral("meta.json"))).isFile())
+        return failure(QStringLiteral("快照目录或元数据不存在：%1").arg(snapshotDirectory));
+    const QString archivePath = QFileInfo(snapshotDirectory).absoluteFilePath() + QStringLiteral(".zip");
+    if (QFileInfo::exists(archivePath))
+        return failure(QStringLiteral("拒绝覆盖已有 ZIP：%1").arg(archivePath));
+
+    // Commit only after all entries and the central directory have been written.
+    QTemporaryFile output(archivePath + QStringLiteral(".XXXXXX"));
+    if (!output.open())
+        return {.message = QStringLiteral("无法创建快照 ZIP：%1").arg(output.errorString()),
+                .outputPath = snapshotDirectory};
+    QZipWriter archive(&output);
+    archive.setCompressionPolicy(QZipWriter::AlwaysCompress);
+    // Qt's writer emits classic ZIP, so never publish a truncated ZIP64-sized backup.
+    constexpr qint64 zipSizeLimit = 0xffffffffLL;
+    int entryCount = 0;
+    QDirIterator iterator(directory.absolutePath(), QDir::Files | QDir::Hidden,
+                          QDirIterator::Subdirectories);
+    while (iterator.hasNext())
+    {
+        QFile file(iterator.next());
+        if (++entryCount >= 65535 || QFileInfo(file).size() >= zipSizeLimit
+            || output.pos() >= zipSizeLimit)
+            return {.message = QStringLiteral("快照超过当前 ZIP 容量（4 GiB 或 65534 个文件），本地快照已保留。"),
+                    .outputPath = snapshotDirectory};
+        if (!file.open(QIODevice::ReadOnly))
+            return {.message = QStringLiteral("无法读取快照文件：%1").arg(file.fileName()),
+                    .outputPath = snapshotDirectory};
+        archive.addFile(QDir::fromNativeSeparators(directory.relativeFilePath(file.fileName())), &file);
+        if (file.error() != QFileDevice::NoError || archive.status() != QZipWriter::NoError)
+            return {.message = QStringLiteral("快照 ZIP 压缩失败：%1").arg(file.fileName()),
+                    .outputPath = snapshotDirectory};
+    }
+    archive.close();
+    if (output.size() >= zipSizeLimit)
+        return {.message = QStringLiteral("快照 ZIP 超过 4 GiB，本地快照已保留。"),
+                .outputPath = snapshotDirectory};
+    if (archive.status() != QZipWriter::NoError || !output.rename(archivePath))
+        return {.message = QStringLiteral("无法保存快照 ZIP：%1").arg(archivePath),
+                .outputPath = snapshotDirectory};
+    output.setAutoRemove(false);
+    return {.succeeded = true, .message = QStringLiteral("本地完整快照及 ZIP 压缩成功。"),
+            .outputPath = archivePath};
 }
 
 DatabaseMaintenanceResult DatabaseMaintenanceService::restorePublicSnapshot(
@@ -232,7 +309,12 @@ DatabaseMaintenanceResult DatabaseMaintenanceService::restorePublicSnapshot(
     if (!document.isObject() || document.object().value(QStringLiteral("version")).toInt() != 1)
         return failure(QStringLiteral("不支持的快照元数据。"));
     const QDir snapshotDirectory(QFileInfo(metaPath).absolutePath());
-    const QString databaseName = document.object().value(QStringLiteral("database")).toString();
+    const QJsonObject metadata = document.object();
+    // Older C++ snapshots also used version 1, with a top-level database field.
+    const QString databaseName = metadata.contains(QStringLiteral("db"))
+        ? metadata.value(QStringLiteral("db")).toObject().value(QStringLiteral("file")).toString()
+        : metadata.value(QStringLiteral("database")).toString();
+    if (databaseName.isEmpty()) return failure(QStringLiteral("快照元数据缺少 db.file 信息。"));
     const auto restored = restoreBackup(database, snapshotDirectory.filePath(databaseName));
     if (!restored.succeeded) return restored;
     const QList<QPair<QString, QString>> resources = {

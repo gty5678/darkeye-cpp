@@ -205,11 +205,12 @@ void AddWorkTabPage3::lazyLoad()
             });
 
     auto *form = new QFormLayout;
+    const QString completionDatabasePath = m_database.databaseName();
     m_serialNumber = new CompleterLineEdit(
-        [this]
+        [completionDatabasePath]
         {
             QString errorMessage;
-            return withShortDatabase(m_database.databaseName(), true, &errorMessage,
+            return withShortDatabase(completionDatabasePath, true, &errorMessage,
                                      [](QSqlDatabase connection)
                                      { return WorkRepository(connection).serialSuggestions(); });
         }, this);
@@ -219,10 +220,10 @@ void AddWorkTabPage3::lazyLoad()
     m_japaneseTitle = new DesignPlainTextEdit(this);
     m_japaneseTitle->setProperty("workControlId", QStringLiteral("WorkJapaneseTitleInput"));
     m_director = new CompleterLineEdit(
-        [this]
+        [completionDatabasePath]
         {
             QString errorMessage;
-            return withShortDatabase(m_database.databaseName(), true, &errorMessage,
+            return withShortDatabase(completionDatabasePath, true, &errorMessage,
                                      [](QSqlDatabase connection)
                                      { return WorkRepository(connection).directorSuggestions(); });
         }, this);
@@ -1079,8 +1080,17 @@ void AddWorkTabPage3::refreshAssociations()
 void AddWorkTabPage3::showEvent(QShowEvent *event)
 {
     LazyWidget::showEvent(event);
+    refreshCompletions();
     if (!m_associationsLoaded)
         refreshAssociations();
+}
+
+void AddWorkTabPage3::refreshCompletions()
+{
+    if (!isInitialized())
+        return;
+    m_serialNumber->reloadItems();
+    m_director->reloadItems();
 }
 
 void AddWorkTabPage3::loadInitialReferencesAsync()
@@ -1178,7 +1188,7 @@ void AddWorkTabPage3::translateJapaneseTitle()
     // Python resolves translation settings at click time, rather than when
     // this persistent editor is constructed.  Do the same so changes saved
     // in Settings take effect immediately without reopening the editor.
-    auto *translator = new LlmTranslationService(settings::translation(), this);
+    auto *translator = new LlmTranslationService(this);
     connect(translator, &LlmTranslationService::translationFinished, this,
             [this, translator](quint64, const QString &translation, const QString &errorMessage)
             {
@@ -1198,7 +1208,7 @@ void AddWorkTabPage3::translateJapaneseTitle()
 void AddWorkTabPage3::translateJapaneseStory()
 {
     const QString source = m_japaneseStory->toPlainText();
-    auto *translator = new LlmTranslationService(settings::translation(), this);
+    auto *translator = new LlmTranslationService(this);
     connect(translator, &LlmTranslationService::translationFinished, this,
             [this, translator](quint64, const QString &translation, const QString &errorMessage)
             {
@@ -1693,6 +1703,7 @@ void AddWorkTabPage3::save()
     m_loadedActorIds = m_actors->selectedIds();
     m_loadedTagIds = m_tags->selectedIds();
     updateEditorActions();
+    refreshCompletions();
     emit workSaved(workId, created);
     Toast::showSuccess(window(),
                        created ? QStringLiteral("作品添加成功") : QStringLiteral("作品信息已保存"),
@@ -1701,7 +1712,7 @@ void AddWorkTabPage3::save()
 
 void AddWorkTabPage3::clearEditor()
 {
-    for (QLineEdit *edit : {m_serialNumber, m_director, m_releaseDate, m_imageUrl, m_videoUrl})
+    for (QLineEdit *edit : QList<QLineEdit *>{m_serialNumber, m_director, m_releaseDate, m_imageUrl, m_videoUrl})
         edit->clear();
     m_notes->clear();
     for (QPlainTextEdit *edit : {m_chineseTitle, m_japaneseTitle, m_chineseStory,

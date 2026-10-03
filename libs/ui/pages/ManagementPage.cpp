@@ -118,6 +118,8 @@ void ManagementPage::lazyLoad()
             &ManagementPage::actressRequested);
     connect(this, &ManagementPage::referencesChanged, m_workEditor,
             &AddWorkTabPage3::refreshReferences);
+    connect(this, &ManagementPage::worksChanged, m_workEditor,
+            &AddWorkTabPage3::refreshCompletions);
     connect(this, &ManagementPage::tagsChanged, m_workEditor,
             &AddWorkTabPage3::refreshAssociations);
     connect(this, &ManagementPage::actressesChanged, m_workEditor,

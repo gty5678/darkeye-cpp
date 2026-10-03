@@ -130,12 +130,31 @@ QMap<QString, bool> completeness(const WorkDetails &details)
 
 CrawlerPersistenceService::CrawlerPersistenceService(QString databasePath, QString coverDirectory,
                                                      QUrl imageFetchEndpoint,
+                                                     QObject *parent)
+    : CrawlerPersistenceService(std::move(databasePath), std::move(coverDirectory),
+                                std::move(imageFetchEndpoint),
+                                [] { return settings::translation(); }, parent)
+{
+}
+
+CrawlerPersistenceService::CrawlerPersistenceService(QString databasePath, QString coverDirectory,
+                                                     QUrl imageFetchEndpoint,
                                                      TranslationSettings translationSettings,
+                                                     QObject *parent)
+    : CrawlerPersistenceService(std::move(databasePath), std::move(coverDirectory),
+                                std::move(imageFetchEndpoint),
+                                [settings = std::move(translationSettings)] { return settings; }, parent)
+{
+}
+
+CrawlerPersistenceService::CrawlerPersistenceService(QString databasePath, QString coverDirectory,
+                                                     QUrl imageFetchEndpoint,
+                                                     SettingsProvider settingsProvider,
                                                      QObject *parent)
     : QObject(parent), m_databasePath(std::move(databasePath)),
       m_coverDirectory(std::move(coverDirectory)),
       m_imageFetch(new ImageFetchService(std::move(imageFetchEndpoint), this)),
-      m_translation(new LlmTranslationService(std::move(translationSettings), this))
+      m_translation(new LlmTranslationService(std::move(settingsProvider), this))
 {
     connect(m_translation, &LlmTranslationService::translationFinished, this,
             [this](quint64, const QString &translation, const QString &)

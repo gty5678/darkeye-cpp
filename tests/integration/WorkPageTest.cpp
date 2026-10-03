@@ -2,6 +2,7 @@
 #include "ui/pages/ManagementPage.h"
 #include "settings/Paths.h"
 #include "darkeye_ui/components/DesignInput.h"
+#include "darkeye_ui/components/CompleterLineEdit.h"
 #include "darkeye_ui/components/IconButton.h"
 #include "darkeye_ui/components/LazyScrollArea.h"
 #include "darkeye_ui/theme/ThemeService.h"
@@ -20,6 +21,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QComboBox>
+#include <QCompleter>
 #include <QContextMenuEvent>
 #include <QDir>
 #include <QGraphicsObject>
@@ -82,6 +84,7 @@ class WorkPageTest final : public QObject
     void loadingCrLfStoriesDoesNotMarkWorkModified();
     void downloadedCoverEnablesModifyAction();
     void addWorkBasicInfoSerialMatchesPythonBehavior();
+    void editorCompletesExistingDirectorsAndRefreshes();
     void addWorkBasicInfoKeepsRowsHorizontalWhenNarrow();
     void workCardCopiesSerialAndActivatesOnlyCover();
     void managementWheelNavigationKeepsFocusOnTabs();
@@ -531,6 +534,51 @@ void WorkPageTest::groupsAndSelectsTags()
     selector.reloadTags();
     QCOMPARE(tabs->count(), 1);
     QCOMPARE(tabs->tabText(0), QStringLiteral("新类型"));
+}
+
+void WorkPageTest::editorCompletesExistingDirectorsAndRefreshes()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    darkeye::SqliteConnection connection;
+    QString errorMessage;
+    QVERIFY(connection.open(QDir(temporaryDirectory.path()).filePath("public.db"), false,
+                            &errorMessage));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        connection, darkeye::DatabaseKind::Public, &errorMessage));
+    darkeye::WorkRepository repository(connection.database());
+    darkeye::Work work;
+    work.serialNumber = QStringLiteral("DEMO-001");
+    work.director = QStringLiteral("Existing Director");
+    const auto workId = repository.insertComplete(work, {}, {}, {}, &errorMessage);
+    QVERIFY2(workId.has_value(), qPrintable(errorMessage));
+
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    QVERIFY(application != nullptr);
+    darkeye::ThemeService themes(*application);
+    darkeye::CrawlerScheduler scheduler(
+        QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/work")));
+    darkeye::AddWorkTabPage3 editor(connection.database(), themes, scheduler);
+    QVERIFY(editor.loadWork(*workId));
+    auto *director = findWorkControl<darkeye::CompleterLineEdit>(
+        &editor, QStringLiteral("WorkDirectorInput"));
+    QVERIFY(director != nullptr);
+    QTRY_COMPARE(director->items(), QStringList{work.director});
+    QCOMPARE(director->text(), work.director);
+    QCOMPARE(director->completer()->caseSensitivity(), Qt::CaseInsensitive);
+    QCOMPARE(director->completer()->filterMode(), Qt::MatchContains);
+    director->completer()->setCompletionPrefix(QStringLiteral("isting"));
+    QCOMPARE(director->completer()->completionCount(), 1);
+    QCOMPARE(director->completer()->currentCompletion(), work.director);
+
+    work.serialNumber = QStringLiteral("DEMO-002");
+    work.director = QStringLiteral("New Director");
+    QVERIFY2(repository.insertComplete(work, {}, {}, {}, &errorMessage).has_value(),
+             qPrintable(errorMessage));
+    director->setText(QStringLiteral("Unsaved director"));
+    editor.refreshCompletions();
+    QTRY_VERIFY(director->items().contains(work.director));
+    QCOMPARE(director->text(), QStringLiteral("Unsaved director"));
 }
 
 void WorkPageTest::loadingCrLfStoriesDoesNotMarkWorkModified()

@@ -5,6 +5,7 @@
 #include "darkeye_ui/components/DesignComboBox.h"
 #include "darkeye_ui/components/DesignInput.h"
 #include "darkeye_ui/components/DesignLabel.h"
+#include "darkeye_ui/components/IconButton.h"
 #include "darkeye_ui/components/TokenViews.h"
 #include "darkeye_ui/components/ToastNotification.h"
 #include "darkeye_ui/theme/ThemeService.h"
@@ -18,6 +19,7 @@
 #include <QFileDialog>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMouseEvent>
@@ -196,9 +198,15 @@ SummaryQueryWidget::SummaryQueryWidget(QSqlDatabase database, ThemeService &them
     m_filterModel = new SummaryProxyModel(this);
     m_filterModel->setSourceModel(m_model);
     m_table = new TokenTableView(this);
+    m_table->setStyleSheet(QStringLiteral(
+        "QTableView#DesignTableView {"
+        " selection-background-color: transparent;"
+        " selection-color: palette(text);"
+        "}"));
     m_table->setModel(m_filterModel);
     m_table->setSortingEnabled(true);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->horizontalHeader()->setSortIndicatorShown(true);
     m_table->horizontalHeader()->setSectionsClickable(true);
@@ -206,15 +214,20 @@ SummaryQueryWidget::SummaryQueryWidget(QSqlDatabase database, ThemeService &them
 
     auto *searchLayout = new QHBoxLayout;
     m_search = new DesignLineEdit(this);
+    m_search->installEventFilter(this);
     m_search->setClearButtonEnabled(true);
     m_search->setFixedWidth(200);
     m_search->setPlaceholderText(QStringLiteral("搜索"));
     m_searchResult = new DesignLabel(QStringLiteral("无搜索结果"), this);
-    m_searchResult->setFixedWidth(90);
-    m_previousSearch = new DesignButton(QStringLiteral("上一个"), this);
-    m_nextSearch = new DesignButton(QStringLiteral("下一个"), this);
-    m_previousSearch->setToolTip(QStringLiteral("向前搜索 (Shift+Enter)"));
-    m_nextSearch->setToolTip(QStringLiteral("向后搜索 (Enter)"));
+    m_searchResult->setFixedWidth(70);
+    m_previousSearch = new IconButton(QStringLiteral("arrow_up"), &m_themes, this);
+    m_nextSearch = new IconButton(QStringLiteral("arrow_down"), &m_themes, this);
+    m_previousSearch->setAccessibleName(QStringLiteral("上一个搜索结果"));
+    m_nextSearch->setAccessibleName(QStringLiteral("下一个搜索结果"));
+    m_previousSearch->setWhatsThis(QStringLiteral("向前搜索"));
+    m_nextSearch->setWhatsThis(QStringLiteral("向后搜索"));
+    m_previousSearch->setToolTip(QStringLiteral("向前搜索(Shift+Enter)"));
+    m_nextSearch->setToolTip(QStringLiteral("向后搜索(Enter)"));
     m_previousSearch->setEnabled(false);
     m_nextSearch->setEnabled(false);
     searchLayout->addWidget(m_search);
@@ -240,7 +253,6 @@ SummaryQueryWidget::SummaryQueryWidget(QSqlDatabase database, ThemeService &them
     m_editDelegate = new WorkSummaryEditDelegate([this](qint64 workId) { emit workRequested(workId); }, this);
     connect(m_queryType, qOverload<int>(&QComboBox::currentIndexChanged), this, [this] { loadQuery(); });
     connect(m_search, &QLineEdit::textChanged, this, &SummaryQueryWidget::performSearch);
-    connect(m_search, &QLineEdit::returnPressed, this, [this] { navigateSearch(1); });
     connect(m_previousSearch, &QPushButton::clicked, this, [this] { navigateSearch(-1); });
     connect(m_nextSearch, &QPushButton::clicked, this, [this] { navigateSearch(1); });
     connect(refreshButton, &QPushButton::clicked, this, &SummaryQueryWidget::refresh);
@@ -249,6 +261,25 @@ SummaryQueryWidget::SummaryQueryWidget(QSqlDatabase database, ThemeService &them
 }
 
 void SummaryQueryWidget::refresh() { loadQuery(); }
+
+bool SummaryQueryWidget::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_search && event->type() == QEvent::KeyPress)
+    {
+        auto *keyEvent = static_cast<QKeyEvent *>(event);
+        if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter)
+        {
+            if (keyEvent->modifiers() == Qt::ShiftModifier
+                || keyEvent->modifiers() == Qt::NoModifier)
+            {
+                navigateSearch(keyEvent->modifiers() == Qt::ShiftModifier ? -1 : 1);
+                keyEvent->accept();
+                return true;
+            }
+        }
+    }
+    return QWidget::eventFilter(watched, event);
+}
 
 void SummaryQueryWidget::clearCompletenessPresentation()
 {

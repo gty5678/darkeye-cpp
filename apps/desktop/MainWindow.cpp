@@ -159,7 +159,7 @@ MainWindow::MainWindow(ThemeService &themeService,
         crawlerSettings.workApiBaseUrl, crawlerSettings.unfinishedSerials, this);
     m_crawlerPersistence = std::make_unique<CrawlerPersistenceService>(
         m_publicDatabase.databaseName(), m_paths.workCoverDirectory(),
-        crawlerSettings.coverFetchApiUrl, settings::translation(), this);
+        crawlerSettings.coverFetchApiUrl, this);
     m_backgroundActressSync = std::make_unique<ActressSyncService>(
         m_publicDatabase, crawlerSettings.actressApiBaseUrl, m_paths.actressImageDirectory(),
         crawlerSettings.coverFetchApiUrl, this);

@@ -20,6 +20,13 @@ constexpr auto systemPrompt =
     "你是专业的日文到中文翻译引擎。只输出译文，不添加任何解释、前后缀、引号或注释。"
     "保留番号、系列名、人名、专有名词。若输入为空，返回空字符串。将淫荡的用语翻译到位";
 
+constexpr auto actressNameSystemPrompt =
+    "你是专业的日文姓名翻译引擎。"
+    "输入是女优或艺人的日文名字，输出仅允许为一个中文名字。"
+    "优先使用常见汉字译名；若无通行译名，使用自然、简洁的中文音译。"
+    "不要输出解释、括号、前后缀、引号、注释或额外句子。"
+    "若输入为空，返回空字符串。";
+
 QString cleanedTranslation(QString value)
 {
     value = value.trimmed();
@@ -48,11 +55,13 @@ public:
     {
         QString source;
         QString destination;
+        QString translationVariant;
+        TranslationSettings settings;
         int attempt = 0;
     };
 
-    explicit Private(LlmTranslationService *owner, TranslationSettings settings)
-        : QObject(owner), owner(owner), settings(std::move(settings)), network(this)
+    explicit Private(LlmTranslationService *owner, SettingsProvider settingsProvider)
+        : QObject(owner), owner(owner), settingsProvider(std::move(settingsProvider)), network(this)
     {
     }
 
@@ -69,6 +78,7 @@ public:
         if (!pending.contains(requestId))
             return;
         const Pending state = pending.value(requestId);
+        const TranslationSettings &settings = state.settings;
         const QUrl endpoint(endpointFor(settings));
         if (!endpoint.isValid() || (endpoint.scheme() != QStringLiteral("http") &&
                                     endpoint.scheme() != QStringLiteral("https")))
@@ -88,13 +98,19 @@ public:
                                                 (settings.apiKey.trimmed().isEmpty()
                                                      ? QByteArray("local")
                                                      : settings.apiKey.trimmed().toUtf8()));
+        const bool actressName = state.translationVariant == QStringLiteral("actress_name");
+        const QString userPrompt = actressName
+            ? QStringLiteral("以下是日文艺人名，请翻译成%1，只输出中文名字：\n\n%2")
+                  .arg(state.destination, state.source)
+            : QStringLiteral("将以下文本翻译为 %1，只输出译文：\n\n%2")
+                  .arg(state.destination, state.source);
         const QJsonArray messages{
             QJsonObject{{QStringLiteral("role"), QStringLiteral("system")},
-                        {QStringLiteral("content"), QString::fromUtf8(systemPrompt)}},
+                        {QStringLiteral("content"), QString::fromUtf8(
+                             actressName ? actressNameSystemPrompt : systemPrompt)}},
             QJsonObject{{QStringLiteral("role"), QStringLiteral("user")},
                         {QStringLiteral("content"),
-                         QStringLiteral("将以下文本翻译为 %1，只输出译文：\n\n%2")
-                             .arg(state.destination, state.source)}}};
+                         userPrompt}}};
         const QByteArray body = QJsonDocument(QJsonObject{
             {QStringLiteral("model"), settings.model.trimmed()},
             {QStringLiteral("temperature"), 0.1},
@@ -134,7 +150,7 @@ public:
                     if (error.isEmpty()) { complete(requestId, translation, {}); return; }
                     if (!pending.contains(requestId)) return;
                     Pending &state = pending[requestId];
-                    if (state.attempt >= settings.retries) { complete(requestId, {}, error); return; }
+                    if (state.attempt >= state.settings.retries) { complete(requestId, {}, error); return; }
                     const int delayMilliseconds = 600 * (1 << qMin(state.attempt, 5));
                     ++state.attempt;
                     QTimer::singleShot(delayMilliseconds, this, [this, requestId]() { send(requestId); });
@@ -143,18 +159,34 @@ public:
     }
 
     LlmTranslationService *owner;
-    TranslationSettings settings;
+    SettingsProvider settingsProvider;
     QNetworkAccessManager network;
     QHash<quint64, Pending> pending;
     quint64 nextRequestId = 1;
 };
 
+LlmTranslationService::LlmTranslationService(QObject *parent)
+    : LlmTranslationService([] { return settings::translation(); }, parent)
+{
+}
+
+LlmTranslationService::LlmTranslationService(SettingsProvider settingsProvider, QObject *parent)
+    : QObject(parent), d(new Private(this, std::move(settingsProvider)))
+{
+}
+
 LlmTranslationService::LlmTranslationService(TranslationSettings settings, QObject *parent)
-    : QObject(parent), d(new Private(this, std::move(settings)))
+    : LlmTranslationService([settings = std::move(settings)] { return settings; }, parent)
 {
 }
 
 quint64 LlmTranslationService::translate(const QString &source, const QString &destination)
+{
+    return translate(source, destination, QStringLiteral("default"));
+}
+
+quint64 LlmTranslationService::translate(const QString &source, const QString &destination,
+                                       const QString &translationVariant)
 {
     const quint64 requestId = d->nextRequestId++;
     if (source.trimmed().isEmpty())
@@ -162,7 +194,8 @@ quint64 LlmTranslationService::translate(const QString &source, const QString &d
         QTimer::singleShot(0, this, [this, requestId]() { emit translationFinished(requestId, {}, {}); });
         return requestId;
     }
-    d->pending.insert(requestId, Private::Pending{source, destination, 0});
+    d->pending.insert(requestId, Private::Pending{source.trimmed(), destination,
+                                                translationVariant.trimmed(), d->settingsProvider(), 0});
     d->send(requestId);
     return requestId;
 }

@@ -36,6 +36,7 @@ public:
         QSqlDatabase database, const QString &metaPath, const QString &workCoversDirectory,
         const QString &fanartDirectory, const QString &actressImagesDirectory,
         const QString &actorImagesDirectory);
+    static DatabaseMaintenanceResult compressPublicSnapshot(const QString &snapshotDirectory);
     static DatabaseMaintenanceResult checkImageConsistency(
         QSqlDatabase database, const QString &directory, const QString &table,
         const QString &column);

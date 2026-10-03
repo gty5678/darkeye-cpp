@@ -32,7 +32,7 @@ ModifyActressPage::ModifyActressPage(QSqlDatabase database, ThemeService &themes
     setObjectName(QStringLiteral("ModifyActressPage"));
     configureAvatar(QStringLiteral("女优头像"), QStringLiteral("把女优头像拖进来"));
     m_sync = new ActressSyncService(database, settings::crawler().actressApiBaseUrl, {}, {}, this);
-    m_translation = new LlmTranslationService(settings::translation(), this);
+    m_translation = new LlmTranslationService(this);
     m_avatarFetch = new ImageFetchService(settings::crawler().coverFetchApiUrl, this);
     connect(m_sync, &ActressSyncService::finished, this,
             [this, &themes](const ActressSyncResult &result)
@@ -272,7 +272,8 @@ void ModifyActressPage::translateNextName()
     {
         const QList<QString> japanese = japaneseNames();
         m_translationRequestId =
-            m_translation->translate(japanese.at(m_translationRows.at(m_translationCursor)));
+            m_translation->translate(japanese.at(m_translationRows.at(m_translationCursor)),
+                                     QStringLiteral("zh-CN"), QStringLiteral("actress_name"));
         return;
     }
     if (!m_translationRows.isEmpty())

@@ -7,6 +7,7 @@
 #include "MainWindow.h"
 #include "graph_view/ForceViewRhiWidget.h"
 #include "services/UpdateService.h"
+#include "services/LlamaRuntime.h"
 #include "ui/dialogs/TermsDialog.h"
 
 #include <QColor>
@@ -17,11 +18,13 @@
 #include <QMessageBox>
 #include <QFileInfo>
 #include <QProcess>
+#include <QPixmap>
 #include <QQmlContext>
 #include <QQmlError>
 #include <QQuickWidget>
 #include <QSettings>
 #include <QStackedWidget>
+#include <QSplashScreen>
 #include <QThread>
 #include <QTimer>
 #include <QUrl>
@@ -70,14 +73,23 @@ Application::Application(int &argc, char **argv)
     : m_application(argc, argv), m_themeService(m_application)
 {
     configureIdentity();
-    m_application.setWindowIcon(QIcon(QStringLiteral(":/sql/logo.svg")));
+    m_application.setWindowIcon(QIcon(QStringLiteral(":/icons/logo.svg")));
+    const QPixmap logo(QStringLiteral(":/icons/logo.svg"));
+    m_splash = std::make_unique<QSplashScreen>(logo);
+    m_splash->setAttribute(Qt::WA_TranslucentBackground);
+    m_splash->setObjectName(QStringLiteral("startupSplash"));
+    m_splash->setEnabled(false);
+    m_splash->show();
+    reportStartupStatus(QStringLiteral("正在准备运行环境"));
 
     QString errorMessage;
     if (!m_paths.ensureRuntimeDirectories(&errorMessage)) {
+        m_splash->close();
         QMessageBox::critical(nullptr, QStringLiteral("Darkeye 启动失败"), errorMessage);
         return;
     }
     if (!settings::ensureDefaults(&errorMessage)) {
+        m_splash->close();
         QMessageBox::critical(nullptr, QStringLiteral("Darkeye 启动失败"), errorMessage);
         return;
     }
@@ -86,21 +98,66 @@ Application::Application(int &argc, char **argv)
     qInfo() << "Darkeye C++ starting" << QCoreApplication::applicationVersion();
     qInfo() << "Runtime data directory:" << m_paths.dataDirectory();
     qInfo() << "Public database:" << m_paths.publicDatabase();
+}
+
+void Application::reportStartupStatus(const QString &text)
+{
+    qInfo().noquote() << "[startup]" << text;
+    if (m_splash && m_splash->isVisible()) {
+        m_splash->showMessage(text);
+        m_application.processEvents(QEventLoop::ExcludeUserInputEvents);
+    }
+}
+
+// Keep first-launch consent ahead of database and main-window construction,
+// matching the Python entry point. Background services start after the splash.
+int Application::run()
+{
+    if (!m_splash || !m_splash->isVisible())
+        return 1;
+    AppSettings appSettings = settings::app();
+    if (appSettings.firstLaunch) {
+        m_splash->hide();
+        TermsDialog terms;
+        if (terms.exec() != QDialog::Accepted) {
+            m_splash->close();
+            return 0;
+        }
+        appSettings.firstLaunch = false;
+        settings::saveApp(appSettings);
+        m_splash->show();
+    }
+    QString errorMessage;
+    reportStartupStatus(QStringLiteral("正在初始化数据库"));
     if (!m_databaseManager.initialize(m_paths, &errorMessage)) {
+        m_splash->close();
         qCritical() << "Database initialization failed:" << errorMessage;
         QMessageBox::critical(nullptr, QStringLiteral("Darkeye 数据库错误"), errorMessage);
-        return;
+        return 1;
     }
+    reportStartupStatus(QStringLiteral("正在加载样式"));
     applyInitialTheme();
+    reportStartupStatus(QStringLiteral("主窗口加载"));
     m_mainWindow = std::make_unique<MainWindow>(
         m_themeService, m_databaseManager.publicConnection().database(),
         m_databaseManager.privateConnection().database(), m_paths);
     m_localApiServer = std::make_unique<LocalApiServer>(m_databaseManager.publicConnection().database());
     m_managedCollector = std::make_unique<ManagedCollector>();
-    m_llamaServer = std::make_unique<QProcess>();
     m_mainWindow->setLocalApiServer(*m_localApiServer);
-    QObject::connect(&m_application, &QCoreApplication::aboutToQuit, &m_application,
-                     [this] { stopLlamaServer(); });
+    reportStartupStatus(QStringLiteral("正在预热图形引擎"));
+    prepareGraphicsPrewarm();
+    m_mainWindow->showInitial();
+    finishGraphicsPrewarm();
+    m_splash->finish(m_mainWindow.get());
+    m_splash.reset();
+    reportStartupStatus(QStringLiteral("主窗口已显示，后台初始化继续进行"));
+    QTimer::singleShot(0, &m_application, [this] { startBackgroundServices(); });
+    // Let the initial work page paint first, then build the real shelf page
+    // while the application is otherwise idle. The first shelf click can reuse
+    // this exact QQuickWidget and scene instead of paying createPage/lazyLoad.
+    QTimer::singleShot(250, m_mainWindow.get(),
+                       [this] { m_mainWindow->preloadShelfPage(); });
+    return m_application.exec();
 }
 
 void Application::prepareGraphicsPrewarm()
@@ -190,51 +247,42 @@ Application::~Application()
     LogService::shutdown();
 }
 
-int Application::run()
-{
-    if (!m_mainWindow) {
-        return 1;
-    }
-    AppSettings appSettings = settings::app();
-    if (appSettings.firstLaunch)
-    {
-        TermsDialog terms;
-        if (terms.exec() != QDialog::Accepted)
-        {
-            appSettings.firstLaunch = true;
-            settings::saveApp(appSettings);
-            return 0;
-        }
-        appSettings.firstLaunch = false;
-        settings::saveApp(appSettings);
-    }
-    prepareGraphicsPrewarm();
-    m_mainWindow->showInitial();
-    finishGraphicsPrewarm();
-    QTimer::singleShot(0, &m_application, [this] { startBackgroundServices(); });
-    // Let the initial work page paint first, then build the real shelf page
-    // while the application is otherwise idle. The first shelf click can reuse
-    // this exact QQuickWidget and scene instead of paying createPage/lazyLoad.
-    QTimer::singleShot(250, m_mainWindow.get(),
-                       [this] { m_mainWindow->preloadShelfPage(); });
-    return m_application.exec();
-}
-
 void Application::startBackgroundServices()
 {
+    reportStartupStatus(QStringLiteral("正在后台启动本地 API 服务"));
     QString errorMessage;
     if (!m_localApiServer->start(56789, &errorMessage))
         qWarning() << "Local HTTP API did not start:" << errorMessage;
     else
+    {
         qInfo() << "Local HTTP API listening on 127.0.0.1:" << m_localApiServer->port();
+        reportStartupStatus(QStringLiteral("本地 API 服务已启动"));
+    }
+    QTimer::singleShot(900, &m_application, [this] { startCollector(); });
+    QTimer::singleShot(1200, &m_application, [this] { startLlamaServer(); });
+    QTimer::singleShot(2000, &m_application, [this] { checkForUpdatesAutomatically(); });
+}
 
+void Application::startCollector()
+{
     const CrawlerSettings crawlerSettings = settings::crawler();
-    if (crawlerSettings.autoStartCollector && !crawlerSettings.collectorExecutable.trimmed().isEmpty()
-        && !m_managedCollector->start(crawlerSettings.collectorExecutable, &errorMessage))
+    if (!crawlerSettings.autoStartCollector) return;
+    if (crawlerSettings.collectorExecutable.trimmed().isEmpty()) {
+        reportStartupStatus(QStringLiteral("采集器自启动已跳过：未配置可执行文件"));
+        return;
+    }
+    reportStartupStatus(QStringLiteral("正在后台启动采集器服务"));
+    QString errorMessage;
+    if (!m_managedCollector->start(crawlerSettings.collectorExecutable, &errorMessage)) {
         qWarning() << "Collector did not start:" << errorMessage;
+        reportStartupStatus(QStringLiteral("采集器自启动失败：%1").arg(errorMessage));
+    } else {
+        reportStartupStatus(QStringLiteral("采集器服务已启动"));
+    }
+}
 
-    checkForUpdatesAutomatically();
-
+void Application::startLlamaServer()
+{
     const TranslationSettings translation = settings::translation();
     const LlamaCppSettings &llama = translation.llama;
     if (!llama.autoStart) return;
@@ -242,24 +290,15 @@ void Application::startBackgroundServices()
         qWarning() << "llama-server auto start skipped: executable or model is not configured";
         return;
     }
-    QStringList arguments{QStringLiteral("-m"), llama.modelPath,
-                          QStringLiteral("--host"), llama.host.trimmed().isEmpty() ? QStringLiteral("127.0.0.1") : llama.host,
-                          QStringLiteral("--port"), QString::number(llama.port),
-                          QStringLiteral("-c"), QString::number(llama.contextSize),
-                          QStringLiteral("-t"), QString::number(llama.threads),
-                          QStringLiteral("-tb"), QString::number(llama.threadsBatch),
-                          QStringLiteral("-b"), QString::number(llama.batchSize),
-                          QStringLiteral("-ub"), QString::number(llama.microBatchSize)};
-    if (llama.mode == QStringLiteral("gpu")) arguments << QStringLiteral("-ngl") << QString::number(llama.gpuLayers);
-    if (llama.mlock) arguments << QStringLiteral("--mlock");
-    m_llamaServer->setProgram(llama.serverExecutable);
-    m_llamaServer->setArguments(arguments);
-    m_llamaServer->setWorkingDirectory(QFileInfo(llama.serverExecutable).absolutePath());
-    m_llamaServer->start();
-    if (!m_llamaServer->waitForStarted(5000))
-        qWarning() << "llama-server auto start failed:" << m_llamaServer->errorString();
-    else
-        qInfo() << "llama-server started with PID" << m_llamaServer->processId();
+    reportStartupStatus(QStringLiteral("正在后台启动 llama 服务"));
+    auto &runtime = get_llama_runtime();
+    QObject::connect(&runtime, &LlamaRuntime::statusChanged, &m_application,
+                     [this](const QString &status) {
+        reportStartupStatus(QStringLiteral("llama 服务：%1").arg(status));
+    });
+    const QString error = runtime.start(llama);
+    if (!error.isEmpty())
+        reportStartupStatus(QStringLiteral("llama 自启动失败：%1").arg(error));
 }
 
 void Application::checkForUpdatesAutomatically()
@@ -309,24 +348,7 @@ void Application::checkForUpdatesAutomatically()
 
 void Application::stopLlamaServer()
 {
-    if (!m_llamaServer || m_llamaServer->state() == QProcess::NotRunning) return;
-
-    const qint64 processId = m_llamaServer->processId();
-    qInfo() << "Stopping managed llama-server with PID" << processId;
-    m_llamaServer->terminate();
-    if (m_llamaServer->waitForFinished(3000)) return;
-
-#ifdef Q_OS_WIN
-    // The server can leave worker processes behind on Windows.  End the entire
-    // tree, matching the lifecycle policy used for Python's managed services.
-    QProcess::execute(QStringLiteral("taskkill"),
-                      {QStringLiteral("/PID"), QString::number(processId),
-                       QStringLiteral("/T"), QStringLiteral("/F")});
-#else
-    m_llamaServer->kill();
-#endif
-    if (!m_llamaServer->waitForFinished(1000))
-        qWarning() << "llama-server did not exit after forced shutdown, PID" << processId;
+    get_llama_runtime().stop();
 }
 
 void Application::configureIdentity()

@@ -28,7 +28,7 @@ WorkMaintenanceWidget::WorkMaintenanceWidget(QSqlDatabase database, ThemeService
     m_topActresses = new TopActressSyncService(database, std::move(topActressesEndpoint), this);
     m_actressSync = new ActressSyncService(database, settings::crawler().actressApiBaseUrl,
                                             m_actressImageDirectory, m_imageFetchEndpoint, this);
-    m_translations = new BatchTranslationService(database, settings::translation(), this);
+    m_translations = new BatchTranslationService(database, this);
     auto *root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(8);

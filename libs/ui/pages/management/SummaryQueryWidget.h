@@ -33,6 +33,9 @@ public:
 signals:
     void workRequested(qint64 workId);
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private:
     void clearCompletenessPresentation();
     void loadQuery();

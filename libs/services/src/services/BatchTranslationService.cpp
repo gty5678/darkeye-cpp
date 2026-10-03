@@ -46,8 +46,9 @@ class BatchTranslationService::Private final : public QObject
 {
 public:
     explicit Private(BatchTranslationService *owner, QSqlDatabase database,
-                     TranslationSettings settings)
-        : QObject(owner), owner(owner), database(std::move(database)), settings(std::move(settings))
+                     SettingsProvider settingsProvider)
+        : QObject(owner), owner(owner), database(std::move(database)),
+          settingsProvider(std::move(settingsProvider))
     {
     }
 
@@ -119,7 +120,7 @@ public:
         const int workers = mode == BatchTranslationMode::ForceOverwrite ? 4 : 1;
         for (int index = 0; index < workers; ++index)
         {
-            auto *translator = new LlmTranslationService(settings, this);
+            auto *translator = new LlmTranslationService(settingsProvider, this);
             translators.append(translator);
             activeTasks.append(std::nullopt);
             connect(translator, &LlmTranslationService::translationFinished, this,
@@ -235,7 +236,7 @@ public:
 
     BatchTranslationService *owner;
     QSqlDatabase database;
-    TranslationSettings settings;
+    SettingsProvider settingsProvider;
     BatchTranslationMode mode = BatchTranslationMode::FillMissing;
     BatchTranslationResult result;
     QElapsedTimer timer;
@@ -269,11 +270,23 @@ QString BatchTranslationResult::summary(BatchTranslationMode mode) const
         .arg(translatedStories);
 }
 
-BatchTranslationService::BatchTranslationService(QSqlDatabase database, TranslationSettings settings,
+BatchTranslationService::BatchTranslationService(QSqlDatabase database, QObject *parent)
+    : BatchTranslationService(std::move(database), [] { return settings::translation(); }, parent)
+{
+}
+
+BatchTranslationService::BatchTranslationService(QSqlDatabase database, SettingsProvider settingsProvider,
                                                  QObject *parent)
-    : QObject(parent), d(new Private(this, std::move(database), std::move(settings)))
+    : QObject(parent), d(new Private(this, std::move(database), std::move(settingsProvider)))
 {
     qRegisterMetaType<BatchTranslationResult>();
+}
+
+BatchTranslationService::BatchTranslationService(QSqlDatabase database, TranslationSettings settings,
+                                                 QObject *parent)
+    : BatchTranslationService(std::move(database),
+                              [settings = std::move(settings)] { return settings; }, parent)
+{
 }
 
 bool BatchTranslationService::start(BatchTranslationMode mode)

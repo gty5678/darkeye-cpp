@@ -24,6 +24,7 @@ namespace darkeye
 {
 
 class CrawlerFieldSelector;
+class CompleterLineEdit;
 class FanartStripWidget;
 class ImageDropWidget;
 class IdCheckList;
@@ -61,6 +62,7 @@ public:
     void loadWorkAsync(qint64 workId);
     void refreshReferences();
     void refreshAssociations();
+    void refreshCompletions();
     [[nodiscard]] QString currentSerialNumber() const;
 
 signals:
@@ -139,10 +141,10 @@ private:
     QList<qint64> m_loadedTagIds;
     std::optional<qint64> m_serialLookupWorkId;
     ImageDropWidget *m_imageDrop = nullptr;
-    QLineEdit *m_serialNumber = nullptr;
+    CompleterLineEdit *m_serialNumber = nullptr;
     QPlainTextEdit *m_chineseTitle = nullptr;
     QPlainTextEdit *m_japaneseTitle = nullptr;
-    QLineEdit *m_director = nullptr;
+    CompleterLineEdit *m_director = nullptr;
     QLineEdit *m_releaseDate = nullptr;
     QSpinBox *m_runtime = nullptr;
     QLineEdit *m_imageUrl = nullptr;

@@ -8,6 +8,7 @@
 #include <QSet>
 #include <QStringList>
 #include <QUrl>
+#include <functional>
 
 class QSqlDatabase;
 
@@ -22,6 +23,13 @@ class CrawlerPersistenceService final : public QObject
     Q_OBJECT
 
 public:
+    using SettingsProvider = std::function<TranslationSettings()>;
+
+    explicit CrawlerPersistenceService(QString databasePath, QString coverDirectory,
+                                       QUrl imageFetchEndpoint, QObject *parent = nullptr);
+    explicit CrawlerPersistenceService(QString databasePath, QString coverDirectory,
+                                       QUrl imageFetchEndpoint, SettingsProvider settingsProvider,
+                                       QObject *parent = nullptr);
     explicit CrawlerPersistenceService(QString databasePath, QString coverDirectory,
                                        QUrl imageFetchEndpoint, TranslationSettings translationSettings,
                                        QObject *parent = nullptr);

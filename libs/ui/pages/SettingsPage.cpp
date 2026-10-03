@@ -13,11 +13,13 @@
 #include "darkeye_ui/components/TokenViews.h"
 #include "services/VideoLibraryService.h"
 #include "services/LlmTranslationService.h"
+#include "services/LlamaRuntime.h"
 #include "services/UpdateService.h"
 #include "database/DatabaseMaintenanceService.h"
 #include "database/WebDavBackupService.h"
 #include "database/WebDavCredentialStore.h"
 #include "database/SqliteConnection.h"
+#include "database/SchemaManager.h"
 #include "database/repositories/PersonRepository.h"
 #include "database/repositories/ReferenceRepository.h"
 #include "database/repositories/WorkRepository.h"
@@ -70,6 +72,20 @@ namespace darkeye
 {
 namespace
 {
+
+QString detectedDatabaseVersion(const QString &path)
+{
+    SqliteConnection connection;
+    QString error;
+    if (!connection.open(path, true, &error)) {
+        return QStringLiteral("未检测到");
+    }
+    const QString version = connection.schemaVersion(&error);
+    if (!error.isEmpty()) {
+        return QStringLiteral("未检测到");
+    }
+    return version.isEmpty() ? QStringLiteral("无版本") : version;
+}
 
 QString latestManifestUrl()
 {
@@ -1035,10 +1051,7 @@ TranslationSettingsPage::TranslationSettingsPage(QWidget *parent)
 {
 }
 
-TranslationSettingsPage::~TranslationSettingsPage()
-{
-    stopLlamaServer();
-}
+TranslationSettingsPage::~TranslationSettingsPage() = default;
 
 void TranslationSettingsPage::lazyLoad()
 {
@@ -1220,25 +1233,13 @@ void TranslationSettingsPage::lazyLoad()
     connect(m_batchSize, qOverload<int>(&QSpinBox::valueChanged), this, [refreshPreview](int) { refreshPreview(); });
     connect(m_microBatchSize, qOverload<int>(&QSpinBox::valueChanged), this, [refreshPreview](int) { refreshPreview(); });
     connect(m_mlock, &ToggleSwitch::toggled, this, [refreshPreview](bool) { refreshPreview(); });
-    m_llamaProcess = new QProcess(this);
-    connect(qApp, &QCoreApplication::aboutToQuit, this, [this] { stopLlamaServer(); });
-    connect(m_llamaProcess, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
-            [this](int exitCode, QProcess::ExitStatus) {
-                appendLlamaLog(QStringLiteral("llama-server 已退出，exit_code=%1").arg(exitCode));
-                setLlamaStatus(QStringLiteral("已停止"));
-                updateLlamaRunButtons();
-            });
-    connect(m_llamaProcess, &QProcess::errorOccurred, this,
-            [this](QProcess::ProcessError) {
-                const QString error = m_llamaProcess->errorString();
-                appendLlamaLog(QStringLiteral("错误：") + error);
-                setLlamaStatus(QStringLiteral("失败：") + error);
-                updateLlamaRunButtons();
-            });
-    connect(m_llamaProcess, &QProcess::readyReadStandardOutput, this,
-            [this] { appendLlamaLog(QString::fromLocal8Bit(m_llamaProcess->readAllStandardOutput())); });
-    connect(m_llamaProcess, &QProcess::readyReadStandardError, this,
-            [this] { appendLlamaLog(QString::fromLocal8Bit(m_llamaProcess->readAllStandardError())); });
+    auto &runtime = get_llama_runtime();
+    connect(&runtime, &LlamaRuntime::statusChanged, this, &TranslationSettingsPage::setLlamaStatus);
+    connect(&runtime, &LlamaRuntime::logAppended, this, &TranslationSettingsPage::appendLlamaLog);
+    connect(&runtime, &LlamaRuntime::runningChanged, this,
+            [this](bool) { updateLlamaRunButtons(); });
+    setLlamaStatus(runtime.status());
+    appendLlamaLog(runtime.logs().join(u'\n'));
     updateLlmFields();
     updateModeFields();
     updateCommandPreview();
@@ -1286,18 +1287,19 @@ void TranslationSettingsPage::updateModeFields()
 
 QStringList TranslationSettingsPage::llamaArguments() const
 {
-    QStringList arguments{QStringLiteral("-m"), m_modelPath->text().trimmed(),
-                          QStringLiteral("--host"), m_host->text().trimmed().isEmpty() ? QStringLiteral("127.0.0.1") : m_host->text().trimmed(),
-                          QStringLiteral("--port"), QString::number(m_port->value()),
-                          QStringLiteral("-c"), QString::number(m_contextSize->value()),
-                          QStringLiteral("-t"), QString::number(m_threads->value()),
-                          QStringLiteral("-tb"), QString::number(m_threadsBatch->value()),
-                          QStringLiteral("-b"), QString::number(m_batchSize->value()),
-                          QStringLiteral("-ub"), QString::number(m_microBatchSize->value())};
-    if (m_mode->currentData().toString() == QStringLiteral("gpu"))
-        arguments << QStringLiteral("-ngl") << QString::number(m_gpuLayers->value());
-    if (m_mlock->isChecked()) arguments << QStringLiteral("--mlock");
-    return arguments;
+    LlamaCppSettings values;
+    values.modelPath = m_modelPath->text().trimmed();
+    values.host = m_host->text().trimmed();
+    values.port = m_port->value();
+    values.contextSize = m_contextSize->value();
+    values.threads = m_threads->value();
+    values.threadsBatch = m_threadsBatch->value();
+    values.batchSize = m_batchSize->value();
+    values.microBatchSize = m_microBatchSize->value();
+    values.mode = m_mode->currentData().toString();
+    values.gpuLayers = m_gpuLayers->value();
+    values.mlock = m_mlock->isChecked();
+    return LlamaRuntime::buildArguments(values);
 }
 
 void TranslationSettingsPage::updateCommandPreview()
@@ -1357,7 +1359,7 @@ void TranslationSettingsPage::applyLlamaPreset()
 
 void TranslationSettingsPage::updateLlamaRunButtons()
 {
-    const bool running = m_llamaProcess && m_llamaProcess->state() != QProcess::NotRunning;
+    const bool running = get_llama_runtime().isRunning();
     if (m_startLlamaButton) m_startLlamaButton->setEnabled(!running);
     if (m_stopLlamaButton) m_stopLlamaButton->setEnabled(running);
 }
@@ -1365,50 +1367,14 @@ void TranslationSettingsPage::updateLlamaRunButtons()
 void TranslationSettingsPage::startLlamaServer()
 {
     save(); updateCommandPreview();
-    if (m_llamaProcess->state() != QProcess::NotRunning) { setLlamaStatus(QStringLiteral("已在运行")); return; }
-    const QString executable = m_serverExecutable->text().trimmed();
-    if (executable.isEmpty() || m_modelPath->text().trimmed().isEmpty()) {
-        QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("请先选择 llama-server.exe 和 GGUF 模型。"));
-        return;
-    }
-    appendLlamaLog(QStringLiteral("正在启动 llama-server …"));
-    m_llamaProcess->setProgram(executable);
-    m_llamaProcess->setArguments(llamaArguments());
-    m_llamaProcess->setWorkingDirectory(QFileInfo(executable).absolutePath());
-    m_llamaProcess->start();
-    if (!m_llamaProcess->waitForStarted(5000)) {
-        const QString error = m_llamaProcess->errorString();
-        appendLlamaLog(QStringLiteral("启动失败：") + error);
-        setLlamaStatus(QStringLiteral("启动失败：") + error);
-        updateLlamaRunButtons();
-        return;
-    }
-    setLlamaStatus(QStringLiteral("运行中（PID %1）").arg(m_llamaProcess->processId()));
-    appendLlamaLog(QStringLiteral("llama-server 已启动，PID=%1").arg(m_llamaProcess->processId()));
-    updateLlamaRunButtons();
+    const QString error = get_llama_runtime().start(settings::translation().llama);
+    if (!error.isEmpty())
+        QMessageBox::information(this, QStringLiteral("提示"), error);
 }
 
 void TranslationSettingsPage::stopLlamaServer()
 {
-    if (!m_llamaProcess || m_llamaProcess->state() == QProcess::NotRunning) {
-        if (m_llamaStatus) setLlamaStatus(QStringLiteral("未启动"));
-        return;
-    }
-    const qint64 processId = m_llamaProcess->processId();
-    m_llamaProcess->terminate();
-    if (!m_llamaProcess->waitForFinished(3000)) {
-#ifdef Q_OS_WIN
-        QProcess::execute(QStringLiteral("taskkill"),
-                          {QStringLiteral("/PID"), QString::number(processId),
-                           QStringLiteral("/T"), QStringLiteral("/F")});
-#else
-        m_llamaProcess->kill();
-#endif
-        m_llamaProcess->waitForFinished(1000);
-    }
-    if (m_llamaStatus) setLlamaStatus(QStringLiteral("已停止"));
-    appendLlamaLog(QStringLiteral("已停止 llama-server。"));
-    updateLlamaRunButtons();
+    get_llama_runtime().stop();
 }
 
 void TranslationSettingsPage::testLlamaServer()
@@ -1416,7 +1382,6 @@ void TranslationSettingsPage::testLlamaServer()
     QUrl endpoint(QStringLiteral("http://%1:%2/v1/models").arg(
         m_host->text().trimmed().isEmpty() ? QStringLiteral("127.0.0.1") : m_host->text().trimmed()).arg(m_port->value()));
     appendLlamaLog(QStringLiteral("检测 /v1/models …"));
-    setLlamaStatus(QStringLiteral("检测 /v1/models…"));
     auto *manager = new QNetworkAccessManager(this);
     auto *reply = manager->get(QNetworkRequest(endpoint));
     auto *timeout = new QTimer(reply); timeout->setSingleShot(true);
@@ -1426,7 +1391,6 @@ void TranslationSettingsPage::testLlamaServer()
         const QString result = reachable ? QStringLiteral("/v1/models 可用")
                                          : QStringLiteral("不可达：") + reply->errorString();
         appendLlamaLog(result);
-        setLlamaStatus(result);
         reply->deleteLater(); manager->deleteLater();
     });
     timeout->start(5000);
@@ -1437,7 +1401,7 @@ void TranslationSettingsPage::testTranslation()
     const QString source = m_testInput->toPlainText().trimmed();
     if (source.isEmpty()) { QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("请先输入测试文本。")); return; }
     save();
-    auto *translator = new LlmTranslationService(settings::translation(), this);
+    auto *translator = new LlmTranslationService(this);
     m_testOutput->setPlainText(QStringLiteral("翻译中…"));
     connect(translator, &LlmTranslationService::translationFinished, this,
             [this, translator](quint64, const QString &translation, const QString &error) {
@@ -1476,6 +1440,22 @@ void DatabaseSettingsPage::lazyLoad()
 {
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(new DesignLabel(QStringLiteral("<h3>本地数据库运维</h3>"), this));
+    auto *publicVersion = new DesignLabel(
+        QStringLiteral("软件所需公共数据库版本：%1  |  当前公共数据库版本：%2")
+            .arg(SchemaManager::requiredVersion(DatabaseKind::Public),
+                 detectedDatabaseVersion(m_paths.publicDatabase())), this);
+    publicVersion->setObjectName(QStringLiteral("publicDatabaseVersionLabel"));
+    publicVersion->setTextFormat(Qt::PlainText);
+    publicVersion->setWordWrap(true);
+    layout->addWidget(publicVersion);
+    auto *privateVersion = new DesignLabel(
+        QStringLiteral("软件所需私有数据库版本：%1  |  当前私有数据库版本：%2")
+            .arg(SchemaManager::requiredVersion(DatabaseKind::Private),
+                 detectedDatabaseVersion(m_paths.privateDatabase())), this);
+    privateVersion->setObjectName(QStringLiteral("privateDatabaseVersionLabel"));
+    privateVersion->setTextFormat(Qt::PlainText);
+    privateVersion->setWordWrap(true);
+    layout->addWidget(privateVersion);
     layout->addWidget(new DesignLabel(QStringLiteral("备份、恢复与检查均仅在本机执行。"), this));
     const auto addButton = [this, layout](const QString &text, const QString &toolTip, auto callback) {
         auto *button = new DesignButton(text, this);
@@ -1552,7 +1532,12 @@ void DatabaseSettingsPage::createPublicSnapshot()
 {
     const QString directory = QFileDialog::getExistingDirectory(this, QStringLiteral("选择完整快照保存位置"), m_paths.publicBackupDirectory());
     if (directory.isEmpty()) return;
-    showResult(QStringLiteral("完整备份"), DatabaseMaintenanceService::createPublicSnapshot(m_publicDatabase, directory, m_paths.workCoverDirectory(), m_paths.fanartDirectory(), m_paths.actressImageDirectory(), m_paths.actorImageDirectory()));
+    const auto result = WebDavBackupService::uploadPublicSnapshot(
+        m_publicDatabase, directory, m_paths.workCoverDirectory(), m_paths.fanartDirectory(),
+        m_paths.actressImageDirectory(), m_paths.actorImageDirectory(),
+        settings::crawler(m_paths.settingsFile()).webDav);
+    showResult(QStringLiteral("完整备份"), {.succeeded = result.succeeded,
+                                          .message = result.message, .outputPath = result.localPath});
 }
 
 void DatabaseSettingsPage::restorePublicSnapshot()
