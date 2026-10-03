@@ -156,7 +156,7 @@ void NfoImportTest::mdczCastCreationAndFallback()
     QVERIFY(connection.open(temp.filePath(QStringLiteral("public.db")), false, &error));
     QVERIFY2(SchemaManager::initializeEmptyDatabase(connection, DatabaseKind::Public, &error), qPrintable(error));
     const QString maleName = QStringLiteral("NfoMaleExportOnly");
-    QVERIFY(writeFile(QDir(paths.resourcesDirectory()).filePath(QStringLiteral("config/actors_cn_jp_export.json")), QJsonDocument(QJsonArray{maleName}).toJson()));
+    QVERIFY(writeFile(QDir(paths.configDirectory()).filePath(QStringLiteral("actors_cn_jp_export.json")), QJsonDocument(QJsonArray{maleName}).toJson()));
     const QString path = temp.filePath(QStringLiteral("movie.nfo"));
     QVERIFY(writeFile(path, "<movie><id>MDCZ-1</id><actor><name>NfoMaleExportOnly</name></actor></movie>"));
     QVERIFY2(nfo::importNfo(connection.database(), path, true, paths, &error), qPrintable(error));
@@ -165,7 +165,7 @@ void NfoImportTest::mdczCastCreationAndFallback()
     QVERIFY(!people.findByName(PersonKind::Actor, maleName));
     // Ordinary imports still use the exported male-name set.
     QVERIFY(writeFile(path, "<movie><id>ORD-1</id><actor><name>NfoMaleExportOther</name></actor><thumb>https://www.javsee.in/cover.jpg</thumb></movie>"));
-    QVERIFY(writeFile(QDir(paths.resourcesDirectory()).filePath(QStringLiteral("config/actors_cn_jp_export.json")), "[\"NfoMaleExportOther\"]"));
+    QVERIFY(writeFile(QDir(paths.configDirectory()).filePath(QStringLiteral("actors_cn_jp_export.json")), "[\"NfoMaleExportOther\"]"));
     QVERIFY2(nfo::importNfo(connection.database(), path, false, paths, &error), qPrintable(error));
     QVERIFY(people.findByName(PersonKind::Actor, QStringLiteral("NfoMaleExportOther")));
     WorkRepository works(connection.database());

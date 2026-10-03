@@ -17,6 +17,7 @@ function(darkeye_configure_packaging target)
                 "$<$<CONFIG:Debug>:--debug>"
                 "$<$<NOT:$<CONFIG:Debug>>:--release>"
                 --no-translations
+                --qmldir "${PROJECT_SOURCE_DIR}/resources/qml"
                 --dir "$<TARGET_FILE_DIR:${target}>"
                 "$<TARGET_FILE:${target}>"
             COMMENT "Deploying Qt runtime beside ${target}"
@@ -60,13 +61,15 @@ function(darkeye_configure_packaging target)
         )
     endif()
 
-    # resources 放在 exe 旁边，这个是无论如何都放着的
+    # 可编辑的知识库放在 exe 旁边，独立于 resources 和可选的 data。
     install(
-        DIRECTORY "${PROJECT_SOURCE_DIR}/resources/"
-        DESTINATION "${CMAKE_INSTALL_BINDIR}/resources"
-        PATTERN "*.db" EXCLUDE
-        PATTERN "*.db-wal" EXCLUDE
-        PATTERN "*.db-shm" EXCLUDE
+        DIRECTORY "${PROJECT_SOURCE_DIR}/avwiki"
+        DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    )
+    # 配置从磁盘读取，始终随程序安装。
+    install(
+        DIRECTORY "${PROJECT_SOURCE_DIR}/config"
+        DESTINATION "${CMAKE_INSTALL_BINDIR}"
     )
     # data 放在 exe 旁边
     if(DARKEYE_INSTALL_DATA)
@@ -84,6 +87,7 @@ function(darkeye_configure_packaging target)
         OUTPUT_SCRIPT deploy_script
         NO_TRANSLATIONS
         NO_UNSUPPORTED_PLATFORM_ERROR
+        DEPLOY_TOOL_OPTIONS --qmldir "${PROJECT_SOURCE_DIR}/resources/qml"
     )
 
     install(SCRIPT "${deploy_script}")

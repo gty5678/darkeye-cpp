@@ -21,6 +21,7 @@ private slots:
     void mediaScanMatchesPythonContract();
     void imageConversionFlattensTransparencyToWhite();
     void textFilesAndImageMseMatchPythonContract();
+    void titleTagMappingMatchesPythonCrawlerContract();
     void csvExportsQuoteFieldsAndPreserveUtf8();
     void updateManifestMatchesPythonVersionRules();
 };
@@ -148,6 +149,25 @@ void UtilsCompatibilityTest::textFilesAndImageMseMatchPythonContract()
     QCOMPARE(darkeye::utils::imageMse(firstPath, firstPath), 0.0);
     QCOMPARE(darkeye::utils::imageMse(firstPath, secondPath), 0.25);
     QCOMPARE(darkeye::utils::imageMse(firstPath, smallPath), 1.0);
+}
+
+void UtilsCompatibilityTest::titleTagMappingMatchesPythonCrawlerContract()
+{
+    QTemporaryDir temporary;
+    QVERIFY(temporary.isValid());
+    const QString mapPath = temporary.filePath(QStringLiteral("tag_map.json"));
+    QFile map(mapPath);
+    QVERIFY(map.open(QIODevice::WriteOnly));
+    map.write(R"({"新人":"出道作","黒パンスト":["黑丝","连裤袜"],"出張先|相部屋":"出张先相部屋"})");
+    map.close();
+
+    const QStringList tags = darkeye::utils::tagNamesFromText(
+        QStringLiteral("新人 黒パンスト 出張先の相部屋"), mapPath);
+    QCOMPARE(QSet<QString>(tags.cbegin(), tags.cend()),
+             QSet<QString>({QStringLiteral("出道作"), QStringLiteral("黑丝"),
+                            QStringLiteral("连裤袜"), QStringLiteral("出张先相部屋")}));
+    QCOMPARE(darkeye::utils::tagNamesFromText(QStringLiteral("出張先だけ"), mapPath),
+             QStringList());
 }
 
 void UtilsCompatibilityTest::csvExportsQuoteFieldsAndPreserveUtf8()

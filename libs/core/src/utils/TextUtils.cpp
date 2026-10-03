@@ -5,6 +5,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include <algorithm>
+
 namespace darkeye::utils {
 namespace {
 QJsonDocument readJson(const QString &filePath, QString *errorMessage)
@@ -41,6 +43,38 @@ QVariantMap loadTagMap(const QString &filePath, QString *errorMessage)
 {
     const QJsonDocument document = readJson(filePath, errorMessage);
     return document.isObject() ? document.object().toVariantMap() : QVariantMap();
+}
+
+QStringList tagNamesFromText(const QString &text, const QString &filePath, QString *errorMessage)
+{
+    const QVariantMap tagMap = loadTagMap(filePath, errorMessage);
+    QStringList result;
+    for (auto it = tagMap.cbegin(); it != tagMap.cend(); ++it)
+    {
+        const QStringList keywords = it.key().split(u'|');
+        const bool matches = keywords.size() > 1
+            ? std::all_of(keywords.cbegin(), keywords.cend(), [&text](const QString &keyword)
+                          { return text.contains(keyword); })
+            : text.contains(it.key());
+        if (!matches)
+            continue;
+
+        const QVariantList values = it.value().toList();
+        if (values.isEmpty())
+        {
+            const QString name = it.value().toString().trimmed();
+            if (!name.isEmpty() && !result.contains(name))
+                result.append(name);
+            continue;
+        }
+        for (const QVariant &value : values)
+        {
+            const QString name = value.toString().trimmed();
+            if (!name.isEmpty() && !result.contains(name))
+                result.append(name);
+        }
+    }
+    return result;
 }
 
 QSet<QString> loadExcludedGenres(const QString &filePath, QString *errorMessage)

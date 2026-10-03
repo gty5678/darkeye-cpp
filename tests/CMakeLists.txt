@@ -8,7 +8,6 @@ qt_add_executable(darkeye_startup_tests
     ../apps/desktop/Application.h
 )
 target_link_libraries(darkeye_startup_tests PRIVATE darkeye::desktop_ui Qt6::Test)
-target_compile_definitions(darkeye_startup_tests PRIVATE DARKEYE_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 set_target_properties(darkeye_startup_tests PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/startup")
 darkeye_apply_compiler_options(darkeye_startup_tests)

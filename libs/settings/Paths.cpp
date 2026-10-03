@@ -78,6 +78,7 @@ QString Paths::configuredPath(const QString &key, const QString &defaultRelative
 }
 
 QString Paths::resourcesDirectory() const { return QDir(m_applicationDirectory).filePath(QStringLiteral("resources")); }
+QString Paths::configDirectory() const { return QDir(m_applicationDirectory).filePath(QStringLiteral("config")); }
 QString Paths::dataDirectory() const { return QDir(m_applicationDirectory).filePath(QStringLiteral("data")); }
 QString Paths::settingsFile() const { return QDir(dataDirectory()).filePath(QStringLiteral("settings.ini")); } // 这个东西是固定位置的在 exe 目录同级的 data/settings.ini
 QString Paths::publicDatabase() const { return configuredPath(QStringLiteral("Paths/Database"), QStringLiteral("data/public/public.db")); }

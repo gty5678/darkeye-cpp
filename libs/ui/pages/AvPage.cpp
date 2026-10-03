@@ -174,13 +174,13 @@ QString AvPage::resolveWikiDirectory() const
     if (!m_requestedWikiDirectory.trimmed().isEmpty())
         return normalizedPath(m_requestedWikiDirectory);
 
-    const QString installed = QDir(settings::Paths().resourcesDirectory())
+    const QString installed = QDir(settings::Paths().applicationDirectory())
                                   .filePath(QStringLiteral("avwiki"));
     if (QFileInfo::exists(installed)) return normalizedPath(installed);
 
 #ifdef DARKEYE_SOURCE_DIR
     const QString source = QDir(QStringLiteral(DARKEYE_SOURCE_DIR))
-                               .filePath(QStringLiteral("resources/avwiki"));
+                               .filePath(QStringLiteral("avwiki"));
     if (QFileInfo::exists(source)) return normalizedPath(source);
 #endif
     return normalizedPath(installed);
@@ -355,8 +355,8 @@ void AvPage::watchDirectory()
 
 QUrl AvPage::updateManifestUrl() const
 {
-    const QString configPath = QDir(settings::Paths().resourcesDirectory())
-                                   .filePath(QStringLiteral("config/update.ini"));
+    const QString configPath = QDir(settings::Paths().configDirectory())
+                                   .filePath(QStringLiteral("update.ini"));
     QSettings config(configPath, QSettings::IniFormat);
     const QString configured = config.value(QStringLiteral("Update/AvwikiLatestJsonUrl")).toString().trimmed();
     return QUrl(configured.isEmpty() ? QStringLiteral("https://darkeye.win/avwiki/avwiki_latest.json") : configured);

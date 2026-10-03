@@ -46,7 +46,7 @@ Item {
             source: prewarmDvdUrl
             onItemChanged: {
                 if (item) {
-                    item.textureSource = mapsPath + "0.png"
+                    item.textureSource = "qrc:/assets/maps/0.png"
                     item.expanded = true
                 }
             }

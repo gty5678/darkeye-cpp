@@ -132,6 +132,21 @@ void SchemaManagerTest::migratesPublicV1DataToV2()
     QVERIFY(migratedQuery.value(2).isNull());
     QVERIFY(migratedQuery.value(3).isNull());
     QVERIFY(migratedQuery.value(4).isNull());
+
+    QVERIFY(migratedQuery.exec(QStringLiteral(
+        "SELECT COUNT(*) FROM label WHERE cn_name='S1 NO.1 STYLE'")));
+    QVERIFY(migratedQuery.next());
+    QVERIFY(migratedQuery.value(0).toInt() > 0);
+    QVERIFY(migratedQuery.exec(QStringLiteral(
+        "SELECT COUNT(*) FROM prefix_maker_relation p "
+        "JOIN maker m ON m.maker_id=p.maker_id "
+        "WHERE p.prefix='SONE' AND m.cn_name='S1 NO.1 STYLE'")));
+    QVERIFY(migratedQuery.next());
+    QCOMPARE(migratedQuery.value(0).toInt(), 1);
+    QVERIFY(migratedQuery.exec(QStringLiteral(
+        "SELECT COUNT(*) FROM series WHERE cn_name='出張先相部屋NTR'")));
+    QVERIFY(migratedQuery.next());
+    QVERIFY(migratedQuery.value(0).toInt() > 0);
 }
 
 void SchemaManagerTest::migratesPrivateV1DataToV11()

@@ -11,10 +11,26 @@
 		<file alias="work_all_info.sql">sql/work_all_info.sql</file>
 		<file alias="actress_all_info.sql">sql/actress_all_info.sql</file>
 		<file alias="actor_all_info.sql">sql/actor_all_info.sql</file>
-		<file alias="logo.svg">icons/logo.svg</file>
-		<file alias="anonymous.jpg">icons/anonymous.jpg</file>
+    </qresource>
+    <qresource prefix="/icons">
+        <file alias="logo.svg">icons/logo.svg</file>
+        <file alias="anonymous.jpg">icons/anonymous.jpg</file>
     </qresource>
     <qresource prefix="/qml">
         <file alias="graphics_prewarm_scene.qml">qml/graphics_prewarm_scene.qml</file>
+        <file alias="dvd/dvd_scene.qml">qml/dvd/dvd_scene.qml</file>
+        <file alias="dvd/Dvd.qml">qml/dvd/Dvd.qml</file>
+        <file alias="dvd/icons/love-off.svg">qml/dvd/icons/love-off.svg</file>
+        <file alias="dvd/icons/love-on.svg">qml/dvd/icons/love-on.svg</file>
+        <file alias="dvd/icons/square-pen.svg">qml/dvd/icons/square-pen.svg</file>
+        <file alias="dvd/icons/trash-2.svg">qml/dvd/icons/trash-2.svg</file>
+    </qresource>
+    <qresource prefix="/assets">
+        <file alias="hdr/lebombo_1k.hdr">hdr/lebombo_1k.hdr</file>
+        <file alias="maps/0.png">maps/0.png</file>
+        <file alias="meshes/back.mesh">meshes/back.mesh</file>
+        <file alias="meshes/cD.mesh">meshes/cD.mesh</file>
+        <file alias="meshes/front.mesh">meshes/front.mesh</file>
+        <file alias="meshes/spine.mesh">meshes/spine.mesh</file>
     </qresource>
 </RCC>

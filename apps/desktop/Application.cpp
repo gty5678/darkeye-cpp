@@ -1,6 +1,7 @@
 #include "Application.h"
 
 #include "app/LogService.h"
+#include "app/Resources.h"
 #include "crawler/ManagedCollector.h"
 #include "darkeye_ui/theme/ThemeService.h"
 #include "http/LocalApiServer.h"
@@ -38,7 +39,7 @@ namespace
 QString latestManifestUrl()
 {
     const QString configPath = QDir(QCoreApplication::applicationDirPath())
-                                   .filePath(QStringLiteral("resources/config/update.ini"));
+                                   .filePath(QStringLiteral("config/update.ini"));
     QSettings config(configPath, QSettings::IniFormat);
     const QString configured = config.value(QStringLiteral("Update/LatestJsonUrl")).toString().trimmed();
     return configured.isEmpty() ? QStringLiteral("https://darkeye.win/latest.json") : configured;
@@ -72,6 +73,7 @@ bool startUpdater()
 Application::Application(int &argc, char **argv)
     : m_application(argc, argv), m_themeService(m_application)
 {
+    Resources::ensureInitialized();
     configureIdentity();
     m_application.setWindowIcon(QIcon(QStringLiteral(":/icons/logo.svg")));
     const QPixmap logo(QStringLiteral(":/icons/logo.svg"));
@@ -183,23 +185,14 @@ void Application::prepareGraphicsPrewarm()
     m_quickPrewarmView = new QQuickWidget(m_graphicsPrewarmWindow.get());
     m_quickPrewarmView->setResizeMode(QQuickWidget::SizeRootObjectToView);
     m_quickPrewarmView->setFixedHeight(48);
-    QString resourcesPath = m_paths.resourcesDirectory();
-    if (!QFileInfo::exists(QDir(resourcesPath).filePath(QStringLiteral("meshes/back.mesh"))))
-        resourcesPath = QDir(QStringLiteral(DARKEYE_SOURCE_DIR)).filePath(QStringLiteral("resources"));
-    const QDir resources(resourcesPath);
-    const auto directoryUrl = [&resources](const QString &name) {
-        return QUrl::fromLocalFile(resources.filePath(name)).toString(QUrl::FullyEncoded) + '/';
-    };
     auto *prewarmContext = m_quickPrewarmView->rootContext();
     prewarmContext->setContextProperty(
         QStringLiteral("prewarmDvdUrl"),
-        QUrl(QStringLiteral("qrc:/qt/qml/Darkeye/Shelf/Dvd.qml")));
+        QUrl(QStringLiteral("qrc:/qml/dvd/Dvd.qml")));
     prewarmContext->setContextProperty(QStringLiteral("meshesPath"),
-                                       directoryUrl(QStringLiteral("meshes")));
-    prewarmContext->setContextProperty(QStringLiteral("mapsPath"),
-                                       directoryUrl(QStringLiteral("maps")));
+                                       QStringLiteral("qrc:/assets/meshes/"));
     prewarmContext->setContextProperty(QStringLiteral("hdrPath"),
-                                       directoryUrl(QStringLiteral("hdr")));
+                                       QStringLiteral("qrc:/assets/hdr/"));
     m_quickPrewarmView->setSource(QUrl(QStringLiteral("qrc:/qml/graphics_prewarm_scene.qml")));
     if (m_quickPrewarmView->status() == QQuickWidget::Error) {
         for (const QQmlError &error : m_quickPrewarmView->errors())

@@ -243,7 +243,7 @@ View3D {
                     && _targetSourceIndex >= 0
                     && _targetSourceIndex < dvdTextureSources.length)
                     ? dvdTextureSources[_targetSourceIndex]
-                    : ((typeof mapsPath !== "undefined" ? mapsPath : "maps/") + "0.png")
+                    : "qrc:/assets/maps/0.png"
                 property bool selected: view3d.selectedDelegateIndex === index
                 // Selected item ignores hover to avoid z-jitter during animation.
                 property bool hovered: !selected && view3d.hoveredDelegateIndex === index

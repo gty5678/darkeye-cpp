@@ -1,5 +1,6 @@
 #include "ui/components/DvdShelfView.h"
 
+#include "app/Resources.h"
 #include "database/SqliteConnection.h"
 #include "database/repositories/PrivateRepository.h"
 #include "database/repositories/WorkRepository.h"
@@ -58,11 +59,6 @@ QString fileUrl(const QString &path)
     return QUrl::fromLocalFile(QDir::cleanPath(path)).toString(QUrl::FullyEncoded);
 }
 
-QString assetDirectory(const QString &name)
-{
-    return QDir(QStringLiteral(DARKEYE_SOURCE_DIR)).filePath(QStringLiteral("resources/") + name);
-}
-
 void trimThumbnailCache()
 {
     constexpr int cacheLimit = 900;
@@ -95,6 +91,7 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
       m_graphManager(graphManager), m_coverDirectory(coverDirectory),
       m_fanartDirectory(fanartDirectory), m_quickWidget(new QQuickWidget(this))
 {
+    Resources::ensureInitialized();
     setObjectName(QStringLiteral("DvdShelfView"));
     // Two decoders prevent a large cover collection from briefly consuming
     // several gigabytes while its thumbnails are prepared.
@@ -168,7 +165,7 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     // whose scale binding throws and leaves the shelf visually empty.
     context->setContextProperty(QStringLiteral("modelScale"), 1.0);
     context->setContextProperty(QStringLiteral("dvdQmlUrl"),
-                                QUrl(QStringLiteral("qrc:/qt/qml/Darkeye/Shelf/Dvd.qml")));
+                                QUrl(QStringLiteral("qrc:/qml/dvd/Dvd.qml")));
     context->setContextProperty(QStringLiteral("dvdCount"), 0);
     context->setContextProperty(QStringLiteral("dvdTextureSources"), QVariantList{});
     context->setContextProperty(QStringLiteral("dvdVisibleStart"), 0);
@@ -177,11 +174,10 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     context->setContextProperty(QStringLiteral("cameraDistance"), shelfCameraDistance);
     context->setContextProperty(QStringLiteral("selectedDvdDistance"), 0.2);
     context->setContextProperty(QStringLiteral("showWireframe"), false);
-    context->setContextProperty(QStringLiteral("meshesPath"), fileUrl(assetDirectory("meshes")) + "/");
-    context->setContextProperty(QStringLiteral("mapsPath"), fileUrl(assetDirectory("maps")) + "/");
-    context->setContextProperty(QStringLiteral("hdrPath"), fileUrl(assetDirectory("hdr")) + "/");
+    context->setContextProperty(QStringLiteral("meshesPath"), QStringLiteral("qrc:/assets/meshes/"));
+    context->setContextProperty(QStringLiteral("hdrPath"), QStringLiteral("qrc:/assets/hdr/"));
     m_quickWidget->setSource(
-        QUrl(QStringLiteral("qrc:/qt/qml/Darkeye/Shelf/dvd_scene.qml")));
+        QUrl(QStringLiteral("qrc:/qml/dvd/dvd_scene.qml")));
 }
 
 void DvdShelfView::setWorks(const QList<WorkSummary> &works)
@@ -283,7 +279,7 @@ int DvdShelfView::targetWindowSize() const
 
 QString DvdShelfView::textureForWork(const WorkSummary &work)
 {
-    const QString placeholder = fileUrl(assetDirectory("maps/0.png"));
+    const QString placeholder = QStringLiteral("qrc:/assets/maps/0.png");
     if (const auto cached = m_textureCache.constFind(work.id); cached != m_textureCache.cend()) {
         m_textureCacheOrder.removeAll(work.id);
         m_textureCacheOrder.append(work.id);

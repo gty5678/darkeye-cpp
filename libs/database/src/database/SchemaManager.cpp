@@ -1,7 +1,14 @@
 #include "database/SchemaManager.h"
 
+#include "settings/Paths.h"
 #include "database/SqlScriptRunner.h"
+#include "database/Transaction.h"
 
+#include <QDir>
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSet>
 #include <QMap>
 #include <QSqlError>
@@ -52,6 +59,113 @@ QMap<QString, QStringList> requiredColumns(DatabaseKind kind)
         {QStringLiteral("sexual_arousal"),
          {QStringLiteral("sexual_arousal_id"), QStringLiteral("arousal_time")}},
     };
+}
+
+bool setError(QString *errorMessage, const QString &message)
+{
+    if (errorMessage != nullptr)
+        *errorMessage = message;
+    return false;
+}
+
+bool configArray(const QString &filePath, QJsonArray *entries, QString *errorMessage)
+{
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly))
+        return setError(errorMessage, QStringLiteral("无法读取参考数据配置：%1").arg(filePath));
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isArray())
+        return setError(errorMessage, QStringLiteral("参考数据配置 JSON 无效：%1").arg(filePath));
+    *entries = document.array();
+    return true;
+}
+
+bool textField(const QJsonObject &object, const QString &name, QString *value,
+               QString *errorMessage)
+{
+    const QJsonValue jsonValue = object.value(name);
+    if (jsonValue.isUndefined() || jsonValue.isNull()) {
+        value->clear();
+        return true;
+    }
+    if (!jsonValue.isString())
+        return setError(errorMessage, QStringLiteral("参考数据配置 JSON 的 %1 必须是字符串或 null").arg(name));
+    *value = jsonValue.toString();
+    return true;
+}
+
+bool insertConfigReferences(QSqlDatabase database, const QString &table, const QJsonArray &entries,
+                             const QString &extraField, bool makers, QString *errorMessage)
+{
+    for (const QJsonValue &value : entries) {
+        if (!value.isObject())
+            return setError(errorMessage, QStringLiteral("参考数据配置 JSON 必须是对象列表"));
+        const QJsonObject object = value.toObject();
+        QString cn, jp, aliases, detail, extra;
+        if (!textField(object, QStringLiteral("cn_name"), &cn, errorMessage)
+            || !textField(object, QStringLiteral("jp_name"), &jp, errorMessage)
+            || !textField(object, QStringLiteral("aliases"), &aliases, errorMessage)
+            || !textField(object, QStringLiteral("detail"), &detail, errorMessage)
+            || (!extraField.isEmpty() && !textField(object, extraField, &extra, errorMessage)))
+            return false;
+        if (cn.trimmed().isEmpty() && jp.trimmed().isEmpty())
+            return setError(errorMessage, QStringLiteral("参考数据配置 JSON 名称不能为空"));
+        QStringList columns{QStringLiteral("cn_name"), QStringLiteral("jp_name"),
+                            QStringLiteral("aliases"), QStringLiteral("detail")};
+        if (!extraField.isEmpty()) columns.append(extraField);
+        QStringList placeholders;
+        placeholders.fill(QStringLiteral("?"), columns.size());
+        QSqlQuery insert(database);
+        insert.prepare(QStringLiteral("INSERT INTO %1(%2) VALUES(%3)")
+                           .arg(table, columns.join(','), placeholders.join(',')));
+        insert.addBindValue(cn); insert.addBindValue(jp); insert.addBindValue(aliases);
+        insert.addBindValue(detail); if (!extraField.isEmpty()) insert.addBindValue(extra);
+        if (!insert.exec()) return setError(errorMessage, insert.lastError().text());
+        if (!makers) continue;
+        const QJsonValue prefixes = object.value(QStringLiteral("prefixes"));
+        if (!prefixes.isUndefined() && !prefixes.isNull() && !prefixes.isArray())
+            return setError(errorMessage, QStringLiteral("片商前缀配置必须是列表"));
+        QSqlQuery insertPrefix(database);
+        insertPrefix.prepare(QStringLiteral("INSERT INTO prefix_maker_relation(prefix, maker_id) VALUES(?, ?)"));
+        QSet<QString> seen;
+        for (const QJsonValue &prefixValue : prefixes.toArray()) {
+            if (!prefixValue.isString())
+                return setError(errorMessage, QStringLiteral("片商前缀配置必须是字符串"));
+            const QString prefix = prefixValue.toString().trimmed();
+            if (prefix.isEmpty() || seen.contains(prefix)) continue;
+            seen.insert(prefix);
+            insertPrefix.bindValue(0, prefix);
+            insertPrefix.bindValue(1, insert.lastInsertId());
+            if (!insertPrefix.exec()) return setError(errorMessage, insertPrefix.lastError().text());
+        }
+    }
+    return true;
+}
+
+bool importConfigPublicReferences(QSqlDatabase database, QString *errorMessage)
+{
+    QJsonArray labels, makers, series;
+    const QDir configDirectory(settings::Paths().configDirectory());
+    if (!configArray(configDirectory.filePath(QStringLiteral("label.json")), &labels, errorMessage)
+        || !configArray(configDirectory.filePath(QStringLiteral("maker_prefix.json")), &makers, errorMessage)
+        || !configArray(configDirectory.filePath(QStringLiteral("series.json")), &series, errorMessage))
+        return false;
+    Transaction transaction(database);
+    if (!transaction.isActive()) return setError(errorMessage, transaction.errorString());
+    for (const QString &table : {QStringLiteral("prefix_maker_relation"), QStringLiteral("maker"),
+                                 QStringLiteral("label"), QStringLiteral("series")}) {
+        QSqlQuery clear(database);
+        if (!clear.exec(QStringLiteral("DELETE FROM %1").arg(table)))
+            return setError(errorMessage, clear.lastError().text());
+    }
+    if (!insertConfigReferences(database, QStringLiteral("label"), labels, {}, false, errorMessage)
+        || !insertConfigReferences(database, QStringLiteral("maker"), makers,
+                                    QStringLiteral("logo_url"), true, errorMessage)
+        || !insertConfigReferences(database, QStringLiteral("series"), series,
+                                    QStringLiteral("related_series"), false, errorMessage))
+        return false;
+    return transaction.commit() || setError(errorMessage, transaction.errorString());
 }
 
 } // namespace
@@ -267,6 +381,10 @@ bool SchemaManager::migratePublicFromV1(SqliteConnection &connection, QString *e
     if (!SqlScriptRunner::executeResource(database,
                                           QStringLiteral(":/sql/public/v1.0-v2/migration.sql"),
                                           errorMessage)) {
+        return false;
+    }
+
+    if (!importConfigPublicReferences(database, errorMessage)) {
         return false;
     }
 

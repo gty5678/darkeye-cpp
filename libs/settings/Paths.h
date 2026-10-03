@@ -20,6 +20,7 @@ public:
     [[nodiscard]] const QString &applicationDirectory() const noexcept;
     /// 返回资源目录和运行数据根目录。
     [[nodiscard]] QString resourcesDirectory() const;
+    [[nodiscard]] QString configDirectory() const;
     [[nodiscard]] QString dataDirectory() const;
     /// 返回固定配置文件及各类 JSON、日志文件路径。
     [[nodiscard]] QString settingsFile() const;

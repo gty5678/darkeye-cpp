@@ -91,7 +91,7 @@ QString detectedDatabaseVersion(const QString &path)
 QString latestManifestUrl()
 {
     const QString configPath = QDir(QCoreApplication::applicationDirPath())
-                                   .filePath(QStringLiteral("resources/config/update.ini"));
+                                   .filePath(QStringLiteral("config/update.ini"));
     QSettings config(configPath, QSettings::IniFormat);
     const QString configured = config.value(QStringLiteral("Update/LatestJsonUrl")).toString().trimmed();
     return configured.isEmpty() ? QStringLiteral("https://darkeye.win/latest.json") : configured;

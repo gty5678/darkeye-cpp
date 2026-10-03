@@ -6,6 +6,8 @@
 #include "database/repositories/WorkRepository.h"
 #include "services/ImageFetchService.h"
 #include "services/LlmTranslationService.h"
+#include "settings/Paths.h"
+#include "utils/TextUtils.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -90,6 +92,24 @@ QList<qint64> ensureTags(ReferenceRepository &repository, const QStringList &nam
         if (!id.has_value())
             return {};
         ids.append(*id);
+    }
+    return ids;
+}
+
+QList<qint64> existingTagIds(ReferenceRepository &repository, const QStringList &names,
+                             QString *errorMessage)
+{
+    const QList<TagRecord> records = repository.listTags(errorMessage);
+    if (errorMessage != nullptr && !errorMessage->isEmpty())
+        return {};
+
+    QList<qint64> ids;
+    for (const QString &name : names)
+    {
+        const auto found = std::find_if(records.cbegin(), records.cend(), [&name](const TagRecord &tag)
+        { return tag.name == name || tag.aliases.contains(name); });
+        if (found != records.cend() && !ids.contains(found->id))
+            ids.append(found->id);
     }
     return ids;
 }
@@ -353,7 +373,32 @@ bool CrawlerPersistenceService::persistDatabase(const QString &serialNumber,
                                   strings(payload, QStringLiteral("actress_list")), errorMessage,
                                   createdActressIds);
     if (wants(selectedFields, QStringLiteral("actor"))) actorIds = ensurePeople(people, PersonKind::Actor, strings(payload, QStringLiteral("actor_list")), errorMessage);
-    if (wants(selectedFields, QStringLiteral("tag"))) tagIds = ensureTags(references, strings(payload, QStringLiteral("tag_list")), errorMessage);
+    if (wants(selectedFields, QStringLiteral("tag")))
+    {
+        const QDir configDirectory(settings::Paths().configDirectory());
+        // Preserve Python's title-derived tag rules. Mapped names are looked up
+        // only: unlike crawler-provided genres, absent configured tags are not
+        // created implicitly.
+        const QString tagMapPath = configDirectory.filePath(QStringLiteral("tag_map.json"));
+        const QList<qint64> mappedTagIds = existingTagIds(
+            references, utils::tagNamesFromText(text(QStringLiteral("jp_title")), tagMapPath), errorMessage);
+        if (errorMessage != nullptr && !errorMessage->isEmpty())
+            return false;
+
+        // Python filters crawler genres by exact name before resolving or
+        // creating their tags. Keep title-derived mappings separate: they are
+        // governed by tag_map.json rather than this exclusion list.
+        const QSet<QString> excludedGenres = utils::loadExcludedGenres(
+            configDirectory.filePath(QStringLiteral("exclude_genre.json")));
+        QStringList crawlerTags;
+        for (const QString &name : strings(payload, QStringLiteral("tag_list")))
+            if (!excludedGenres.contains(name))
+                crawlerTags.append(name);
+        tagIds = ensureTags(references, crawlerTags, errorMessage);
+        for (const qint64 tagId : mappedTagIds)
+            if (!tagIds.contains(tagId))
+                tagIds.append(tagId);
+    }
     if (errorMessage != nullptr && !errorMessage->isEmpty()) return false;
 
     if (existingId.has_value())

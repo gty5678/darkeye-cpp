@@ -9,6 +9,17 @@ set(CMAKE_AUTOUIC ON)
 function(darkeye_apply_compiler_options target)
     target_compile_features(${target} PUBLIC cxx_std_20)
 
+    # Executables and tests read editable configuration beside the binary.
+    get_target_property(target_type ${target} TYPE)
+    if(target_type STREQUAL "EXECUTABLE")
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                "${PROJECT_SOURCE_DIR}/config"
+                "$<TARGET_FILE_DIR:${target}>/config"
+            VERBATIM
+        )
+    endif()
+
     if(MSVC)
         # Qt's imported targets already expose their include directories through
         # /external:I and lower normal compiler diagnostics with /external:W0.

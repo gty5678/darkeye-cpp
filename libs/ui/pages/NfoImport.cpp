@@ -197,7 +197,7 @@ QString pickCover(const ParsedNfo &nfo)
 }
 QSet<QString> maleActorNames(const settings::Paths &paths)
 {
-    QFile file(QDir(paths.resourcesDirectory()).filePath(QStringLiteral("config/actors_cn_jp_export.json"))); if (!file.open(QIODevice::ReadOnly)) return {};
+    QFile file(QDir(paths.configDirectory()).filePath(QStringLiteral("actors_cn_jp_export.json"))); if (!file.open(QIODevice::ReadOnly)) return {};
     QSet<QString> names; for (const QJsonValue &value : QJsonDocument::fromJson(file.readAll()).array()) if (!value.toString().trimmed().isEmpty()) names.insert(value.toString().trimmed()); return names;
 }
 QString fanartJson(const QList<ParsedNfo::Fanart> &items) { QJsonArray array; for (const auto &item : items) if (!item.url.isEmpty() || !item.file.isEmpty()) array.append(QJsonObject{{QStringLiteral("url"), item.url}, {QStringLiteral("file"), item.file}}); return array.isEmpty() ? QString{} : QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)); }
