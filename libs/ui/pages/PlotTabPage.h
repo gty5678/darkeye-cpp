@@ -7,10 +7,13 @@
 namespace darkeye
 {
 
+class ThemeService;
+
 class PlotTabPage final : public LazyWidget
 {
 public:
     explicit PlotTabPage(QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
+                         ThemeService &themeService,
                          QWidget *parent = nullptr);
 
     void refresh();
@@ -20,6 +23,7 @@ private:
 
     QSqlDatabase m_publicDatabase;
     QSqlDatabase m_privateDatabase;
+    ThemeService &m_themeService;
 };
 
 } // namespace darkeye

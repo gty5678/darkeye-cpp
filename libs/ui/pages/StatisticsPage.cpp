@@ -32,7 +32,7 @@ void StatisticsPage::lazyLoad()
             &StatisticsPage::actressDetailRequested);
     connect(m_personalData, &PersonalDataPage::actressEditRequested, this,
             &StatisticsPage::actressEditRequested);
-    m_plots = new PlotTabPage(m_publicDatabase, m_privateDatabase, tabs);
+    m_plots = new PlotTabPage(m_publicDatabase, m_privateDatabase, m_themeService, tabs);
     tabs->addTab(m_personalData, QStringLiteral("信息面版"));
     tabs->addTab(m_plots, QStringLiteral("统计"));
     layout->addWidget(tabs);

@@ -3,6 +3,7 @@
 #include "database/repositories/StatisticsRepository.h"
 #include "darkeye_ui/components/DesignButton.h"
 #include "darkeye_ui/components/TokenControls.h"
+#include "darkeye_ui/theme/ThemeService.h"
 
 #include <QButtonGroup>
 #include <QDate>
@@ -25,10 +26,12 @@ class StatisticsChart final : public QWidget
 {
 public:
     enum class Type { Message, Bars, Histogram, Pie, Bubbles, Line };
-    explicit StatisticsChart(QWidget *parent = nullptr) : QWidget(parent)
+    explicit StatisticsChart(ThemeService &themes, QWidget *parent = nullptr)
+        : QWidget(parent), m_themes(themes)
     {
         setMinimumSize(560, 360);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        connect(&m_themes, &ThemeService::themeChanged, this, [this] { update(); });
     }
     void message(const QString &text) { m_type = Type::Message; m_title = text; update(); }
     void bars(QString title, QVector<ChartValue> values, bool horizontal = false)
@@ -55,6 +58,19 @@ protected:
     }
 
 private:
+    QColor primaryTint(qreal strength) const
+    {
+        const ThemeTokens tokens = m_themes.currentTokens();
+        const QColor primary(tokens.primary);
+        const QColor background(tokens.background);
+        return QColor::fromRgbF(
+            background.redF() + (primary.redF() - background.redF()) * strength,
+            background.greenF() + (primary.greenF() - background.greenF()) * strength,
+            background.blueF() + (primary.blueF() - background.blueF()) * strength);
+    }
+
+    ThemeService &m_themes;
+
     void paintBubblesPython(QPainter &p)
     {
         const QRect canvas = rect();
@@ -188,12 +204,93 @@ private:
         } else {
             axes(p, r, QString(), QString());
         }
-        if(m_horizontal){const qreal h=r.height()/n;for(int i=0;i<n;++i){const auto&v=m_values.at(i);const qreal w=(r.width()-8)*v.value/scale;p.fillRect(QRectF(r.left(),r.top()+i*h+3,w,h-7),QColor("#6baed6"));p.setPen(palette().text().color());p.drawText(QRectF(4,r.top()+i*h,r.left()-9,h).toRect(),Qt::AlignRight|Qt::AlignVCenter,v.label);p.drawText(QPointF(r.left()+w+4,r.top()+i*h+h/2+4),QString::number(v.value,'g',4));}return;}
-        const qreal w=std::max(static_cast<qreal>(3.0),static_cast<qreal>((r.width()-8)/n-4));for(int i=0;i<n;++i){const auto&v=m_values.at(i);const qreal h=(r.height()-5)*v.value/scale;const qreal x=r.left()+4+i*(w+4);p.fillRect(QRectF(x,r.bottom()-h,w,h),QColor("#6baed6"));p.setPen(palette().text().color());p.drawText(QRectF(x-12,r.bottom()-h-18,w+24,16),Qt::AlignCenter,QString::number(v.value,'g',4));p.save();p.translate(x+w/2,r.bottom()+10);p.rotate(-45);p.drawText(QRect(-38,0,76,16),Qt::AlignCenter,v.label);p.restore();}
+        if(m_horizontal){const qreal h=r.height()/n;for(int i=0;i<n;++i){const auto&v=m_values.at(i);const qreal w=(r.width()-8)*v.value/scale;p.fillRect(QRectF(r.left(),r.top()+i*h+3,w,h-7),primaryTint(0.30));p.setPen(palette().text().color());p.drawText(QRectF(4,r.top()+i*h,r.left()-9,h).toRect(),Qt::AlignRight|Qt::AlignVCenter,v.label);p.drawText(QPointF(r.left()+w+4,r.top()+i*h+h/2+4),QString::number(v.value,'g',4));}return;}
+        const qreal w=std::max(static_cast<qreal>(3.0),static_cast<qreal>((r.width()-8)/n-4));for(int i=0;i<n;++i){const auto&v=m_values.at(i);const qreal h=(r.height()-5)*v.value/scale;const qreal x=r.left()+4+i*(w+4);p.fillRect(QRectF(x,r.bottom()-h,w,h),primaryTint(0.30));p.setPen(palette().text().color());p.drawText(QRectF(x-12,r.bottom()-h-18,w+24,16),Qt::AlignCenter,QString::number(v.value,'g',4));p.save();p.translate(x+w/2,r.bottom()+10);p.rotate(-45);p.drawText(QRect(-38,0,76,16),Qt::AlignCenter,v.label);p.restore();}
     }
-    void paintHistogram(QPainter&p)
+    void paintHistogram(QPainter &p)
     {
-        qreal lo=m_weighted.first().value,hi=lo,totalWeight=0;for(const auto&v:m_weighted){lo=std::min(lo,v.value);hi=std::max(hi,v.value);totalWeight+=v.weight;}if(qFuzzyCompare(lo,hi)){lo-=.5;hi+=.5;}if(m_bins==0){lo=std::floor(lo)-.5F;hi=std::ceil(hi)+.5F;}const int bins=m_bins==0?qMax(1,qRound(hi-lo)):m_bins;const qreal binWidth=(hi-lo)/bins;QVector<qreal> density(bins);for(const auto&v:m_weighted){const int i=qBound(0,int((v.value-lo)/(hi-lo)*bins),bins-1);density[i]+=v.weight;}for(auto &value:density)value/=qMax<qreal>(1,totalWeight*binWidth);QVector<qreal> kde(160);for(int i=0;i<kde.size();++i){const qreal x=lo+(hi-lo)*i/(kde.size()-1);for(const auto&v:m_weighted){const qreal z=(x-v.value)/m_bandwidth;kde[i]+=v.weight*std::exp(-0.5F*z*z);}kde[i]/=qMax<qreal>(1,totalWeight*m_bandwidth*std::sqrt(2.0F*std::numbers::pi_v<qreal>));}const qreal maximum=qMax(*std::max_element(density.cbegin(),density.cend()),*std::max_element(kde.cbegin(),kde.cend()));const qreal scale=maximum==0?1:maximum;QRect r=plot();drawYTicks(p,r,maximum);axes(p,r,m_unit,QStringLiteral("频率"));const qreal w=r.width()/bins;for(int i=0;i<bins;++i){const qreal h=r.height()*density[i]/scale;p.fillRect(QRectF(r.left()+i*w+1,r.bottom()-h,w-2,h),QColor("#a9d8f0"));}QPainterPath path;for(int i=0;i<kde.size();++i){const qreal x=r.left()+r.width()*i/(kde.size()-1),y=r.bottom()-r.height()*kde[i]/scale;if(i==0)path.moveTo(x,y);else path.lineTo(x,y);}p.setPen(QPen(QColor("#1a73e8"),2));p.drawPath(path);p.setPen(QColor("#5f6368"));p.setFont(QFont(p.font().family(),8));for(int tick=0;tick<=4;++tick){const qreal x=r.left()+r.width()*tick/4.0F;p.drawLine(QPointF(x,r.bottom()),QPointF(x,r.bottom()+5));p.drawText(QRectF(x-28,r.bottom()+8,56,18),Qt::AlignCenter,QString::number(lo+(hi-lo)*tick/4.0F,'g',3));}
+        const bool integerBins = m_bins == 0;
+        qreal lo = m_weighted.first().value;
+        qreal hi = lo;
+        qreal totalWeight = 0;
+        for (const auto &value : m_weighted) {
+            const qreal sample = integerBins ? qRound(value.value) : value.value;
+            lo = std::min(lo, sample);
+            hi = std::max(hi, sample);
+            totalWeight += value.weight;
+        }
+        int bins = m_bins;
+        if (integerBins) {
+            // One bin per integer centimetre, centred on that height.
+            lo = qRound(lo) - 0.5;
+            hi = qRound(hi) + 0.5;
+            bins = qMax(1, qRound(hi - lo));
+        } else if (qFuzzyCompare(lo, hi)) {
+            lo -= 0.5;
+            hi += 0.5;
+        }
+        const qreal binWidth = (hi - lo) / bins;
+        QVector<qreal> density(bins);
+        for (const auto &value : m_weighted) {
+            const qreal sample = integerBins ? qRound(value.value) : value.value;
+            const int index = qBound(0, int((sample - lo) / binWidth), bins - 1);
+            density[index] += value.weight;
+        }
+        for (auto &value : density)
+            value /= qMax<qreal>(1, totalWeight * binWidth);
+
+        QVector<qreal> kde(160);
+        for (int i = 0; i < kde.size(); ++i) {
+            const qreal x = lo + (hi - lo) * i / (kde.size() - 1);
+            for (const auto &value : m_weighted) {
+                const qreal sample = integerBins ? qRound(value.value) : value.value;
+                const qreal z = (x - sample) / m_bandwidth;
+                kde[i] += value.weight * std::exp(-0.5 * z * z);
+            }
+            kde[i] /= qMax<qreal>(1, totalWeight * m_bandwidth
+                                       * std::sqrt(2.0 * std::numbers::pi_v<qreal>));
+        }
+        const qreal maximum = qMax(*std::max_element(density.cbegin(), density.cend()),
+                                   *std::max_element(kde.cbegin(), kde.cend()));
+        const qreal scale = maximum == 0 ? 1 : maximum;
+        const QRect r = plot();
+        drawYTicks(p, r, maximum);
+        axes(p, r, m_unit, QStringLiteral("频率"));
+        const qreal w = static_cast<qreal>(r.width()) / bins;
+        const qreal gap = qMin<qreal>(2, w * 0.2);
+        const QColor barColor = primaryTint(0.30);
+        for (int i = 0; i < bins; ++i) {
+            const qreal h = r.height() * density[i] / scale;
+            p.fillRect(QRectF(r.left() + i * w + gap / 2, r.bottom() - h,
+                             w - gap, h), barColor);
+        }
+        QPainterPath path;
+        for (int i = 0; i < kde.size(); ++i) {
+            const qreal x = r.left() + static_cast<qreal>(r.width()) * i / (kde.size() - 1);
+            const qreal y = r.bottom() - r.height() * kde[i] / scale;
+            if (i == 0) path.moveTo(x, y);
+            else path.lineTo(x, y);
+        }
+        p.setPen(QPen(primaryTint(0.70), 2));
+        p.drawPath(path);
+        p.setPen(QColor("#5f6368"));
+        p.setFont(QFont(p.font().family(), 8));
+        const auto drawTick = [&](qreal x, const QString &label) {
+            p.drawLine(QPointF(x, r.bottom()), QPointF(x, r.bottom() + 5));
+            p.drawText(QRectF(x - 28, r.bottom() + 8, 56, 18), Qt::AlignCenter, label);
+        };
+        if (integerBins) {
+            // Thin labels when needed, without changing the 1 cm bins.
+            const int labelWidth = p.fontMetrics().horizontalAdvance(
+                                       QString::number(qRound(hi - 0.5))) + 10;
+            const int tickStep = qMax(1, static_cast<int>(std::ceil(labelWidth / w)));
+            for (int i = 0; i < bins; i += tickStep)
+                drawTick(r.left() + (i + 0.5) * w, QString::number(qRound(lo + 0.5) + i));
+        } else {
+            for (int tick = 0; tick <= 4; ++tick)
+                drawTick(r.left() + r.width() * tick / 4.0,
+                         QString::number(lo + (hi - lo) * tick / 4.0, 'g', 3));
+        }
     }
     void paintPie(QPainter&p)
     {
@@ -283,11 +380,11 @@ private:
 };
 }
 
-PlotTabPage::PlotTabPage(QSqlDatabase publicDatabase,QSqlDatabase privateDatabase,QWidget*parent):LazyWidget(parent),m_publicDatabase(std::move(publicDatabase)),m_privateDatabase(std::move(privateDatabase)){}
+PlotTabPage::PlotTabPage(QSqlDatabase publicDatabase,QSqlDatabase privateDatabase,ThemeService &themeService,QWidget*parent):LazyWidget(parent),m_publicDatabase(std::move(publicDatabase)),m_privateDatabase(std::move(privateDatabase)),m_themeService(themeService){}
 
 void PlotTabPage::lazyLoad()
 {
-    auto *splitter=new QSplitter(this);splitter->setChildrenCollapsible(false);splitter->setHandleWidth(1);splitter->setObjectName(QStringLiteral("StatisticsSplitter"));splitter->setStyleSheet(QStringLiteral("QSplitter::handle { background: #cccccc; width: 1px; height: 1px; border: none; margin: 0; } QSplitter::handle:hover { background: #888888; }"));auto *canvas=new StatisticsChart(splitter);auto *toolbar=new QWidget(splitter);splitter->addWidget(canvas);splitter->addWidget(toolbar);splitter->setStretchFactor(0,1);splitter->setStretchFactor(1,9);splitter->setSizes({1002,375});auto *layout=new QVBoxLayout(this);layout->setContentsMargins(0,0,0,0);layout->addWidget(splitter);
+    auto *splitter=new QSplitter(this);splitter->setChildrenCollapsible(false);splitter->setHandleWidth(1);splitter->setObjectName(QStringLiteral("StatisticsSplitter"));splitter->setStyleSheet(QStringLiteral("QSplitter::handle { background: #cccccc; width: 1px; height: 1px; border: none; margin: 0; } QSplitter::handle:hover { background: #888888; }"));auto *canvas=new StatisticsChart(m_themeService,splitter);auto *toolbar=new QWidget(splitter);splitter->addWidget(canvas);splitter->addWidget(toolbar);splitter->setStretchFactor(0,1);splitter->setStretchFactor(1,9);splitter->setSizes({1002,375});auto *layout=new QVBoxLayout(this);layout->setContentsMargins(0,0,0,0);layout->addWidget(splitter);
     auto *tools=new QVBoxLayout(toolbar);auto *scopeBox=new TokenGroupBox(QStringLiteral("选择统计范围"),toolbar);auto *scopeLayout=new QVBoxLayout(scopeBox);auto *group=new QButtonGroup(scopeBox);const QList<QPair<QString,int>> scopes{{QStringLiteral("公共数据库"),-1},{QStringLiteral("收藏库内"),0},{QStringLiteral("撸过"),1},{QStringLiteral("撸过加权"),2}};for(const auto &[label,scope]:scopes){auto *radio=new TokenRadioButton(label,scopeBox);group->addButton(radio,scope);scopeLayout->addWidget(radio);if(scope==1)radio->setChecked(true);}tools->addWidget(scopeBox);auto *stats=new TokenGroupBox(QStringLiteral("多样化统计"),toolbar);auto *buttons=new QVBoxLayout(stats);tools->addWidget(stats);const auto scope=[group]{return group->checkedId();};const auto add=[buttons,canvas,stats](const QString &text,auto callback){auto *button=new DesignButton(text,stats);buttons->addWidget(button);QObject::connect(button,&QPushButton::clicked,canvas,callback);};
     add(QStringLiteral("作品拍摄时女优年龄分布直方图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->histogram(QStringLiteral("作品中女优平均拍摄年龄分布"),r.workActressAges(scope()),QStringLiteral("平均拍摄年龄（岁）"),50,1);});
     add(QStringLiteral("作品发行年份分布直方图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bars(QStringLiteral("每年数量统计"),r.workReleaseYears(scope()));});
