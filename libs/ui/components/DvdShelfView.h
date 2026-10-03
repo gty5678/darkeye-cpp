@@ -116,6 +116,9 @@ protected:
 private:
     void updateScene();
     void refreshVisibleWindow(bool force = false);
+    void advanceInitialPopulation();
+    void finishInitialPopulation();
+    [[nodiscard]] int targetWindowSize() const;
     [[nodiscard]] QString textureForWork(const WorkSummary &work);
     void cacheTexture(qint64 workId, const QString &texture);
     void queueThumbnail(qint64 workId, const QString &sourcePath, const QString &thumbnailPath);
@@ -141,12 +144,14 @@ private:
     QElapsedTimer m_cameraElapsed;
     int m_visibleStart = 0;
     int m_loadedStart = -1;
+    int m_renderWindowSize = 0;
     QHash<qint64, QString> m_textureCache;
     QList<qint64> m_textureCacheOrder;
     QSet<qint64> m_thumbnailInFlight;
     QThreadPool m_thumbnailPool;
     QTimer *m_thumbnailRefreshTimer = nullptr;
     QTimer *m_cameraTimer = nullptr;
+    QTimer *m_initialPopulateTimer = nullptr;
     QTimer *m_relationGraphTimer = nullptr;
     bool m_thumbnailRefreshPending = false;
     // Each route-driven open invalidates delayed expand callbacks from an

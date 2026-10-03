@@ -1,8 +1,6 @@
 import QtQuick
 import QtCore
 import QtQuick3D
-import QtQuick3D.AssetUtils
-import QtQuick3D.Helpers
 
 View3D {
     id: view3d

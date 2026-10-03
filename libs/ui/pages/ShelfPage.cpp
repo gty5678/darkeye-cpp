@@ -76,7 +76,6 @@ void ShelfPage::buildUi()
     filters->setSpacing(6);
     filters->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 
-    QStringList serials, actresses, directors, actors;
     QList<NamedIdOption> makers, labels, series;
     QList<TagOption> tags;
     QString error;
@@ -84,22 +83,39 @@ void ShelfPage::buildUi()
     if (connection.open(m_database.databaseName(), true, &error))
     {
         WorkRepository repository(connection.database());
-        serials = repository.serialSuggestions();
-        actresses = repository.actressSuggestions();
-        directors = repository.directorSuggestions();
-        actors = repository.actorSuggestions();
         makers = repository.makerOptions();
         labels = repository.labelOptions();
         series = repository.seriesOptions();
         tags = repository.tagOptions();
     }
-    m_serialFilter = new CompleterLineEdit([serials] { return serials; }, filterContent);
+    const QString databasePath = m_database.databaseName();
+    m_serialFilter = new CompleterLineEdit([databasePath] {
+        QString loadError;
+        SqliteConnection asyncConnection;
+        if (!asyncConnection.open(databasePath, true, &loadError)) return QStringList{};
+        return WorkRepository(asyncConnection.database()).serialSuggestions();
+    }, filterContent);
     m_serialFilter->setObjectName(QStringLiteral("ShelfSerialFilter"));
-    m_actressFilter = new CompleterLineEdit([actresses] { return actresses; }, filterContent);
+    m_actressFilter = new CompleterLineEdit([databasePath] {
+        QString loadError;
+        SqliteConnection asyncConnection;
+        if (!asyncConnection.open(databasePath, true, &loadError)) return QStringList{};
+        return WorkRepository(asyncConnection.database()).actressSuggestions();
+    }, filterContent);
     m_titleFilter = new DesignLineEdit(filterContent);
     m_notesFilter = new DesignLineEdit(filterContent);
-    m_directorFilter = new CompleterLineEdit([directors] { return directors; }, filterContent);
-    m_actorFilter = new CompleterLineEdit([actors] { return actors; }, filterContent);
+    m_directorFilter = new CompleterLineEdit([databasePath] {
+        QString loadError;
+        SqliteConnection asyncConnection;
+        if (!asyncConnection.open(databasePath, true, &loadError)) return QStringList{};
+        return WorkRepository(asyncConnection.database()).directorSuggestions();
+    }, filterContent);
+    m_actorFilter = new CompleterLineEdit([databasePath] {
+        QString loadError;
+        SqliteConnection asyncConnection;
+        if (!asyncConnection.open(databasePath, true, &loadError)) return QStringList{};
+        return WorkRepository(asyncConnection.database()).actorSuggestions();
+    }, filterContent);
     const auto addText = [filters, filterContent](const QString &label, QLineEdit *input, int width)
     {
         filters->addWidget(new DesignLabel(label, filterContent));
@@ -349,29 +365,26 @@ void ShelfPage::toggleTagPanel()
 
 void ShelfPage::refreshData()
 {
-    QString error;
-    SqliteConnection connection;
-    if (!connection.open(m_database.databaseName(), true, &error)) return;
-    const std::optional<int> total = WorkRepository(connection.database()).count(currentSearch(), &error);
-    if (!total.has_value()) return;
-    m_countLabel->setText(*total == 0 ? QStringLiteral("没有查询到数据")
-                                      : QStringLiteral("过滤总数:%1").arg(*total));
-    reloadDvdScene();
+    const int total = reloadDvdScene();
+    if (total < 0) return;
+    m_countLabel->setText(total == 0 ? QStringLiteral("没有查询到数据")
+                                     : QStringLiteral("过滤总数:%1").arg(total));
 }
 
-void ShelfPage::reloadDvdScene()
+int ShelfPage::reloadDvdScene()
 {
     QString error;
     SqliteConnection connection;
-    if (!connection.open(m_database.databaseName(), true, &error)) return;
+    if (!connection.open(m_database.databaseName(), true, &error)) return -1;
     WorkSearch search = currentSearch();
     // DvdShelfView receives the complete result set but submits only a moving
-    // 160-item window to Qt Quick 3D, matching the Python shelf virtualization.
+    // 60-item window to Qt Quick 3D, matching the Python shelf virtualization.
     search.limit = 0;
     search.offset = 0;
     const QList<WorkSummary> works = WorkRepository(connection.database()).search(search, &error);
-    if (!error.isEmpty()) return;
+    if (!error.isEmpty()) return -1;
     m_shelfView->setWorks(works);
+    return works.size();
 }
 
 WorkSortOrder ShelfPage::selectedSortOrder() const

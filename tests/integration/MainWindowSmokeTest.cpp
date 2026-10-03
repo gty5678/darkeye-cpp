@@ -208,9 +208,13 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QVERIFY(shelfPage == nullptr);
     QVERIFY(actressPage == nullptr);
     QVERIFY(actressDetail == nullptr);
-    emit workPage->detailRequested(*workId);
+    window.preloadShelfPage();
     shelfPage = window.findChild<darkeye::ShelfPage *>(QStringLiteral("ShelfPage"));
     QVERIFY(shelfPage != nullptr);
+    QVERIFY(shelfPage->isInitialized());
+    // Preloading must not navigate away from the page the user is viewing.
+    QCOMPARE(pages->currentWidget(), workPage);
+    emit workPage->detailRequested(*workId);
     QCOMPARE(pages->currentWidget(), shelfPage);
     QCOMPARE(sidebar->selectedId(), QStringLiteral("shelf"));
     emit sidebar->backwardClicked();

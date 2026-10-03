@@ -51,6 +51,7 @@ public:
                         QWidget *parent = nullptr);
 
     void showInitial();
+    void preloadShelfPage();
     /// Connects the HTTP bridge after both the window and local API are constructed.
     void setLocalApiServer(LocalApiServer &api);
 

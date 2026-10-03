@@ -17,10 +17,14 @@
 #include <QMessageBox>
 #include <QFileInfo>
 #include <QProcess>
+#include <QQmlContext>
+#include <QQmlError>
+#include <QQuickWidget>
 #include <QSettings>
 #include <QStackedWidget>
 #include <QThread>
 #include <QTimer>
+#include <QUrl>
 #include <QVBoxLayout>
 
 namespace darkeye {
@@ -99,25 +103,54 @@ Application::Application(int &argc, char **argv)
                      [this] { stopLlamaServer(); });
 }
 
-void Application::prepareGraphRendererPrewarm()
+void Application::prepareGraphicsPrewarm()
 {
-    // Python renders a small ForceViewRhiWidget during startup. On Windows,
-    // the QRhiWidget must enter the top-level widget tree before that window's
-    // first show.  Mark it visible now; it will become exposed with MainWindow
-    // and remain underneath the opaque current page.
+    // Python renders small Qt Quick 3D and ForceView scenes during startup.
+    // Keep both QRhi users in the top-level widget tree long enough to submit
+    // real frames so the first visible shelf/graph page does not initialize the
+    // graphics stack on the user's click.
     auto *pageStack = m_mainWindow->centralWidget()->findChild<QStackedWidget *>(
         QStringLiteral("mainPages"));
     if (pageStack == nullptr) {
-        qWarning() << "Graph renderer prewarm skipped: main page stack is unavailable";
+        qWarning() << "Graphics prewarm skipped: main page stack is unavailable";
         return;
     }
-    m_graphPrewarmWindow = std::make_unique<QWidget>(pageStack);
-    m_graphPrewarmWindow->setAttribute(Qt::WA_TransparentForMouseEvents);
-    m_graphPrewarmWindow->setGeometry(0, 0, 240, 200);
+    m_graphicsPrewarmWindow = std::make_unique<QWidget>(pageStack);
+    m_graphicsPrewarmWindow->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_graphicsPrewarmWindow->setGeometry(0, 0, 240, 248);
 
-    auto *layout = new QVBoxLayout(m_graphPrewarmWindow.get());
+    auto *layout = new QVBoxLayout(m_graphicsPrewarmWindow.get());
     layout->setContentsMargins(0, 0, 0, 0);
-    m_graphPrewarmView = new ForceViewRhiWidget(m_graphPrewarmWindow.get());
+    layout->setSpacing(0);
+
+    m_quickPrewarmView = new QQuickWidget(m_graphicsPrewarmWindow.get());
+    m_quickPrewarmView->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    m_quickPrewarmView->setFixedHeight(48);
+    QString resourcesPath = m_paths.resourcesDirectory();
+    if (!QFileInfo::exists(QDir(resourcesPath).filePath(QStringLiteral("meshes/back.mesh"))))
+        resourcesPath = QDir(QStringLiteral(DARKEYE_SOURCE_DIR)).filePath(QStringLiteral("resources"));
+    const QDir resources(resourcesPath);
+    const auto directoryUrl = [&resources](const QString &name) {
+        return QUrl::fromLocalFile(resources.filePath(name)).toString(QUrl::FullyEncoded) + '/';
+    };
+    auto *prewarmContext = m_quickPrewarmView->rootContext();
+    prewarmContext->setContextProperty(
+        QStringLiteral("prewarmDvdUrl"),
+        QUrl(QStringLiteral("qrc:/qt/qml/Darkeye/Shelf/Dvd.qml")));
+    prewarmContext->setContextProperty(QStringLiteral("meshesPath"),
+                                       directoryUrl(QStringLiteral("meshes")));
+    prewarmContext->setContextProperty(QStringLiteral("mapsPath"),
+                                       directoryUrl(QStringLiteral("maps")));
+    prewarmContext->setContextProperty(QStringLiteral("hdrPath"),
+                                       directoryUrl(QStringLiteral("hdr")));
+    m_quickPrewarmView->setSource(QUrl(QStringLiteral("qrc:/qml/graphics_prewarm_scene.qml")));
+    if (m_quickPrewarmView->status() == QQuickWidget::Error) {
+        for (const QQmlError &error : m_quickPrewarmView->errors())
+            qWarning() << "Qt Quick 3D prewarm error:" << error.toString();
+    }
+    layout->addWidget(m_quickPrewarmView);
+
+    m_graphPrewarmView = new ForceViewRhiWidget(m_graphicsPrewarmWindow.get());
     layout->addWidget(m_graphPrewarmView);
     m_graphPrewarmView->setGraph(
         1, {}, {0.0f, 0.0f}, {QStringLiteral("prewarm")},
@@ -125,23 +158,24 @@ void Application::prepareGraphRendererPrewarm()
     QObject::connect(m_graphPrewarmView, &ForceViewRhiWidget::firstFrameSubmitted,
                      m_graphPrewarmView,
                      [this] { m_graphPrewarmFrameSubmitted = true; });
-    m_graphPrewarmWindow->show();
-    m_graphPrewarmWindow->lower();
+    m_graphicsPrewarmWindow->show();
+    m_graphicsPrewarmWindow->lower();
 }
 
-void Application::prewarmGraphRenderer()
+void Application::finishGraphicsPrewarm()
 {
-    if (m_graphPrewarmWindow == nullptr || m_graphPrewarmView == nullptr)
+    if (m_graphicsPrewarmWindow == nullptr)
         return;
     for (int frame = 0; frame < 10; ++frame) {
         m_application.processEvents(QEventLoop::AllEvents, 50);
         QThread::msleep(16);
     }
-    m_graphPrewarmView->pauseSimulation();
+    if (m_graphPrewarmView != nullptr)
+        m_graphPrewarmView->pauseSimulation();
     // Prewarming requires one visible frame on Windows, but the helper must
     // not remain in the compositing tree afterwards: transparent application
     // widgets would otherwise reveal it.
-    m_graphPrewarmWindow->hide();
+    m_graphicsPrewarmWindow->hide();
     if (!m_graphPrewarmFrameSubmitted) {
         qWarning() << "Graph renderer prewarm did not submit a frame";
     }
@@ -174,10 +208,15 @@ int Application::run()
         appSettings.firstLaunch = false;
         settings::saveApp(appSettings);
     }
-    prepareGraphRendererPrewarm();
+    prepareGraphicsPrewarm();
     m_mainWindow->showInitial();
-    prewarmGraphRenderer();
+    finishGraphicsPrewarm();
     QTimer::singleShot(0, &m_application, [this] { startBackgroundServices(); });
+    // Let the initial work page paint first, then build the real shelf page
+    // while the application is otherwise idle. The first shelf click can reuse
+    // this exact QQuickWidget and scene instead of paying createPage/lazyLoad.
+    QTimer::singleShot(250, m_mainWindow.get(),
+                       [this] { m_mainWindow->preloadShelfPage(); });
     return m_application.exec();
 }
 

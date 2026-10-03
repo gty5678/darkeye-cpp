@@ -14,4 +14,7 @@
 		<file alias="logo.svg">icons/logo.svg</file>
 		<file alias="anonymous.jpg">icons/anonymous.jpg</file>
     </qresource>
+    <qresource prefix="/qml">
+        <file alias="graphics_prewarm_scene.qml">qml/graphics_prewarm_scene.qml</file>
+    </qresource>
 </RCC>

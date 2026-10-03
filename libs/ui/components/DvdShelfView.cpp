@@ -41,6 +41,18 @@ namespace darkeye
 namespace
 {
 
+constexpr int dvdWindowSize = 60;
+constexpr int initialDvdBatchSize = 18;
+constexpr int dvdBatchSize = 18;
+constexpr int minimumDvdWindowSize = 42;
+constexpr int fallbackDvdWindowSize = 48;
+constexpr int dvdWindowOverscan = 8;
+constexpr int dvdTextureMaxEdge = 1024;
+constexpr qint64 dvdTextureSizeFallbackThreshold = 320 * 1024;
+constexpr qreal dvdSpacing = 0.0145;
+constexpr qreal shelfCameraDistance = 0.25;
+constexpr qreal shelfVerticalFieldOfView = 60.0;
+
 QString fileUrl(const QString &path)
 {
     return QUrl::fromLocalFile(QDir::cleanPath(path)).toString(QUrl::FullyEncoded);
@@ -87,7 +99,9 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     // Two decoders prevent a large cover collection from briefly consuming
     // several gigabytes while its thumbnails are prepared.
     m_thumbnailPool.setMaxThreadCount(2);
-    trimThumbnailCache();
+    // Cache eviction does not affect the scene's correctness. Running the
+    // directory scan outside the GUI thread keeps it off the preload path.
+    QThreadPool::globalInstance()->start([] { trimThumbnailCache(); });
     m_thumbnailRefreshTimer = new QTimer(this);
     m_thumbnailRefreshTimer->setSingleShot(true);
     m_thumbnailRefreshTimer->setInterval(50);
@@ -98,6 +112,10 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     m_cameraTimer = new QTimer(this);
     m_cameraTimer->setInterval(16);
     connect(m_cameraTimer, &QTimer::timeout, this, &DvdShelfView::advanceCamera);
+    m_initialPopulateTimer = new QTimer(this);
+    m_initialPopulateTimer->setInterval(16);
+    connect(m_initialPopulateTimer, &QTimer::timeout,
+            this, &DvdShelfView::advanceInitialPopulation);
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(m_quickWidget);
@@ -150,19 +168,20 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     // whose scale binding throws and leaves the shelf visually empty.
     context->setContextProperty(QStringLiteral("modelScale"), 1.0);
     context->setContextProperty(QStringLiteral("dvdQmlUrl"),
-                                QUrl::fromLocalFile(assetDirectory("qml/dvd/Dvd.qml")));
+                                QUrl(QStringLiteral("qrc:/qt/qml/Darkeye/Shelf/Dvd.qml")));
     context->setContextProperty(QStringLiteral("dvdCount"), 0);
     context->setContextProperty(QStringLiteral("dvdTextureSources"), QVariantList{});
     context->setContextProperty(QStringLiteral("dvdVisibleStart"), 0);
     context->setContextProperty(QStringLiteral("dvdShelfLength"), 0.0);
-    context->setContextProperty(QStringLiteral("dvdSpacing"), 0.0145);
-    context->setContextProperty(QStringLiteral("cameraDistance"), 0.25);
+    context->setContextProperty(QStringLiteral("dvdSpacing"), dvdSpacing);
+    context->setContextProperty(QStringLiteral("cameraDistance"), shelfCameraDistance);
     context->setContextProperty(QStringLiteral("selectedDvdDistance"), 0.2);
     context->setContextProperty(QStringLiteral("showWireframe"), false);
     context->setContextProperty(QStringLiteral("meshesPath"), fileUrl(assetDirectory("meshes")) + "/");
     context->setContextProperty(QStringLiteral("mapsPath"), fileUrl(assetDirectory("maps")) + "/");
     context->setContextProperty(QStringLiteral("hdrPath"), fileUrl(assetDirectory("hdr")) + "/");
-    m_quickWidget->setSource(QUrl::fromLocalFile(assetDirectory("qml/dvd/dvd_scene.qml")));
+    m_quickWidget->setSource(
+        QUrl(QStringLiteral("qrc:/qt/qml/Darkeye/Shelf/dvd_scene.qml")));
 }
 
 void DvdShelfView::setWorks(const QList<WorkSummary> &works)
@@ -176,8 +195,10 @@ void DvdShelfView::setWorks(const QList<WorkSummary> &works)
     m_cameraVelocityX = 0;
     m_cameraElapsed.invalidate();
     m_cameraTimer->stop();
+    m_initialPopulateTimer->stop();
     m_visibleStart = 0;
     m_loadedStart = -1;
+    m_renderWindowSize = qMin(initialDvdBatchSize, targetWindowSize());
     m_textureCache.clear();
     m_textureCacheOrder.clear();
     m_thumbnailInFlight.clear();
@@ -185,6 +206,8 @@ void DvdShelfView::setWorks(const QList<WorkSummary> &works)
     clearExpandedMeta();
     hideOverlays();
     refreshVisibleWindow();
+    if (m_renderWindowSize < targetWindowSize())
+        m_initialPopulateTimer->start();
 }
 
 void DvdShelfView::updateScene()
@@ -194,11 +217,10 @@ void DvdShelfView::updateScene()
 
 void DvdShelfView::refreshVisibleWindow(bool force)
 {
-    constexpr int windowSize = 60;
     constexpr int maxShiftPerUpdate = 10;
-    constexpr qreal spacing = 0.0145;
     const int count = m_works.size();
-    int desiredStart = qBound(0, qRound(m_cameraX / spacing) - windowSize / 2,
+    const int windowSize = qBound(0, m_renderWindowSize, dvdWindowSize);
+    int desiredStart = qBound(0, qRound(m_cameraX / dvdSpacing) - windowSize / 2,
                               qMax(0, count - windowSize));
     // Keep the Python shelf's window policy: once the camera moves beyond the
     // centered margin, follow it immediately, but constrain a single update
@@ -223,7 +245,40 @@ void DvdShelfView::refreshVisibleWindow(bool force)
     context->setContextProperty(QStringLiteral("dvdCount"), visible.size());
     context->setContextProperty(QStringLiteral("dvdTextureSources"), textures);
     context->setContextProperty(QStringLiteral("dvdShelfLength"),
-                                qMax(0, count - 1) * spacing);
+                                qMax(0, count - 1) * dvdSpacing);
+}
+
+void DvdShelfView::advanceInitialPopulation()
+{
+    const int targetSize = targetWindowSize();
+    if (m_renderWindowSize >= targetSize)
+    {
+        m_initialPopulateTimer->stop();
+        return;
+    }
+    m_renderWindowSize = qMin(targetSize, m_renderWindowSize + dvdBatchSize);
+    refreshVisibleWindow(true);
+    if (m_renderWindowSize >= targetSize)
+        m_initialPopulateTimer->stop();
+}
+
+void DvdShelfView::finishInitialPopulation()
+{
+    if (m_initialPopulateTimer != nullptr)
+        m_initialPopulateTimer->stop();
+    m_renderWindowSize = targetWindowSize();
+}
+
+int DvdShelfView::targetWindowSize() const
+{
+    if (m_works.isEmpty()) return 0;
+    if (m_quickWidget->width() < 320 || m_quickWidget->height() < 320)
+        return qMin(fallbackDvdWindowSize, m_works.size());
+    const qreal aspectRatio = qreal(m_quickWidget->width()) / m_quickWidget->height();
+    const qreal visibleWidth = 2.0 * shelfCameraDistance
+        * qTan(qDegreesToRadians(shelfVerticalFieldOfView * 0.5)) * aspectRatio;
+    const int visibleCovers = qCeil(visibleWidth / dvdSpacing) + dvdWindowOverscan;
+    return qMin(m_works.size(), qBound(minimumDvdWindowSize, visibleCovers, dvdWindowSize));
 }
 
 QString DvdShelfView::textureForWork(const WorkSummary &work)
@@ -243,7 +298,16 @@ QString DvdShelfView::textureForWork(const WorkSummary &work)
         cacheTexture(work.id, placeholder);
         return placeholder;
     }
-    if (info.size() <= 320 * 1024)
+    // Compressed byte size is a poor predictor of the decoded/GPU cost: a
+    // highly compressed cover can be several thousand pixels tall while
+    // still being a small JPEG.  Reading the image header is cheap and keeps
+    // every texture uploaded by the shelf within a predictable bound.
+    QImageReader sourceReader(source);
+    const QSize sourceSize = sourceReader.size();
+    const bool needsThumbnail = sourceSize.isValid()
+        ? qMax(sourceSize.width(), sourceSize.height()) > dvdTextureMaxEdge
+        : info.size() > dvdTextureSizeFallbackThreshold;
+    if (!needsThumbnail)
     {
         const QString url = fileUrl(source);
         cacheTexture(work.id, url);
@@ -252,7 +316,11 @@ QString DvdShelfView::textureForWork(const WorkSummary &work)
     const QString cacheDirectory = QDir(QDir::tempPath()).filePath(QStringLiteral("darkeye/dvd_3d_tex"));
     QDir().mkpath(cacheDirectory);
     const QString thumb = QDir(cacheDirectory).filePath(
-        QStringLiteral("%1_%2_%3.jpg").arg(work.id).arg(info.lastModified().toMSecsSinceEpoch()).arg(info.size()));
+        QStringLiteral("v2_%1_%2_%3_%4.jpg")
+            .arg(dvdTextureMaxEdge)
+            .arg(work.id)
+            .arg(info.lastModified().toMSecsSinceEpoch())
+            .arg(info.size()));
     if (QFileInfo::exists(thumb))
     {
         const QString url = fileUrl(thumb);
@@ -282,8 +350,9 @@ void DvdShelfView::queueThumbnail(qint64 workId, const QString &sourcePath, cons
         QImageReader reader(sourcePath);
         reader.setAutoTransform(true);
         QSize size = reader.size();
-        if (size.isValid() && qMax(size.width(), size.height()) > 2048)
-            reader.setScaledSize(size.scaled(2048, 2048, Qt::KeepAspectRatio));
+        if (size.isValid() && qMax(size.width(), size.height()) > dvdTextureMaxEdge)
+            reader.setScaledSize(size.scaled(dvdTextureMaxEdge, dvdTextureMaxEdge,
+                                             Qt::KeepAspectRatio));
         const QImage image = reader.read();
         const bool saved = !image.isNull() && image.save(thumbnailPath, "JPEG", 88);
         QMetaObject::invokeMethod(qApp, [view, workId, sourcePath, thumbnailPath, saved] {
@@ -617,6 +686,7 @@ bool DvdShelfView::openWork(qint64 workId)
     m_cameraTargetX = m_cameraX;
     emit cameraXChanged();
     emit cameraTargetXChanged();
+    finishInitialPopulation();
     m_loadedStart = -1;
     refreshVisibleWindow(true);
     const int delegateIndex = virtualIndex - m_visibleStart;
@@ -761,6 +831,8 @@ void DvdShelfView::persistFanartPreview()
 void DvdShelfView::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
+    if (!m_works.isEmpty() && targetWindowSize() > m_renderWindowSize)
+        m_initialPopulateTimer->start();
     if (m_relationGraphContainer != nullptr && m_relationGraphContainer->isVisible())
         updateRelationGraphGeometry(m_relationGraphCenterX, m_relationGraphCenterY);
     if (m_fanartContainer != nullptr && m_fanartContainer->isVisible())

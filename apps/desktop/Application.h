@@ -11,6 +11,7 @@
 
 class QWidget;
 class ForceViewRhiWidget;
+class QQuickWidget;
 
 namespace darkeye {
 
@@ -29,8 +30,8 @@ public:
 private:
     void configureIdentity();
     void applyInitialTheme();
-    void prepareGraphRendererPrewarm();
-    void prewarmGraphRenderer();
+    void prepareGraphicsPrewarm();
+    void finishGraphicsPrewarm();
     void startBackgroundServices();
     void checkForUpdatesAutomatically();
     void stopLlamaServer();
@@ -40,7 +41,8 @@ private:
     ThemeService m_themeService;
     DatabaseManager m_databaseManager;
     std::unique_ptr<MainWindow> m_mainWindow;
-    std::unique_ptr<QWidget> m_graphPrewarmWindow;
+    std::unique_ptr<QWidget> m_graphicsPrewarmWindow;
+    QQuickWidget *m_quickPrewarmView = nullptr;
     ForceViewRhiWidget *m_graphPrewarmView = nullptr;
     bool m_graphPrewarmFrameSubmitted = false;
     std::unique_ptr<LocalApiServer> m_localApiServer;

@@ -60,7 +60,7 @@ private:
     void clearFilters();
     void toggleTagPanel();
     void refreshData();
-    void reloadDvdScene();
+    int reloadDvdScene();
     void resetForRoute();
     [[nodiscard]] WorkSearch currentSearch() const;
     [[nodiscard]] WorkSortOrder selectedSortOrder() const;

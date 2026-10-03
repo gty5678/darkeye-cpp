@@ -6,18 +6,32 @@ Ninja 和 vcpkg manifest 模式；本文档是本项目唯一的本地构建说�
 ## 前置条件
 
 在 Windows 上准备以下工具：
-
-- Visual Studio 2022，并安装“使用 C++ 的桌面开发”工作负载（MSVC x64 工具链和 Windows SDK）。
+- Git
+- [Visual Studio 2022](https://aka.ms/vs/17/release/vs_community.exe)，
 - CMake 3.25 或更高版本、Ninja。
 - Qt 6.10.3 ，并且安装的 **MSVC 2022 64-bit** kit。
 - vcpkg。项目的 C++ 第三方依赖由根目录的 `vcpkg.json` 自动解析，不要手动复制第三方库目录。
 
-在 **Developer PowerShell for VS 2022** 中设置 Qt 和 vcpkg 的位置。以下路径仅为示例，请按实际安装位置替换：
+### 安装Git
 
+### 安装 Visual Studio 2022
+安装“使用 C++ 的桌面开发”工作负载（MSVC x64 工具链和 Windows SDK）。
+
+### 安装 CMake 和 Ninja
+这个一般随着vs C++桌面开发会同时安装上去
+
+### 安装Qt
+
+使用在线安装的方式，需要注册登陆账号，只安装Qt 6.10.3的MSVC依赖即可，大概5G不到
+
+添加用户环境变量，这个很重要
 ```powershell
 $env:Qt6_DIR = "C:/Qt/6.10.3/msvc2022_64/lib/cmake/Qt6"
-$env:VCPKG_ROOT = "C:/src/vcpkg"
 ```
+
+
+### 安装vcpkg
+实际上vcpkg会随着vs C++工作负载安装，但是最好自己装一个新的
 
 若尚未安装 vcpkg，可执行：
 
@@ -26,11 +40,13 @@ git clone https://github.com/microsoft/vcpkg C:/src/vcpkg
 C:/src/vcpkg/bootstrap-vcpkg.bat
 ```
 
-建议将 `Qt6_DIR` 和 `VCPKG_ROOT` 配置为用户环境变量，避免每次新开终端都要设置。Qt 必须使用
-MSVC 2022 64-bit kit，并与项目的 x64 Windows 构建一致。
+添加VCPKG_ROOT的环境变量，这个很重要
+```
+$env:VCPKG_ROOT = "C:/src/vcpkg"
+```
 
-## vcpkg换源
-首先先去安装[powershell 7.5.3](https://github.com/PowerShell/PowerShell/releases/download/v7.5.3/PowerShell-7.5.3-win-x64.msi)
+#### vcpkg换源
+首先先去安装[powershell 7.5.3](https://github.com/PowerShell/PowerShell/releases/download/v7.5.3/PowerShell-7.5.3-win-x64.msi) 这个后面编译的时候会用到，需要安装
 
 Git URL重定向
 ```

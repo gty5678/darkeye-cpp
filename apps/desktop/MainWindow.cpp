@@ -234,6 +234,17 @@ void MainWindow::showInitial()
     }
 }
 
+void MainWindow::preloadShelfPage()
+{
+    auto *shelf = static_cast<ShelfPage *>(ensurePage(QStringLiteral("shelf")));
+    if (shelf == nullptr || shelf->isInitialized())
+        return;
+    QElapsedTimer timer;
+    timer.start();
+    shelf->initialize();
+    qInfo() << "Shelf page preloaded in" << timer.elapsed() << "ms";
+}
+
 void MainWindow::setLocalApiServer(LocalApiServer &api)
 {
     attachLocalApi(api);

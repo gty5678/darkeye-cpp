@@ -27,6 +27,9 @@ if(WIN32)
     target_sources(Darkeye PRIVATE "${PROJECT_SOURCE_DIR}/resources/logo.rc")
 endif()
 target_link_libraries(Darkeye PRIVATE darkeye::desktop_ui)
+target_compile_definitions(Darkeye PRIVATE
+    DARKEYE_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+)
 darkeye_apply_compiler_options(Darkeye)
 darkeye_configure_packaging(Darkeye)
 

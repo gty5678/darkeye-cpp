@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick3D
-import QtQuick.Timeline
 Node {
     id: rOOT
     /** 贴图路径，可动态更换；支持相对路径（相对 Dvd.qml 所在目录）或 file:// 绝对路径 */
@@ -26,6 +25,15 @@ Node {
     property real discSpinAngle: 0
     property bool _closeAnimationPending: false
     property real closeAnimationSpeedMultiplier: 1.0
+    // The original imported Timeline created two groups and 24 Keyframe
+    // objects for every shelf delegate.  This is the same smoothstep curve in
+    // closed form, so a collapsed shelf only needs the two animations below.
+    property real _openFrame: 0
+    readonly property real _openCurvePosition: Math.max(0, Math.min(1,
+        (_openFrame - 41.6667) / 458.3333))
+    readonly property real _openCurve: _openCurvePosition * _openCurvePosition
+        * (3 - 2 * _openCurvePosition)
+    readonly property real _openAngle: -90 * _openCurve
 
     function playOpenAnimation() {
         expanded = true
@@ -43,7 +51,7 @@ Node {
         }
     }
 
-    // 当 expanded 被 dvd_scene 的 Binding 或 playOpen/Close 设置时，驱动 Timeline 动画
+    // 当 expanded 被 dvd_scene 的 Binding 或 playOpen/Close 设置时，驱动开合动画
     onExpandedChanged: {
         if (expanded) {
             _closeAnimationPending = false
@@ -51,6 +59,26 @@ Node {
         } else {
             _closeAnimationPending = true
             back.playCloseAnimation()
+        }
+    }
+
+    NumberAnimation {
+        id: openAnim
+        target: rOOT
+        property: "_openFrame"
+        easing.type: Easing.Linear
+    }
+
+    NumberAnimation {
+        id: closeAnim
+        target: rOOT
+        property: "_openFrame"
+        easing.type: Easing.Linear
+        onRunningChanged: {
+            if (!running && rOOT._closeAnimationPending && rOOT._openFrame <= 0.001) {
+                rOOT._closeAnimationPending = false
+                rOOT.closeAnimationFinished()
+            }
         }
     }
 
@@ -94,37 +122,44 @@ Node {
                 NumberAnimation { duration: 380; easing.type: Easing.OutCubic }
             }
 
-            Model {
-                id: cD
-                objectName: "cD"
-                pickable: true
-                scale.x: 1
-                scale.y: 1
-                scale.z: 1
-                source: (typeof meshesPath !== "undefined" ? meshesPath : "meshes/") + "cD.mesh"
+            // Closed shelf cases do not expose the disc. Avoid constructing a
+            // fourth model and two extra materials for every visible DVD; keep
+            // it alive through the close animation once it has been requested.
+            Loader3D {
+                active: rOOT.expanded || rOOT._closeAnimationPending || rOOT._openFrame > 0.001
+                sourceComponent: Component {
+                    Model {
+                        objectName: "cD"
+                        pickable: true
+                        scale.x: 1
+                        scale.y: 1
+                        scale.z: 1
+                        source: (typeof meshesPath !== "undefined" ? meshesPath : "meshes/") + "cD.mesh"
 
-                // CD 盘面也调成更哑光、少金属的 toon 风格
-                PrincipledMaterial {
-                    id: transparent_material
-                    baseColor: "#ffffffcc"
-                    metalness: 0
-                    roughness: 0.9
-                    cullMode: Material.NoCulling
-                    alphaMode: PrincipledMaterial.Blend
-                }
+                        // CD 盘面也调成更哑光、少金属的 toon 风格
+                        PrincipledMaterial {
+                            id: transparent_material
+                            baseColor: "#ffffffcc"
+                            metalness: 0
+                            roughness: 0.9
+                            cullMode: Material.NoCulling
+                            alphaMode: PrincipledMaterial.Blend
+                        }
 
-                PrincipledMaterial {
-                    id: rainbow_material
-                    baseColor: "#ffcccccc"
-                    metalness: 0.15
-                    roughness: 0.85
-                    cullMode: Material.NoCulling
+                        PrincipledMaterial {
+                            id: rainbow_material
+                            baseColor: "#ffcccccc"
+                            metalness: 0.15
+                            roughness: 0.85
+                            cullMode: Material.NoCulling
+                        }
+                        materials: [
+                            pic_material,
+                            transparent_material,
+                            rainbow_material
+                        ]
+                    }
                 }
-                materials: [
-                    pic_material,
-                    transparent_material,
-                    rainbow_material
-                ]
             }
         }
 
@@ -143,7 +178,7 @@ Node {
 
         function playOpenAnimation() {
             closeAnim.running = false
-            var cf = timeline0.currentFrame
+            var cf = rOOT._openFrame
             openAnim.from = cf
             openAnim.to = 500
             openAnim.duration = Math.max(100, 500 * (500 - cf) / 500)
@@ -151,7 +186,7 @@ Node {
         }
         function playCloseAnimation() {
             openAnim.running = false
-            var cf = timeline0.currentFrame
+            var cf = rOOT._openFrame
             closeAnim.from = cf            
             closeAnim.to = 0            
             var speed = Math.max(0.1, rOOT.closeAnimationSpeedMultiplier)
@@ -189,6 +224,7 @@ Node {
         Model {
             id: spine
             pickable: true
+            eulerRotation: Qt.vector3d(0, rOOT._openAngle, 0)
             source: (typeof meshesPath !== "undefined" ? meshesPath : "meshes/") + "spine.mesh"
             materials: [
                 pic_material,
@@ -200,6 +236,7 @@ Node {
                     id: front
                     pickable: true
                     x: 0.0134142
+                    eulerRotation: Qt.vector3d(0, rOOT._openAngle, 0)
                     source: (typeof meshesPath !== "undefined" ? meshesPath : "meshes/") + "front.mesh"
                     materials: [
                         pic_material,
@@ -217,144 +254,5 @@ Node {
         }
         }
 
-        Timeline {
-            id: timeline0
-            startFrame: 0
-            endFrame: 500
-            currentFrame: 0
-            enabled: true
-            animations: [
-                TimelineAnimation {
-                    id: openAnim
-                    duration: 500
-                    from: 0
-                    to: 500
-                    running: false
-                },
-                TimelineAnimation {
-                    id: closeAnim
-                    duration: 500
-                    from: 500
-                    to: 0
-                    running: false
-                    onRunningChanged: {
-                        if (!running && rOOT._closeAnimationPending && timeline0.currentFrame <= 0.001) {
-                            rOOT._closeAnimationPending = false
-                            rOOT.closeAnimationFinished()
-                        }
-                    }
-                }
-            ]
-
-
-        KeyframeGroup {
-            target: spine
-            property: "eulerRotation"
-
-            Keyframe {
-                frame: 41.6667
-                value: Qt.vector3d(0, 0, 0)
-            }
-            Keyframe {
-                frame: 83.3333
-                value: Qt.vector3d(0, -2.09617, 0)
-            }
-            Keyframe {
-                frame: 125
-                value: Qt.vector3d(0, -7.84373, 0)
-            }
-            Keyframe {
-                frame: 166.667
-                value: Qt.vector3d(0, -16.4313, 0)
-            }
-            Keyframe {
-                frame: 208.333
-                value: Qt.vector3d(0, -27.0473, 0)
-            }
-            Keyframe {
-                frame: 250
-                value: Qt.vector3d(0, -38.8805, 0)
-            }
-            Keyframe {
-                frame: 291.667
-                value: Qt.vector3d(0, -51.1195, 0)
-            }
-            Keyframe {
-                frame: 333.333
-                value: Qt.vector3d(0, -62.9527, 0)
-            }
-            Keyframe {
-                frame: 375
-                value: Qt.vector3d(0, -73.5688, 0)
-            }
-            Keyframe {
-                frame: 416.667
-                value: Qt.vector3d(0, -82.1563, 0)
-            }
-            Keyframe {
-                frame: 458.333
-                value: Qt.vector3d(0, -87.9039, 0)
-            }
-            Keyframe {
-                frame: 500
-                value: Qt.vector3d(0, -90, 0)
-            }
-        }
-
-        KeyframeGroup {
-            target: front
-            property: "eulerRotation"
-
-            Keyframe {
-                frame: 41.6667
-                value: Qt.vector3d(0, 0, 0)
-            }
-            Keyframe {
-                frame: 83.3333
-                value: Qt.vector3d(0, -2.09617, 0)
-            }
-            Keyframe {
-                frame: 125
-                value: Qt.vector3d(0, -7.84373, 0)
-            }
-            Keyframe {
-                frame: 166.667
-                value: Qt.vector3d(0, -16.4313, 0)
-            }
-            Keyframe {
-                frame: 208.333
-                value: Qt.vector3d(0, -27.0473, 0)
-            }
-            Keyframe {
-                frame: 250
-                value: Qt.vector3d(0, -38.8806, 0)
-            }
-            Keyframe {
-                frame: 291.667
-                value: Qt.vector3d(0, -51.1195, 0)
-            }
-            Keyframe {
-                frame: 333.333
-                value: Qt.vector3d(0, -62.9527, 0)
-            }
-            Keyframe {
-                frame: 375
-                value: Qt.vector3d(0, -73.5688, 0)
-            }
-            Keyframe {
-                frame: 416.667
-                value: Qt.vector3d(0, -82.1563, 0)
-            }
-            Keyframe {
-                frame: 458.333
-                value: Qt.vector3d(0, -87.9039, 0)
-            }
-            Keyframe {
-                frame: 500
-                value: Qt.vector3d(0, -90, 0)
-            }
-        }
-
-        }
     }
 }
