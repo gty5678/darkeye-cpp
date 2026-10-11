@@ -561,12 +561,34 @@ void DvdShelfView::on_heart_clicked(int virtualIndex)
     if (!workId || !m_privateDatabase.isValid()) return;
     QString error;
     SqliteConnection connection;
-    if (!connection.open(m_privateDatabase.databaseName(), true, &error)) return;
+    if (!connection.open(m_privateDatabase.databaseName(), false, &error))
+    {
+        ToastNotification::showError(window(), QStringLiteral("收藏操作失败：%1").arg(error));
+        return;
+    }
     PrivateRepository privateRepository(connection.database());
-    const bool changed = m_favorited
+    // Like Python, read the persisted state at click time: another page may
+    // have changed it since this DVD was expanded.
+    const bool favorite = privateRepository.isFavoriteWork(workId, &error);
+    if (!error.isEmpty())
+    {
+        ToastNotification::showError(window(), QStringLiteral("收藏操作失败：%1").arg(error));
+        return;
+    }
+    const bool changed = favorite
         ? privateRepository.removeFavoriteWork(workId, &error)
         : privateRepository.addFavoriteWork(workId, m_works.at(virtualIndex).serialNumber, &error);
-    if (changed) { m_favorited = !m_favorited; emit expandedWorkFavoritedChanged(); }
+    if (!changed)
+    {
+        ToastNotification::showError(window(), QStringLiteral("收藏操作失败：%1").arg(error));
+        return;
+    }
+    if (m_favorited != !favorite)
+    {
+        m_favorited = !favorite;
+        emit expandedWorkFavoritedChanged();
+    }
+    emit favoriteChanged(workId, !favorite);
 }
 
 void DvdShelfView::on_cd_clicked(int virtualIndex)

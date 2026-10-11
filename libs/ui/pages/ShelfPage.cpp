@@ -214,6 +214,7 @@ void ShelfPage::buildUi()
                                    m_coverDirectory, m_fanartDirectory, this);
     connect(m_shelfView, &DvdShelfView::workSelected, this, &ShelfPage::detailRequested);
     connect(m_shelfView, &DvdShelfView::editRequested, this, &ShelfPage::editRequested);
+    connect(m_shelfView, &DvdShelfView::favoriteChanged, this, &ShelfPage::favoriteChanged);
     connect(m_shelfView, &DvdShelfView::workDeleted, this, [this](qint64 workId) {
         refreshData();
         emit workDeleted(workId);

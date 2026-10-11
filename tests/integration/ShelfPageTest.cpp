@@ -25,6 +25,8 @@ class ShelfPageTest final : public QObject
 private slots:
     void filtersAndLoadsVirtualizedShelf();
     void filtersByPrivateScope();
+    void heartTogglesPersistedFavorite_data();
+    void heartTogglesPersistedFavorite();
     void deletingExpandedWorkResetsScene_data();
     void deletingExpandedWorkResetsScene();
     void routeJumpReplacesAnAlreadyExpandedWork();
@@ -103,6 +105,89 @@ void ShelfPageTest::filtersByPrivateScope()
     QTRY_COMPARE(count->text(), QStringLiteral("过滤总数:1"));
     scope->setCurrentText(QStringLiteral("已撸过"));
     QTRY_COMPARE(count->text(), QStringLiteral("没有查询到数据"));
+}
+
+void ShelfPageTest::heartTogglesPersistedFavorite_data()
+{
+    QTest::addColumn<int>("workCount");
+    QTest::addColumn<bool>("initialFavorite");
+    QTest::newRow("add-favorite") << 1 << false;
+    QTest::newRow("remove-favorite") << 1 << true;
+    QTest::newRow("virtualized-work") << 80 << false;
+}
+
+void ShelfPageTest::heartTogglesPersistedFavorite()
+{
+    QFETCH(int, workCount);
+    QFETCH(bool, initialFavorite);
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    darkeye::SqliteConnection publicConnection, privateConnection;
+    QString error;
+    QVERIFY(publicConnection.open(temporaryDirectory.filePath(QStringLiteral("public.db")), false, &error));
+    QVERIFY(privateConnection.open(temporaryDirectory.filePath(QStringLiteral("private.db")), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(publicConnection, darkeye::DatabaseKind::Public, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(privateConnection, darkeye::DatabaseKind::Private, &error));
+    darkeye::WorkRepository works(publicConnection.database());
+    darkeye::PrivateRepository favorites(privateConnection.database());
+    qint64 workId = 0;
+    QString serial;
+    for (int index = 0; index < workCount; ++index)
+    {
+        darkeye::Work work;
+        work.serialNumber = QStringLiteral("HEART-%1").arg(index, 3, 10, QLatin1Char('0'));
+        const auto id = works.insertComplete(work, {}, {}, {}, &error);
+        QVERIFY(id.has_value());
+        workId = *id;
+        serial = work.serialNumber;
+    }
+    if (initialFavorite) QVERIFY(favorites.addFavoriteWork(workId, serial, &error));
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    QVERIFY(application != nullptr);
+    darkeye::ThemeService themes(*application);
+    darkeye::ShelfPage page(publicConnection.database(), privateConnection.database(), themes);
+    page.initialize();
+    auto *view = page.findChild<darkeye::DvdShelfView *>();
+    QVERIFY(view != nullptr);
+    darkeye::WorkSearch search;
+    search.limit = 0;
+    search.order = darkeye::WorkSortOrder::SerialAscending;
+    view->setWorks(works.search(search, &error));
+    QVERIFY(view->openWork(workId));
+    auto *quick = view->findChild<QQuickWidget *>();
+    QVERIFY(quick != nullptr);
+    QVERIFY(quick->rootObject() != nullptr);
+    auto *root = quick->rootObject();
+    QTRY_VERIFY(root->property("fullyExpandedDelegateIndex").toInt() >= 0);
+    const int virtualIndex = root->property("selectedWorkVirtualIndex").toInt();
+    QCOMPARE(virtualIndex, workCount - 1);
+    QCOMPARE(view->expandedWorkFavorited(), initialFavorite);
+    QSignalSpy stateChanged(view, &darkeye::DvdShelfView::expandedWorkFavoritedChanged);
+    QSignalSpy favoriteChanged(&page, &darkeye::ShelfPage::favoriteChanged);
+    view->on_heart_clicked(virtualIndex);
+    QCOMPARE(favorites.isFavoriteWork(workId, &error), !initialFavorite);
+    QCOMPARE(view->expandedWorkFavorited(), !initialFavorite);
+    QCOMPARE(stateChanged.count(), 1);
+    QCOMPARE(favoriteChanged.count(), 1);
+    QCOMPARE(favoriteChanged.first().at(0).toLongLong(), workId);
+    QCOMPARE(favoriteChanged.first().at(1).toBool(), !initialFavorite);
+    QCOMPARE(root->property("expandedDelegateIndex").toInt() >= 0, true);
+    view->on_heart_clicked(virtualIndex);
+    QCOMPARE(favorites.isFavoriteWork(workId, &error), initialFavorite);
+    QCOMPARE(view->expandedWorkFavorited(), initialFavorite);
+    QCOMPARE(favoriteChanged.count(), 2);
+    // Match Python: consult the database even when another page changed it.
+    if (initialFavorite) QVERIFY(favorites.removeFavoriteWork(workId, &error));
+    else QVERIFY(favorites.addFavoriteWork(workId, serial, &error));
+    view->on_heart_clicked(virtualIndex);
+    QCOMPARE(favorites.isFavoriteWork(workId, &error), initialFavorite);
+    QCOMPARE(view->expandedWorkFavorited(), initialFavorite);
+    QCOMPARE(favoriteChanged.count(), 3);
+    view->refresh_expanded_favorite_state(virtualIndex);
+    QCOMPARE(view->expandedWorkFavorited(), initialFavorite);
+    view->on_heart_clicked(-1);
+    view->on_heart_clicked(workCount);
+    QCOMPARE(favoriteChanged.count(), 3);
 }
 
 void ShelfPageTest::deletingExpandedWorkResetsScene_data()

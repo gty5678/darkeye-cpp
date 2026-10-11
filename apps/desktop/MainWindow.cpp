@@ -910,6 +910,10 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
             if (m_workPage) m_workPage->refresh();
             refreshRelationshipGraph();
         });
+        connect(m_shelfPage, &ShelfPage::favoriteChanged, this, [this] {
+            if (m_workPage) m_workPage->refresh();
+            if (m_statisticsPage) m_statisticsPage->refresh();
+        });
         connect(m_shelfPage, &ShelfPage::actressRequested, this, [this](qint64 actressId) {
             auto *detail = static_cast<PersonDetailPage *>(ensurePage(QStringLiteral("actress_detail")));
             if (detail->showPerson(actressId)) navigateTo(QStringLiteral("actress_detail"));
