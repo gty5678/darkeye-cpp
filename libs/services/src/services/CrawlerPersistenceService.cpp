@@ -221,6 +221,8 @@ CrawlerPersistenceService::CrawlerPersistenceService(QString databasePath, QStri
                     m_activeSerial.clear();
                     m_coverUrls.clear();
                     m_busy = false;
+                    if (updated)
+                        emit worksChanged();
                     emit finished(serial, updated, updateError);
                     return;
                 }
@@ -291,6 +293,9 @@ void CrawlerPersistenceService::persistTranslatedPayload()
         return;
     }
     emit workPersisted(workId, serial);
+    emit worksChanged();
+    emit actressesChanged();
+    emit actorsChanged();
     if (!createdActressIds.isEmpty())
         emit actressesCreated(createdActressIds);
     {

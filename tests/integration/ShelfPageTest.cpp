@@ -142,6 +142,15 @@ void ShelfPageTest::routeJumpReplacesAnAlreadyExpandedWork()
     // previous work after a new route request has arrived.
     QTest::qWait(650);
     QCOMPARE(view->expandedWorkCode(), secondSerial);
+
+    auto updated = repository.findById(secondId, &error);
+    QVERIFY(updated.has_value());
+    updated->chineseTitle = QStringLiteral("采集后的新标题");
+    QVERIFY(repository.updateDetails(*updated, &error));
+    page.refreshAfterCapture();
+    QTRY_COMPARE(view->expandedWorkTitle(), updated->chineseTitle);
+    QTRY_COMPARE(view->currentWorkId(), secondId);
+    QTRY_COMPARE(view->expandedWorkCode(), secondSerial);
 }
 
 void ShelfPageTest::routeJumpClearsFiltersAndKeepsWorkExpanded_data()

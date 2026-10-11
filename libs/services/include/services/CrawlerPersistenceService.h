@@ -43,6 +43,9 @@ signals:
     void coverDownloadStarted(const QString &serialNumber, int total);
     void finished(const QString &serialNumber, bool succeeded, const QString &errorMessage);
     void workPersisted(qint64 workId, const QString &serialNumber);
+    void worksChanged();
+    void actressesChanged();
+    void actorsChanged();
     void completenessChanged(const QString &serialNumber, const QMap<QString, bool> &flags);
     /// Newly created actresses need their own Minnano enrichment crawl, as in Python.
     void actressesCreated(const QList<qint64> &actressIds);

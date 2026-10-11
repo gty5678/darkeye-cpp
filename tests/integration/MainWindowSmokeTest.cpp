@@ -17,6 +17,7 @@
 #include "ui/pages/ShelfPage.h"
 #include "ui/pages/WorkPage.h"
 #include "ui/components/IdCheckList.h"
+#include "ui/components/WorkTagSelector.h"
 #include "ui/components/PersonTransferSelector.h"
 #include "ui/components/JsonTransferBar.h"
 #include "darkeye_ui/components/Sidebar.h"
@@ -37,6 +38,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QLineEdit>
+#include <QLabel>
 #include <QPlainTextEdit>
 #include <QKeySequenceEdit>
 #include <QPushButton>
@@ -68,9 +70,61 @@ class MainWindowSmokeTest final : public QObject
 
 private slots:
     void exposesAllPrimaryNavigationPages();
+    void backgroundChangesRefreshOpenPages();
     void summarySearchKeyboardNavigation_data();
     void summarySearchKeyboardNavigation();
 };
+
+void MainWindowSmokeTest::backgroundChangesRefreshOpenPages()
+{
+    QTemporaryDir directory;
+    darkeye::settings::Paths paths(directory.path());
+    QVERIFY(paths.ensureRuntimeDirectories());
+    darkeye::SqliteConnection publicConnection, privateConnection;
+    QString error;
+    QVERIFY(publicConnection.open(paths.publicDatabase(), false, &error));
+    QVERIFY(privateConnection.open(paths.privateDatabase(), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        publicConnection, darkeye::DatabaseKind::Public, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        privateConnection, darkeye::DatabaseKind::Private, &error));
+    darkeye::PersonRepository people(publicConnection.database());
+    const auto actressId = people.create(darkeye::PersonKind::Actress,
+                                         QStringLiteral("Before"), QStringLiteral("Name"), &error);
+    QVERIFY(actressId.has_value());
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    darkeye::MainWindow window(themes, publicConnection.database(), privateConnection.database(), paths);
+    auto *sidebar = window.findChild<darkeye::Sidebar *>();
+    QVERIFY(sidebar);
+    sidebar->itemClicked(QStringLiteral("actress"));
+    auto *list = window.findChild<darkeye::PersonPage *>(QStringLiteral("ActressPage"));
+    QVERIFY(list);
+    list->detailRequested(darkeye::PersonKind::Actress, *actressId);
+    auto *detail = window.findChild<darkeye::PersonDetailPage *>();
+    QVERIFY(detail);
+    QSqlQuery update(publicConnection.database());
+    QVERIFY(update.exec(QStringLiteral("UPDATE actress_name SET cn='After'")));
+    auto *sync = window.findChild<darkeye::ActressSyncService *>();
+    QVERIFY(sync);
+    sync->actressesChanged();
+    bool displaysUpdatedName = false;
+    for (QLabel *label : detail->findChildren<QLabel *>())
+        displaysUpdatedName |= label->text().contains(QStringLiteral("After"));
+    QVERIFY(displaysUpdatedName);
+    auto *persistence = window.findChild<darkeye::CrawlerPersistenceService *>();
+    QVERIFY(persistence);
+    auto *works = window.findChild<darkeye::WorkPage *>();
+    QVERIFY(works);
+    works->initialize();
+    auto *tags = works->findChild<darkeye::WorkTagSelector *>();
+    QVERIFY(tags);
+    tags->setSelectedIds({});
+    persistence->persist(QStringLiteral("REFRESH-001"), {}, {QStringLiteral("jp_title")});
+    bool displaysUpdatedCount = false;
+    for (QLabel *label : works->findChildren<QLabel *>())
+        displaysUpdatedCount |= label->text() == QStringLiteral("过滤总数:1");
+    QVERIFY(displaysUpdatedCount);
+}
 
 void MainWindowSmokeTest::summarySearchKeyboardNavigation_data()
 {

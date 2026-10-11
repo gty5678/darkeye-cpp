@@ -8,9 +8,12 @@
 #include "ui/components/WorkCompletenessIndicators.h"
 
 #include <QHBoxLayout>
+#include <QDataStream>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QScrollBar>
+#include <QTimer>
 #include <QVBoxLayout>
 
 namespace darkeye
@@ -45,15 +48,12 @@ InboxPage::InboxPage(CrawlerScheduler &crawlerScheduler,
                 m_finishedErrors.insert(serial, errorMessage);
                 m_finishedSerials.removeAll(serial);
                 m_finishedSerials.prepend(serial);
-                while (m_finishedSerials.size() > 50)
-                {
-                    const QString dropped = m_finishedSerials.takeLast();
-                    m_finishedSuccess.remove(dropped);
-                    m_finishedErrors.remove(dropped);
-                    m_completeness.remove(dropped);
-                }
                 refresh();
             });
+    auto *snapshotTimer = new QTimer(this);
+    snapshotTimer->setObjectName(QStringLiteral("inboxSnapshotTimer"));
+    connect(snapshotTimer, &QTimer::timeout, this, &InboxPage::refresh);
+    snapshotTimer->start(1000);
 }
 
 void InboxPage::lazyLoad()
@@ -99,6 +99,7 @@ void InboxPage::lazyLoad()
     m_pendingLabel = new DesignLabel(QStringLiteral("待爬 (0)"), this);
     pending->addWidget(m_pendingLabel);
     m_pendingList = new TokenListWidget(this);
+    m_pendingList->setObjectName(QStringLiteral("inboxPendingList"));
     m_pendingList->setSelectionMode(QAbstractItemView::NoSelection);
     m_pendingList->setEditTriggers(QAbstractItemView::NoEditTriggers);
     pending->addWidget(m_pendingList);
@@ -107,6 +108,7 @@ void InboxPage::lazyLoad()
     m_activeLabel = new DesignLabel(QStringLiteral("进行中 (0)"), this);
     active->addWidget(m_activeLabel);
     m_activeList = new TokenListWidget(this);
+    m_activeList->setObjectName(QStringLiteral("inboxActiveList"));
     m_activeList->setSelectionMode(QAbstractItemView::NoSelection);
     m_activeList->setEditTriggers(QAbstractItemView::NoEditTriggers);
     active->addWidget(m_activeList);
@@ -115,6 +117,7 @@ void InboxPage::lazyLoad()
     m_completedLabel = new DesignLabel(QStringLiteral("已完成 (0)"), this);
     completed->addWidget(m_completedLabel);
     m_completedList = new TokenListWidget(this);
+    m_completedList->setObjectName(QStringLiteral("inboxCompletedList"));
     m_completedList->setSelectionMode(QAbstractItemView::NoSelection);
     m_completedList->setEditTriggers(QAbstractItemView::NoEditTriggers);
     completed->addWidget(m_completedList);
@@ -138,21 +141,34 @@ void InboxPage::refresh()
                                                 : QStringLiteral("运行中"))
             .arg(m_crawlerScheduler.queuedCount()));
     const QStringList pending = m_crawlerScheduler.pendingSerials();
-    m_pendingList->clear();
+    QStringList pendingRows;
     for (const QString &serial : pending)
-        m_pendingList->addItem(QStringLiteral("%1 (待爬)").arg(serial));
-    m_activeList->clear();
-    for (const CrawlTaskSnapshot &task : m_crawlerScheduler.activeTasks())
+        pendingRows.append(QStringLiteral("%1 (待爬)").arg(serial));
+    if (pendingRows != m_pendingFingerprint)
+    {
+        m_pendingFingerprint = pendingRows;
+        m_pendingList->clear();
+        m_pendingList->addItems(pendingRows);
+    }
+    QStringList activeRows;
+    const auto activeTasks = m_crawlerScheduler.activeTasks();
+    for (const CrawlTaskSnapshot &task : activeTasks)
     {
         const QString state = m_coverDownloads.contains(task.serialNumber)
             ? QStringLiteral("封面下载")
             : task.state == CrawlWorkflowState::Crawling ? QStringLiteral("API 请求")
                                                         : QStringLiteral("入库");
-        m_activeList->addItem(QStringLiteral("%1 · %2").arg(task.serialNumber, state));
+        activeRows.append(QStringLiteral("%1 · %2").arg(task.serialNumber, state));
+    }
+    if (activeRows != m_activeFingerprint)
+    {
+        m_activeFingerprint = activeRows;
+        m_activeList->clear();
+        m_activeList->addItems(activeRows);
     }
     m_pendingLabel->setText(QStringLiteral("待爬 (%1)").arg(pending.size()));
     m_activeLabel->setText(
-        QStringLiteral("进行中 (%1)").arg(m_crawlerScheduler.activeTasks().size()));
+        QStringLiteral("进行中 (%1)").arg(activeTasks.size()));
     m_completedLabel->setText(QStringLiteral("已完成 (%1)").arg(m_finishedSerials.size()));
     rebuildCompletedList();
 }
@@ -162,6 +178,18 @@ void InboxPage::rebuildCompletedList()
     if (m_completedList == nullptr)
         return;
 
+    QByteArray fingerprint;
+    QDataStream stream(&fingerprint, QIODevice::WriteOnly);
+    for (const QString &serial : m_finishedSerials)
+        stream << serial << m_finishedSuccess.value(serial) << m_finishedErrors.value(serial)
+               << m_completeness.contains(serial) << m_completeness.value(serial);
+    if (fingerprint == m_completedFingerprint)
+        return;
+    m_completedFingerprint = fingerprint;
+
+    const int verticalPosition = m_completedList->verticalScrollBar()->value();
+    const int horizontalPosition = m_completedList->horizontalScrollBar()->value();
+    m_completedList->setUpdatesEnabled(false);
     m_completedList->clear();
     for (const QString &serial : m_finishedSerials)
     {
@@ -186,6 +214,10 @@ void InboxPage::rebuildCompletedList()
         m_completedList->addItem(item);
         m_completedList->setItemWidget(item, row);
     }
+    m_completedList->doItemsLayout();
+    m_completedList->verticalScrollBar()->setValue(verticalPosition);
+    m_completedList->horizontalScrollBar()->setValue(horizontalPosition);
+    m_completedList->setUpdatesEnabled(true);
 }
 
 } // namespace darkeye

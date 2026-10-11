@@ -36,6 +36,7 @@ public:
                        QWidget *parent = nullptr);
 
     void refresh();
+    void refreshAfterCapture();
     void refreshReferences();
     void refreshTags();
     void filterByDirector(const QString &director);

@@ -107,10 +107,13 @@ ActressSyncService::ActressSyncService(QSqlDatabase database, QUrl endpoint,
 
 void ActressSyncService::finish(const ActressSyncResult &result)
 {
+    const bool changed = result.succeeded && m_persistCapture;
     m_requestId = 0;
     m_actressId = 0;
     m_persistCapture = true;
     m_avatarFileName.clear();
+    if (changed)
+        emit actressesChanged();
     emit finished(result);
 }
 

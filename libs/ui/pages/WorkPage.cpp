@@ -8,6 +8,7 @@
 #include "darkeye_ui/components/IconButton.h"
 #include "darkeye_ui/components/InteractionEffects.h"
 #include "darkeye_ui/components/LazyScrollArea.h"
+#include "darkeye_ui/components/MakerSelector.h"
 #include "darkeye_ui/components/ToastNotification.h"
 #include "darkeye_ui/components/TokenControls.h"
 #include "database/SqliteConnection.h"
@@ -39,6 +40,27 @@ namespace darkeye
 namespace
 {
 const QString initialDefaultTagName = QStringLiteral("绿色封面");
+
+QList<MakerOption> selectorOptions(const QList<NamedIdOption> &options)
+{
+    QList<MakerOption> result;
+    result.reserve(options.size());
+    for (const NamedIdOption &option : options)
+        result.append({option.id, option.chineseName, option.japaneseName, option.aliases});
+    return result;
+}
+
+void populateSelector(MakerSelector *selector, const QList<NamedIdOption> &options)
+{
+    const auto selected = selector->maker();
+    const QString text = selector->currentText();
+    const QSignalBlocker selectorBlocker(selector);
+    const QSignalBlocker editBlocker(selector->lineEdit());
+    selector->setMakers(selectorOptions(options));
+    selector->setMaker(selected);
+    if (!selected.has_value())
+        selector->setEditText(text);
+}
 
 struct CoverBatchState final
 {
@@ -170,8 +192,6 @@ void WorkPage::buildUi()
         [filters, filterContent](const QString &label, QComboBox *combo, int width)
     {
         filters->addWidget(new DesignLabel(label, filterContent));
-        combo->setEditable(true);
-        combo->setInsertPolicy(QComboBox::NoInsert);
         combo->setFixedWidth(width);
         filters->addWidget(combo);
     };
@@ -182,16 +202,12 @@ void WorkPage::buildUi()
     addFilter(QStringLiteral("简单笔记包含："), m_searchInput, 100);
     addFilter(QStringLiteral("导演"), m_directorFilter, 150);
     addFilter(QStringLiteral("男优"), m_actorFilter, 120);
-    m_makerFilter = new DesignComboBox(filterContent);
+    m_makerFilter = new MakerSelector({}, filterContent);
     m_makerFilter->setProperty("workControlId", QStringLiteral("WorkMakerFilter"));
-    m_labelFilter = new DesignComboBox(filterContent);
+    m_labelFilter = new MakerSelector({}, filterContent);
     m_labelFilter->setProperty("workControlId", QStringLiteral("WorkLabelFilter"));
-    m_seriesFilter = new DesignComboBox(filterContent);
+    m_seriesFilter = new MakerSelector({}, filterContent);
     m_seriesFilter->setProperty("workControlId", QStringLiteral("WorkSeriesFilter"));
-    for (auto *combo : {m_makerFilter, m_labelFilter, m_seriesFilter})
-    {
-        combo->addItem(QString());
-    }
     addComboFilter(QStringLiteral("片商"), m_makerFilter, 160);
     addComboFilter(QStringLiteral("厂牌"), m_labelFilter, 160);
     addComboFilter(QStringLiteral("系列"), m_seriesFilter, 160);
@@ -405,22 +421,9 @@ void WorkPage::loadReferenceOptionsAsync()
                 {
                     if (guard.isNull())
                         return;
-                    const auto populate = [](QComboBox *combo,
-                                             const QList<NamedIdOption> &options)
-                    {
-                        const QVariant selected = combo->currentData();
-                        const QSignalBlocker comboBlocker(combo);
-                        const QSignalBlocker editBlocker(combo->lineEdit());
-                        combo->clear();
-                        combo->addItem(QString());
-                        for (const NamedIdOption &option : options)
-                            combo->addItem(option.name, option.id);
-                        const int index = combo->findData(selected);
-                        combo->setCurrentIndex(index >= 0 ? index : 0);
-                    };
-                    populate(guard->m_makerFilter, makers);
-                    populate(guard->m_labelFilter, labels);
-                    populate(guard->m_seriesFilter, series);
+                    populateSelector(guard->m_makerFilter, makers);
+                    populateSelector(guard->m_labelFilter, labels);
+                    populateSelector(guard->m_seriesFilter, series);
                 },
                 Qt::QueuedConnection);
         });
@@ -440,15 +443,20 @@ void WorkPage::clearFilters()
                                           m_storyFilter,
                                           m_directorFilter,
                                           m_actressFilter,
-                                          m_actorFilter,
-                                          m_makerFilter->lineEdit(),
-                                          m_labelFilter->lineEdit(),
-                                          m_seriesFilter->lineEdit()};
+                                          m_actorFilter};
     for (QLineEdit *input : filterInputs)
     {
+        const QSignalBlocker blocker(input);
         input->clear();
     }
+    for (auto *selector : {m_makerFilter, m_labelFilter, m_seriesFilter})
+    {
+        const QSignalBlocker blocker(selector);
+        const QSignalBlocker editBlocker(selector->lineEdit());
+        selector->setMaker(std::nullopt);
+    }
     m_tagSelector->clearSelection();
+    m_filterTimer->stop();
     applyFilters();
 }
 
@@ -541,19 +549,9 @@ void WorkPage::refreshReferences()
         return;
     }
     WorkRepository repository(connection.database());
-    const auto repopulate = [](QComboBox *combo, const QList<NamedIdOption> &items)
-    {
-        const QVariant selected = combo->currentData();
-        const QSignalBlocker blocker(combo);
-        combo->clear();
-        combo->addItem(QString());
-        for (const NamedIdOption &item : items) combo->addItem(item.name, item.id);
-        const int index = combo->findData(selected);
-        combo->setCurrentIndex(index >= 0 ? index : 0);
-    };
-    repopulate(m_makerFilter, repository.makerOptions());
-    repopulate(m_labelFilter, repository.labelOptions());
-    repopulate(m_seriesFilter, repository.seriesOptions());
+    populateSelector(m_makerFilter, repository.makerOptions());
+    populateSelector(m_labelFilter, repository.labelOptions());
+    populateSelector(m_seriesFilter, repository.seriesOptions());
     refresh();
 }
 
@@ -730,12 +728,9 @@ WorkSearch WorkPage::currentSearch() const
     search.director = m_directorFilter->text().trimmed();
     search.actressName = m_actressFilter->text().trimmed();
     search.actorName = m_actorFilter->text().trimmed();
-    if (m_makerFilter->currentData().isValid())
-        search.makerId = m_makerFilter->currentData().toLongLong();
-    if (m_labelFilter->currentData().isValid())
-        search.labelId = m_labelFilter->currentData().toLongLong();
-    if (m_seriesFilter->currentData().isValid())
-        search.seriesId = m_seriesFilter->currentData().toLongLong();
+    search.makerId = m_makerFilter->maker();
+    search.labelId = m_labelFilter->maker();
+    search.seriesId = m_seriesFilter->maker();
     search.randomSeed = m_randomSeed;
     search.randomSeed2 = m_randomSeed2;
     QString privateError;

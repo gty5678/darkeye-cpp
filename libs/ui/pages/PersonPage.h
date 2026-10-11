@@ -34,6 +34,9 @@ signals:
     void detailRequested(PersonKind kind, qint64 personId);
     void editRequested(PersonKind kind, qint64 personId);
 
+protected:
+    void showEvent(QShowEvent *event) override;
+
 private:
     void lazyLoad() override;
     void buildUi();

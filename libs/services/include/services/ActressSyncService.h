@@ -40,6 +40,7 @@ public:
     [[nodiscard]] bool isBusy() const noexcept;
 
 signals:
+    void actressesChanged();
     void finished(const darkeye::ActressSyncResult &result);
 
 private:

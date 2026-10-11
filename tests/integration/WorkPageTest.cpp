@@ -4,6 +4,7 @@
 #include "darkeye_ui/components/DesignInput.h"
 #include "darkeye_ui/components/CompleterLineEdit.h"
 #include "darkeye_ui/components/IconButton.h"
+#include "darkeye_ui/components/MakerSelector.h"
 #include "darkeye_ui/components/LazyScrollArea.h"
 #include "darkeye_ui/theme/ThemeService.h"
 #include "database/SchemaManager.h"
@@ -75,6 +76,7 @@ class WorkPageTest final : public QObject
 
   private slots:
     void matchesPythonControlAndRoutingContract();
+    void searchableSelectorsAndClearFilters();
     void loadsOneDatabasePageAtATime();
     void filtersByPrivateScope();
     void filtersByLocalVideoScope();
@@ -190,6 +192,70 @@ void WorkPageTest::matchesPythonWorkListSqlContract()
             QStringLiteral("WorkCardSerialNumber"));
         QVERIFY(serial != nullptr);
         QCOMPARE(serial->text(), QStringLiteral("SQL-001"));
+    }
+}
+
+void WorkPageTest::searchableSelectorsAndClearFilters()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(directory.filePath(QStringLiteral("public.db")), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        connection, darkeye::DatabaseKind::Public, &error));
+    QSqlQuery seed(connection.database());
+    QVERIFY(seed.exec(QStringLiteral("INSERT INTO maker(maker_id,cn_name,jp_name) VALUES(900001,'片商甲','Maker A')")));
+    QVERIFY(seed.exec(QStringLiteral("INSERT INTO label(label_id,cn_name,jp_name) VALUES(900001,'厂牌甲','Label A')")));
+    QVERIFY(seed.exec(QStringLiteral("INSERT INTO series(series_id,cn_name,jp_name) VALUES(900001,'系列甲','Series A')")));
+    darkeye::WorkRepository repository(connection.database());
+    darkeye::Work target;
+    target.serialNumber = QStringLiteral("SELECT-001");
+    target.makerId = 900001;
+    target.labelId = 900001;
+    target.seriesId = 900001;
+    QVERIFY(repository.insertComplete(target, {}, {}, {}, &error).has_value());
+    darkeye::Work other;
+    other.serialNumber = QStringLiteral("SELECT-002");
+    QVERIFY(repository.insertComplete(other, {}, {}, {}, &error).has_value());
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    QVERIFY(application != nullptr);
+    darkeye::ThemeService themes(*application);
+    darkeye::WorkPage page(connection.database(), themes);
+    page.initialize();
+    auto *count = findWorkControl<QLabel>(&page, QStringLiteral("WorkCountLabel"));
+    auto *clear = findWorkControl<QPushButton>(&page, QStringLiteral("WorkClearButton"));
+    QVERIFY(count != nullptr);
+    QVERIFY(clear != nullptr);
+    clear->click();
+    const QString unfilteredCount = count->text();
+    for (const QString &control : {QStringLiteral("WorkMakerFilter"),
+                                  QStringLiteral("WorkLabelFilter"),
+                                  QStringLiteral("WorkSeriesFilter")})
+    {
+        auto *selector = findWorkControl<darkeye::MakerSelector>(&page, control);
+        QVERIFY(selector != nullptr);
+        QTRY_VERIFY(selector->findData(900001) > 0);
+        QVERIFY(selector->isEditable());
+        QVERIFY(selector->completer() != nullptr);
+        selector->setCurrentIndex(selector->findData(900001));
+        QTRY_COMPARE(count->text(), QStringLiteral("过滤总数:1"));
+        QCOMPARE(selector->maker(), std::optional<qint64>(900001));
+        page.refreshReferences();
+        QCOMPARE(selector->maker(), std::optional<qint64>(900001));
+        clear->click();
+        QCOMPARE(selector->currentIndex(), 0);
+        QVERIFY(selector->currentText().isEmpty());
+        QVERIFY(!selector->maker().has_value());
+        QCOMPARE(count->text(), unfilteredCount);
+        selector->setCurrentIndex(selector->findData(900001));
+        QTRY_COMPARE(count->text(), QStringLiteral("过滤总数:1"));
+        selector->setEditText(QStringLiteral("不存在的筛选项"));
+        QTRY_COMPARE(count->text(), unfilteredCount);
+        QVERIFY(!selector->maker().has_value());
+        clear->click();
+        QCOMPARE(selector->currentIndex(), 0);
+        QVERIFY(selector->currentText().isEmpty());
     }
 }
 

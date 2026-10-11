@@ -35,7 +35,13 @@ void PersonPage::lazyLoad()
     m_lazyArea->setLoader([this](int pageIndex, int pageSize)
                           { return loadCardPage(pageIndex, pageSize); });
     updateCount();
-    // Keep initial page focus off the name input and its completion popup.
+}
+
+void PersonPage::showEvent(QShowEvent *event)
+{
+    LazyWidget::showEvent(event);
+    // Reset the stack's focus target on every visit, including after the user
+    // previously edited the name filter, so its completer does not open on entry.
     setFocus(Qt::OtherFocusReason);
 }
 

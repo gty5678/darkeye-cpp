@@ -665,6 +665,14 @@ void DvdShelfView::clearFanartOverlay()
     if (m_fanartContainer != nullptr) m_fanartContainer->hide();
 }
 
+qint64 DvdShelfView::currentWorkId() const
+{
+    QObject *root = m_quickWidget->rootObject();
+    if (root == nullptr) return 0;
+    const int index = root->property("selectedDelegateIndex").toInt();
+    return index < 0 ? 0 : workIdAt(m_visibleStart + index);
+}
+
 bool DvdShelfView::openWork(qint64 workId)
 {
     const auto iterator = std::find_if(m_works.cbegin(), m_works.cend(),

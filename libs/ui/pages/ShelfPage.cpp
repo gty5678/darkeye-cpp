@@ -256,6 +256,15 @@ void ShelfPage::refresh()
     refreshData();
 }
 
+void ShelfPage::refreshAfterCapture()
+{
+    initialize();
+    const qint64 workId = m_shelfView->currentWorkId();
+    refreshData();
+    if (workId > 0)
+        m_shelfView->openWork(workId);
+}
+
 void ShelfPage::refreshReferences()
 {
     initialize();

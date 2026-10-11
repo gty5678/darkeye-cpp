@@ -71,10 +71,12 @@ void MakerSelector::setMakers(const QList<MakerOption> &makers)
 void MakerSelector::setMaker(std::optional<qint64> makerId)
 {
     m_selectedId.reset();
+    setCurrentIndex(0);
     setEditText({});
     if (!makerId.has_value()) return;
     for (const Record &record : m_records) {
         if (record.id == makerId) {
+            setCurrentIndex(findData(QVariant::fromValue(*makerId)));
             setEditText(record.displayName);
             m_selectedId = record.id;
             return;

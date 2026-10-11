@@ -84,7 +84,7 @@ private:
     QSpinBox *m_bust = nullptr;
     QSpinBox *m_waist = nullptr;
     QSpinBox *m_hip = nullptr;
-    QLineEdit *m_cup = nullptr;
+    QComboBox *m_cup = nullptr;
     QLineEdit *m_debutDate = nullptr;
     QComboBox *m_handsome = nullptr;
     QComboBox *m_fat = nullptr;

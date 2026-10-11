@@ -22,6 +22,7 @@ class CompleterLineEdit;
 class IconButton;
 class LazyScrollArea;
 class WorkTagSelector;
+class MakerSelector;
 
 class WorkPage final : public LazyWidget
 {
@@ -81,9 +82,9 @@ private:
     CompleterLineEdit *m_directorFilter = nullptr;
     CompleterLineEdit *m_actressFilter = nullptr;
     CompleterLineEdit *m_actorFilter = nullptr;
-    QComboBox *m_makerFilter = nullptr;
-    QComboBox *m_labelFilter = nullptr;
-    QComboBox *m_seriesFilter = nullptr;
+    MakerSelector *m_makerFilter = nullptr;
+    MakerSelector *m_labelFilter = nullptr;
+    MakerSelector *m_seriesFilter = nullptr;
     WorkTagSelector *m_tagSelector = nullptr;
     QComboBox *m_sortSelector = nullptr;
     QComboBox *m_scopeSelector = nullptr;

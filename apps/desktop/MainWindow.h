@@ -67,13 +67,14 @@ private:
     QWidget *ensurePage(const QString &routeName);
     void populateThemeSelector();
     void changeTheme(int index);
-    void restoreWindowState();
     void saveWindowState() const;
     void navigateTo(const QString &routeName, bool recordHistory = true);
     void navigateBackward();
     void navigateForward();
     void openPersonEditor(PersonKind kind, qint64 personId);
     void refreshRelationshipGraph();
+    void refreshWorksAfterCapture();
+    void refreshPeopleAfterCapture(PersonKind kind);
     void refreshRelationshipGraphWork(qint64 workId);
     void showWorkInShelf(qint64 workId);
     void registerApplicationActions();

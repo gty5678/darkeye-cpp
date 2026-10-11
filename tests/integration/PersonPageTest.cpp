@@ -18,6 +18,8 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QCompleter>
+#include <QAbstractItemView>
 #include <QDir>
 #include <QFileInfo>
 #include <QImage>
@@ -30,6 +32,7 @@
 #include <QSet>
 #include <QSqlQuery>
 #include <QSpinBox>
+#include <QStackedWidget>
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -39,10 +42,82 @@ class PersonPageTest final : public QObject
     Q_OBJECT
 
 private slots:
+    void pageSwitchDoesNotFocusNameFilter_data();
+    void pageSwitchDoesNotFocusNameFilter();
     void filtersActressesAndRespectsFavoriteScope();
     void detailAndEditorCompletePersonRoundTrip();
     void actressTimelineSupportsPreviewAndMiddleButtonPan();
 };
+
+void PersonPageTest::pageSwitchDoesNotFocusNameFilter_data()
+{
+    QTest::addColumn<bool>("actress");
+    QTest::newRow("actress") << true;
+    QTest::newRow("actor") << false;
+}
+
+void PersonPageTest::pageSwitchDoesNotFocusNameFilter()
+{
+    QFETCH(bool, actress);
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    darkeye::SqliteConnection publicConnection;
+    darkeye::SqliteConnection privateConnection;
+    QString errorMessage;
+    QVERIFY2(publicConnection.open(QDir(temporaryDirectory.path()).filePath("public.db"),
+                                   false, &errorMessage), qPrintable(errorMessage));
+    QVERIFY2(privateConnection.open(QDir(temporaryDirectory.path()).filePath("private.db"),
+                                    false, &errorMessage), qPrintable(errorMessage));
+    QVERIFY2(darkeye::SchemaManager::initializeEmptyDatabase(
+                 publicConnection, darkeye::DatabaseKind::Public, &errorMessage),
+             qPrintable(errorMessage));
+    QVERIFY2(darkeye::SchemaManager::initializeEmptyDatabase(
+                 privateConnection, darkeye::DatabaseKind::Private, &errorMessage),
+             qPrintable(errorMessage));
+
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    darkeye::ThemeService themes(*application);
+    QStackedWidget stack;
+    auto *otherPage = new QLineEdit;
+    stack.addWidget(otherPage);
+    auto *page = new darkeye::PersonPage(
+        actress ? darkeye::PersonKind::Actress : darkeye::PersonKind::Actor,
+        publicConnection.database(), privateConnection.database(), themes);
+    stack.addWidget(page);
+    stack.resize(800, 500);
+    stack.show();
+    stack.activateWindow();
+    otherPage->setFocus();
+    stack.setCurrentWidget(page);
+    QApplication::processEvents();
+    auto *name = page->findChild<darkeye::CompleterLineEdit *>();
+    QVERIFY(name != nullptr);
+    QVERIFY(!name->hasFocus());
+    QVERIFY(!name->completer()->popup()->isVisible());
+
+    for (int i = 0; i < 3; ++i)
+    {
+        stack.setCurrentWidget(otherPage);
+        otherPage->setFocus();
+        stack.setCurrentWidget(page);
+        QApplication::processEvents();
+        QVERIFY(!name->hasFocus());
+        QVERIFY(!name->completer()->popup()->isVisible());
+    }
+
+    QTest::mouseClick(name, Qt::LeftButton);
+    QTRY_VERIFY(name->hasFocus());
+    QTest::keyClicks(name, "test");
+    QCOMPARE(name->text(), QStringLiteral("test"));
+    name->completer()->popup()->hide();
+    stack.setCurrentWidget(otherPage);
+    otherPage->setFocus();
+    stack.setCurrentWidget(page);
+    QApplication::processEvents();
+    QVERIFY(!name->hasFocus());
+    QVERIFY(!name->completer()->popup()->isVisible());
+    QCOMPARE(name->text(), QStringLiteral("test"));
+}
 
 void PersonPageTest::actressTimelineSupportsPreviewAndMiddleButtonPan()
 {
@@ -260,6 +335,17 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
         QDir(temporaryDirectory.path()).filePath(QStringLiteral("actressimages"));
     darkeye::ModifyActressPage editor(publicConnection.database(), themes, imageDirectory);
     QVERIFY(editor.loadActress(*actressId));
+    QComboBox *cup = nullptr;
+    for (QComboBox *combo : editor.findChildren<QComboBox *>())
+    {
+        if (combo->property("testId") == QStringLiteral("PersonCupInput"))
+            cup = combo;
+    }
+    QVERIFY(cup != nullptr);
+    QVERIFY(!cup->isEditable());
+    QCOMPARE(cup->count(), 13);
+    for (int index = 0; index < cup->count(); ++index)
+        QCOMPARE(cup->itemText(index), QString(QChar('A' + index)));
     QJsonObject alias;
     alias.insert(QStringLiteral("jp"), QStringLiteral("采集艺名"));
     alias.insert(QStringLiteral("kana"), QStringLiteral("げいめい"));
@@ -284,6 +370,7 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
     capture.insert(QStringLiteral("data"), captureData);
     QString captureError;
     QVERIFY2(editor.applyCapture(capture, &captureError), qPrintable(captureError));
+    QCOMPARE(cup->currentText(), QStringLiteral("F"));
     QSpinBox *capturedHeight = nullptr;
     QLineEdit *capturedMinnano = nullptr;
     for (QSpinBox *spinBox : editor.findChildren<QSpinBox *>())
@@ -336,6 +423,13 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
     }
     QVERIFY(save != nullptr);
     QVERIFY(!save->isEnabled());
+    const QString originalCup = cup->currentText();
+    cup->setCurrentText(QStringLiteral("M"));
+    QVERIFY(save->isEnabled());
+    QVERIFY(cup->styleSheet().contains(QStringLiteral("#FFA500")));
+    cup->setCurrentIndex(cup->findText(originalCup));
+    QVERIFY(!save->isEnabled());
+    cup->setCurrentText(QStringLiteral("M"));
     nameTable->item(0, 0)->setText(QStringLiteral("修改后姓名"));
     QVERIFY(save->isEnabled());
     QVERIFY(save->styleSheet().contains(QStringLiteral("#FFA500")));
@@ -361,6 +455,9 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
     QCOMPARE(saved->names.first().japanese, QStringLiteral("旧艺名"));
     QCOMPARE(saved->names.last().chinese, QStringLiteral("修改后姓名"));
     QCOMPARE(saved->notes, QStringLiteral("修改后的备注"));
+    QCOMPARE(saved->cup, QStringLiteral("M"));
+    QCOMPARE(cup->currentText(), QStringLiteral("M"));
+    QVERIFY(cup->styleSheet().isEmpty());
     QCOMPARE(saved->imagePath, QStringLiteral("%1-旧艺名.jpg").arg(*actressId));
     const QString storedImage = QDir(imageDirectory).filePath(saved->imagePath);
     QVERIFY(QFileInfo::exists(storedImage));

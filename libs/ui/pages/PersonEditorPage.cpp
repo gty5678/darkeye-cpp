@@ -123,8 +123,14 @@ void PersonEditorPage::buildUi()
     m_bust = measurementSpin(m_actressFields, QStringLiteral("PersonBustInput"));
     m_waist = measurementSpin(m_actressFields, QStringLiteral("PersonWaistInput"));
     m_hip = measurementSpin(m_actressFields, QStringLiteral("PersonHipInput"));
-    m_cup = new DesignLineEdit(m_actressFields);
+    m_cup = new DesignComboBox(m_actressFields);
     m_cup->setProperty("testId", QStringLiteral("PersonCupInput"));
+    m_cup->addItems({QStringLiteral("A"), QStringLiteral("B"), QStringLiteral("C"),
+                     QStringLiteral("D"), QStringLiteral("E"), QStringLiteral("F"),
+                     QStringLiteral("G"), QStringLiteral("H"), QStringLiteral("I"),
+                     QStringLiteral("J"), QStringLiteral("K"), QStringLiteral("L"),
+                     QStringLiteral("M")});
+    m_cup->setCurrentIndex(-1);
     m_debutDate = new DesignLineEdit(m_actressFields);
     m_debutDate->setProperty("testId", QStringLiteral("PersonDebutDateInput"));
     m_minnanoUrl = new DesignLineEdit(m_actressFields);
@@ -223,7 +229,7 @@ void PersonEditorPage::buildUi()
             this, [this](const QString &) { updateDirtyState(); });
     const auto updateOnChange = [this] { updateDirtyState(); };
     connect(m_birthday, &QLineEdit::textChanged, this, updateOnChange);
-    connect(m_cup, &QLineEdit::textChanged, this, updateOnChange);
+    connect(m_cup, &QComboBox::currentTextChanged, this, updateOnChange);
     connect(m_debutDate, &QLineEdit::textChanged, this, updateOnChange);
     connect(m_minnanoUrl, &QLineEdit::textChanged, this, updateOnChange);
     connect(m_height, QOverload<int>::of(&QSpinBox::valueChanged), this, updateOnChange);
@@ -320,7 +326,7 @@ void PersonEditorPage::applyActressCaptureFields(const QJsonObject &capture)
     m_bust->setValue(number(QStringLiteral("胸围")));
     m_waist->setValue(number(QStringLiteral("腰围")));
     m_hip->setValue(number(QStringLiteral("臀围")));
-    m_cup->setText(text(QStringLiteral("罩杯")));
+    m_cup->setCurrentIndex(m_cup->findText(text(QStringLiteral("罩杯"))));
     m_birthday->setText(text(QStringLiteral("出生日期")));
     m_debutDate->setText(text(QStringLiteral("出道日期")));
     const QString minnanoId = text(QStringLiteral("minnano_actress_id"));
@@ -502,7 +508,7 @@ void PersonEditorPage::populate(const PersonDetails &details)
     setOptionalSpin(m_bust, details.bust);
     setOptionalSpin(m_waist, details.waist);
     setOptionalSpin(m_hip, details.hip);
-    m_cup->setText(details.cup);
+    m_cup->setCurrentIndex(m_cup->findText(details.cup));
     m_debutDate->setText(details.debutDate);
     m_minnanoUrl->setText(details.minnanoUrl);
     const auto setScore = [](QComboBox *combo, const std::optional<int> &score)
@@ -545,7 +551,7 @@ PersonDetails PersonEditorPage::editorDetails() const
         details.bust = optionalSpinValue(m_bust);
         details.waist = optionalSpinValue(m_waist);
         details.hip = optionalSpinValue(m_hip);
-        details.cup = m_cup->text();
+        details.cup = m_cup->currentText();
         details.debutDate = m_debutDate->text();
         details.minnanoUrl = m_minnanoUrl->text();
     }
@@ -596,7 +602,7 @@ void PersonEditorPage::updateDirtyState()
         setDirtyStyle(m_bust, bustDirty, QStringLiteral("QSpinBox#DesignSpinBox"));
         setDirtyStyle(m_waist, waistDirty, QStringLiteral("QSpinBox#DesignSpinBox"));
         setDirtyStyle(m_hip, hipDirty, QStringLiteral("QSpinBox#DesignSpinBox"));
-        setDirtyStyle(m_cup, cupDirty, QStringLiteral("QLineEdit#DesignInput"));
+        setDirtyStyle(m_cup, cupDirty, QStringLiteral("QComboBox#DesignComboBox"));
         setDirtyStyle(m_debutDate, debutDateDirty, QStringLiteral("QLineEdit#DesignInput"));
         setDirtyStyle(m_minnanoUrl, minnanoDirty, QStringLiteral("QLineEdit#DesignInput"));
         hasChanges = hasChanges || bustDirty || waistDirty || hipDirty || cupDirty ||
@@ -627,7 +633,7 @@ void PersonEditorPage::resetDirtyState()
     setDirtyStyle(m_bust, false, QStringLiteral("QSpinBox#DesignSpinBox"));
     setDirtyStyle(m_waist, false, QStringLiteral("QSpinBox#DesignSpinBox"));
     setDirtyStyle(m_hip, false, QStringLiteral("QSpinBox#DesignSpinBox"));
-    setDirtyStyle(m_cup, false, QStringLiteral("QLineEdit#DesignInput"));
+    setDirtyStyle(m_cup, false, QStringLiteral("QComboBox#DesignComboBox"));
     setDirtyStyle(m_debutDate, false, QStringLiteral("QLineEdit#DesignInput"));
     setDirtyStyle(m_minnanoUrl, false, QStringLiteral("QLineEdit#DesignInput"));
     setDirtyStyle(m_handsome, false, QStringLiteral("QComboBox#DesignComboBox"));

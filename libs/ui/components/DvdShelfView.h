@@ -35,6 +35,7 @@ public:
                           const QString &fanartDirectory, QWidget *parent = nullptr);
     void setWorks(const QList<WorkSummary> &works);
     bool openWork(qint64 workId);
+    [[nodiscard]] qint64 currentWorkId() const;
 
     Q_PROPERTY(qreal cameraX READ cameraX NOTIFY cameraXChanged)
     Q_PROPERTY(qreal cameraTargetX READ cameraTargetX NOTIFY cameraTargetXChanged)

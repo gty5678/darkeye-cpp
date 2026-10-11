@@ -3,6 +3,7 @@
 #include "darkeye_ui/base/LazyWidget.h"
 
 #include <QHash>
+#include <QByteArray>
 #include <QMap>
 #include <QSet>
 #include <QStringList>
@@ -44,6 +45,9 @@ private:
     QStringList m_finishedSerials;
     QHash<QString, bool> m_finishedSuccess;
     QHash<QString, QString> m_finishedErrors;
+    QStringList m_pendingFingerprint;
+    QStringList m_activeFingerprint;
+    QByteArray m_completedFingerprint;
 };
 
 } // namespace darkeye

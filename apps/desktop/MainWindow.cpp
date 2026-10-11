@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "settings/SettingsStore.h"
 
 #include "ui/pages/DashboardPage.h"
 #include "ui/pages/ActorDetailPage.h"
@@ -182,26 +183,23 @@ MainWindow::MainWindow(ThemeService &themeService,
             {
                 if (!succeeded && !errorMessage.isEmpty())
                     qWarning() << "Crawler persistence failed" << serial << errorMessage;
-                if (succeeded)
-                {
-                    refreshRelationshipGraph();
-                    // Python broadcasts actorDataChanged / actressDataChanged after a crawl.
-                    // Keep an already-open work editor in sync with people created by a
-                    // background crawl as well.
-                    if (m_managementPage != nullptr)
-                        m_managementPage->refreshPersonSelectors();
-                }
                 m_crawlerScheduler->complete(serial, succeeded);
             });
+    connect(m_crawlerPersistence.get(), &CrawlerPersistenceService::worksChanged,
+            this, &MainWindow::refreshWorksAfterCapture);
+    connect(m_crawlerPersistence.get(), &CrawlerPersistenceService::actressesChanged,
+            this, [this] { refreshPeopleAfterCapture(PersonKind::Actress); });
+    connect(m_crawlerPersistence.get(), &CrawlerPersistenceService::actorsChanged,
+            this, [this] { refreshPeopleAfterCapture(PersonKind::Actor); });
+    connect(m_backgroundActressSync.get(), &ActressSyncService::actressesChanged,
+            this, [this] { refreshPeopleAfterCapture(PersonKind::Actress); });
     connect(m_crawlerPersistence.get(), &CrawlerPersistenceService::actressesCreated, this,
             &MainWindow::enqueueActressSyncs);
     connect(m_backgroundActressSync.get(), &ActressSyncService::finished, this,
             [this](const ActressSyncResult &result)
             {
                 m_pendingActressSyncIds.remove(result.actressId);
-                if (result.succeeded)
-                    refreshRelationshipGraph();
-                else if (!result.errorMessage.isEmpty())
+                if (!result.succeeded && !result.errorMessage.isEmpty())
                     qWarning() << "Automatic actress enrichment failed" << result.actressId
                                << result.errorMessage;
                 startNextActressSync();
@@ -209,9 +207,8 @@ MainWindow::MainWindow(ThemeService &themeService,
     auto *resourceTimer = new QTimer(this);
     connect(resourceTimer, &QTimer::timeout, this, &MainWindow::updateWindowTitle);
     resourceTimer->start(100);
-    setMinimumSize(1200, 800);
     buildUi();
-    restoreWindowState();
+    resize(1200, 600);
 }
 
 void MainWindow::updateWindowTitle()
@@ -505,6 +502,32 @@ void MainWindow::changeTheme(int index)
     AppSettings appSettings = settings::app();
     appSettings.themeId = ThemeService::toSettings(theme);
     settings::saveApp(appSettings);
+}
+
+void MainWindow::refreshWorksAfterCapture()
+{
+    if (m_workPage) m_workPage->refresh();
+    if (m_shelfPage) m_shelfPage->refreshAfterCapture();
+    // Work relations also appear in the currently displayed person's timeline.
+    for (PersonDetailPage *detail : {static_cast<PersonDetailPage *>(m_actressDetailPage),
+                                   static_cast<PersonDetailPage *>(m_actorDetailPage)})
+        if (detail && detail->currentPersonId() > 0)
+            detail->showPerson(detail->currentPersonId());
+    refreshRelationshipGraph();
+}
+
+void MainWindow::refreshPeopleAfterCapture(PersonKind kind)
+{
+    PersonPage *list = kind == PersonKind::Actress
+        ? static_cast<PersonPage *>(m_actressPage) : static_cast<PersonPage *>(m_actorPage);
+    if (list) list->refresh();
+    PersonDetailPage *detail = kind == PersonKind::Actress
+        ? static_cast<PersonDetailPage *>(m_actressDetailPage)
+        : static_cast<PersonDetailPage *>(m_actorDetailPage);
+    if (detail && detail->currentPersonId() > 0)
+        detail->showPerson(detail->currentPersonId());
+    if (m_managementPage) m_managementPage->refreshPersonSelectors();
+    refreshRelationshipGraph();
 }
 
 void MainWindow::refreshRelationshipGraph()
@@ -1053,23 +1076,10 @@ void MainWindow::navigateForward()
     navigateTo(m_history.at(m_historyIndex), false);
 }
 
-void MainWindow::restoreWindowState()
-{
-    const AppSettings appSettings = settings::app();
-    resize(appSettings.windowSize);
-    move(appSettings.windowPosition);
-}
-
 void MainWindow::saveWindowState() const
 {
-    AppSettings appSettings = settings::app();
-    appSettings.maximized = isMaximized();
-    if (!isMaximized())
-    {
-        appSettings.windowSize = size();
-        appSettings.windowPosition = pos();
-    }
-    settings::saveApp(appSettings);
+    SettingsStore store(settings::Paths{}.settingsFile());
+    store.setValue(QStringLiteral("window/maximized"), isMaximized());
 }
 
 } // namespace darkeye
