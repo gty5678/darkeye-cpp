@@ -185,12 +185,35 @@ void DvdShelfView::setWorks(const QList<WorkSummary> &works)
     // A filtering reload invalidates any delayed route-open callback whose
     // delegate belonged to the previous virtualized window.
     ++m_openWorkRequest;
+    // Match Python's set_work_ids: clear interaction and discard the old
+    // delegates before replacing their virtual indices and textures.
+    if (QObject *root = m_quickWidget->rootObject())
+    {
+        root->setProperty("hoveredDelegateIndex", -1);
+        root->setProperty("pressedDelegateIndex", -1);
+        root->setProperty("pressedObjectHit", QVariant());
+        root->setProperty("fullyExpandedDelegateIndex", -1);
+        root->setProperty("expandedDelegateIndex", -1);
+        root->setProperty("selectedDelegateIndex", -1);
+        root->setProperty("_pendingCollapseSelectedIndex", -1);
+        root->setProperty("_pendingCollapseCloseSpeedMultiplier", 1.0);
+        root->setProperty("_frozenSelectedDelegateIndex", -1);
+        root->setProperty("_frozenSelectedVirtualIndex", -1);
+    }
+    m_suppressRelationGraphUntilDeselected = false;
+    auto *context = m_quickWidget->rootContext();
+    context->setContextProperty(QStringLiteral("dvdCount"), 0);
+    context->setContextProperty(QStringLiteral("dvdTextureSources"), QVariantList{});
     m_works = works;
     m_cameraX = 0;
     m_cameraTargetX = 0;
     m_cameraVelocityX = 0;
     m_cameraElapsed.invalidate();
     m_cameraTimer->stop();
+    // The QML camera binds to these properties, so resetting only the C++
+    // values leaves it looking at the old position after a scrolled reload.
+    emit cameraXChanged();
+    emit cameraTargetXChanged();
     m_initialPopulateTimer->stop();
     m_visibleStart = 0;
     m_loadedStart = -1;

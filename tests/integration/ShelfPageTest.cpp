@@ -6,12 +6,16 @@
 #include "ui/components/DvdShelfView.h"
 #include "ui/pages/ShelfPage.h"
 
+#include <QAbstractButton>
 #include <QComboBox>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
+#include <QQmlContext>
 #include <QQuickItem>
 #include <QQuickWidget>
 #include <QTemporaryDir>
+#include <QTimer>
 #include <QtTest>
 
 class ShelfPageTest final : public QObject
@@ -21,6 +25,8 @@ class ShelfPageTest final : public QObject
 private slots:
     void filtersAndLoadsVirtualizedShelf();
     void filtersByPrivateScope();
+    void deletingExpandedWorkResetsScene_data();
+    void deletingExpandedWorkResetsScene();
     void routeJumpReplacesAnAlreadyExpandedWork();
     void routeJumpClearsFiltersAndKeepsWorkExpanded_data();
     void routeJumpClearsFiltersAndKeepsWorkExpanded();
@@ -97,6 +103,92 @@ void ShelfPageTest::filtersByPrivateScope()
     QTRY_COMPARE(count->text(), QStringLiteral("过滤总数:1"));
     scope->setCurrentText(QStringLiteral("已撸过"));
     QTRY_COMPARE(count->text(), QStringLiteral("没有查询到数据"));
+}
+
+void ShelfPageTest::deletingExpandedWorkResetsScene_data()
+{
+    QTest::addColumn<int>("workCount");
+    QTest::newRow("first-work") << 3;
+    QTest::newRow("scrolled-work") << 100;
+    QTest::newRow("last-work") << 1;
+}
+
+void ShelfPageTest::deletingExpandedWorkResetsScene()
+{
+    QFETCH(int, workCount);
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(temporaryDirectory.filePath(QStringLiteral("public.db")), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(connection, darkeye::DatabaseKind::Public, &error));
+    darkeye::WorkRepository repository(connection.database());
+    qint64 deletedId = 0;
+    qint64 remainingId = 0;
+    for (int index = 0; index < workCount; ++index)
+    {
+        darkeye::Work work;
+        work.serialNumber = QStringLiteral("DELETE-%1").arg(index, 3, 10, QLatin1Char('0'));
+        const auto id = repository.insertComplete(work, {}, {}, {}, &error);
+        QVERIFY(id.has_value());
+        if (index == 0) remainingId = *id;
+        if (index == workCount - 1) deletedId = *id;
+    }
+
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    QVERIFY(application != nullptr);
+    darkeye::ThemeService themes(*application);
+    darkeye::ShelfPage page(connection.database(), {}, themes);
+    page.initialize();
+    auto *view = page.findChild<darkeye::DvdShelfView *>();
+    auto *count = page.findChild<QLabel *>(QStringLiteral("ShelfCountLabel"));
+    QVERIFY(view != nullptr);
+    QVERIFY(count != nullptr);
+    auto *quickView = view->findChild<QQuickWidget *>();
+    QVERIFY(quickView != nullptr);
+    auto *root = quickView->rootObject();
+    QVERIFY(root != nullptr);
+    QVERIFY(page.showWork(deletedId));
+    auto *sort = page.findChild<QComboBox *>(QStringLiteral("ShelfSortSelector"));
+    QVERIFY(sort != nullptr);
+    sort->setCurrentText(QStringLiteral("番号顺序"));
+    page.refresh();
+    QVERIFY(view->openWork(deletedId));
+    QTRY_VERIFY(root->property("fullyExpandedDelegateIndex").toInt() >= 0);
+    if (workCount == 100) QVERIFY(view->cameraX() > 1.0);
+    QSignalSpy cameraChanged(view, &darkeye::DvdShelfView::cameraXChanged);
+    QSignalSpy deleted(&page, &darkeye::ShelfPage::workDeleted);
+    // Confirm the actual delete dialog against a temporary database only.
+    QTimer::singleShot(0, &page, [] {
+        for (QWidget *widget : QApplication::topLevelWidgets())
+            if (auto *dialog = qobject_cast<QMessageBox *>(widget))
+                dialog->button(QMessageBox::Yes)->click();
+    });
+    view->on_delete_clicked(root->property("selectedWorkVirtualIndex").toInt());
+    QCOMPARE(deleted.count(), 1);
+    QCOMPARE(deleted.first().first().toLongLong(), deletedId);
+    QCOMPARE(view->cameraX(), 0.0);
+    QVERIFY(!cameraChanged.isEmpty());
+    QCOMPARE(root->property("selectedDelegateIndex").toInt(), -1);
+    QCOMPARE(root->property("expandedDelegateIndex").toInt(), -1);
+    QCOMPARE(root->property("fullyExpandedDelegateIndex").toInt(), -1);
+    QCOMPARE(root->property("_frozenSelectedDelegateIndex").toInt(), -1);
+    QCOMPARE(root->property("_frozenSelectedVirtualIndex").toInt(), -1);
+    QCOMPARE(view->currentWorkId(), qint64(0));
+    QVERIFY(view->expandedWorkCode().isEmpty());
+    QCOMPARE(count->text(), workCount == 1 ? QStringLiteral("没有查询到数据")
+                                         : QStringLiteral("过滤总数:%1").arg(workCount - 1));
+    page.refresh();
+    QTest::qWait(700);
+    QCOMPARE(root->property("expandedDelegateIndex").toInt(), -1);
+    QCOMPARE(quickView->rootContext()->contextProperty("dvdVisibleStart").toInt(), 0);
+    QCOMPARE(quickView->rootContext()->contextProperty("dvdCount").toInt() > 0, workCount > 1);
+    QVERIFY(!view->openWork(deletedId));
+    if (workCount > 1)
+    {
+        QVERIFY(view->openWork(remainingId));
+        QTRY_COMPARE(view->currentWorkId(), remainingId);
+    }
 }
 
 void ShelfPageTest::routeJumpReplacesAnAlreadyExpandedWork()
