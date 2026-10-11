@@ -110,6 +110,7 @@ void MainWindowSmokeTest::homeShowsThreeRandomRows()
     QCOMPARE(scene->property("camPos").value<QVector3D>(), QVector3D(0, 0.865, 0.86));
     QCOMPARE(scene->property("outlineColor").value<QColor>(), QColor(themes.currentTokens().primary));
     QVERIFY(scene->findChild<QObject *>(QStringLiteral("hoverOutline")));
+    QVERIFY(scene->findChild<QObject *>(QStringLiteral("ShopBackPanel")));
     const auto initial = scene->property("coverTextureSources").toList();
     QCOMPARE(initial.size(), 18);
     QCOMPARE(page.findChildren<QPushButton *>().size(), 1);

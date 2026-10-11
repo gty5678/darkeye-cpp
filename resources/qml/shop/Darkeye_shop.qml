@@ -9,6 +9,21 @@ Node {
         return index >= 0 && index < coverRepeater.count ? coverRepeater.objectAt(index) : null
     }
 
+    Model {
+        objectName: "ShopBackPanel"
+        source: "meshes/cube_004.mesh"
+        // Python's back panel spans local Y -0.01..1.26. Fit it to the
+        // three-row shelf's world Y 0.50..1.27 without changing its depth.
+        scale.y: 0.77 / 1.27
+        y: 0.50 + 0.01 * scale.y
+        materials: PrincipledMaterial {
+            baseColor: "#ffcca622"
+            metalness: 0
+            roughness: 0.5
+            cullMode: Material.NoCulling
+        }
+    }
+
     // Keep the original shop's shelf and cover meshes, with three rows.
     Repeater3D {
         model: 3
