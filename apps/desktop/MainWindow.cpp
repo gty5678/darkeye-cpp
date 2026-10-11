@@ -632,7 +632,8 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
 {
     if (routeName == QStringLiteral("home"))
     {
-        m_homePage = new HomePage(m_themeService, parent);
+        m_homePage = new HomePage(m_publicDatabase, m_paths.workCoverDirectory(), m_themeService, parent);
+        connect(m_homePage, &HomePage::detailRequested, this, &MainWindow::showWorkInShelf);
         return m_homePage;
     }
     if (routeName == QStringLiteral("test_page"))

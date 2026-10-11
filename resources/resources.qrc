@@ -17,6 +17,10 @@
         <file alias="anonymous.jpg">icons/anonymous.jpg</file>
     </qresource>
     <qresource prefix="/qml">
+        <file alias="shop/shop_viewport.qml">qml/shop/shop_viewport.qml</file>
+        <file alias="shop/Darkeye_shop.qml">qml/shop/Darkeye_shop.qml</file>
+        <file alias="shop/meshes/base.mesh">qml/shop/meshes/base.mesh</file>
+        <file alias="shop/meshes/cube_005.mesh">qml/shop/meshes/cube_005.mesh</file>
         <file alias="graphics_prewarm_scene.qml">qml/graphics_prewarm_scene.qml</file>
         <file alias="dvd/dvd_scene.qml">qml/dvd/dvd_scene.qml</file>
         <file alias="dvd/Dvd.qml">qml/dvd/Dvd.qml</file>

@@ -42,6 +42,10 @@
 #include <QPlainTextEdit>
 #include <QKeySequenceEdit>
 #include <QPushButton>
+#include <QQuickWidget>
+#include <QQuickItem>
+#include <QImage>
+#include <QVector3D>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QSqlQuery>
@@ -69,11 +73,74 @@ class MainWindowSmokeTest final : public QObject
     Q_OBJECT
 
 private slots:
+    void homeShowsThreeRandomRows();
     void exposesAllPrimaryNavigationPages();
     void backgroundChangesRefreshOpenPages();
     void summarySearchKeyboardNavigation_data();
     void summarySearchKeyboardNavigation();
 };
+
+void MainWindowSmokeTest::homeShowsThreeRandomRows()
+{
+    QTemporaryDir directory;
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(directory.filePath(QStringLiteral("public.db")), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        connection, darkeye::DatabaseKind::Public, &error));
+    darkeye::WorkRepository repository(connection.database());
+    for (int i = 0; i < 24; ++i)
+    {
+        darkeye::Work work;
+        work.serialNumber = QStringLiteral("HOME-%1").arg(i);
+        work.imageUrl = QStringLiteral("%1.png").arg(i);
+        QImage cover(320, 450, QImage::Format_RGB32);
+        cover.fill(QColor::fromHsv((i * 30) % 360, 150, 200));
+        QVERIFY(cover.save(directory.filePath(work.imageUrl)));
+        QVERIFY(repository.insertComplete(work, {}, {}, {}, &error).has_value());
+    }
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    darkeye::HomePage page(connection.database(), directory.path(), themes);
+    page.initialize();
+    auto *view = page.findChild<QQuickWidget *>();
+    QVERIFY(view);
+    QVERIFY2(view->status() == QQuickWidget::Ready, "Home QML failed to load");
+    QObject *scene = view->rootObject();
+    QVERIFY(scene);
+    QCOMPARE(scene->property("camPos").value<QVector3D>(), QVector3D(0, 0.865, 0.86));
+    QCOMPARE(scene->property("outlineColor").value<QColor>(), QColor(themes.currentTokens().primary));
+    QVERIFY(scene->findChild<QObject *>(QStringLiteral("hoverOutline")));
+    const auto initial = scene->property("coverTextureSources").toList();
+    QCOMPARE(initial.size(), 18);
+    QCOMPARE(page.findChildren<QPushButton *>().size(), 1);
+    auto *refresh = page.findChild<QPushButton *>(QStringLiteral("HomeRefreshButton"));
+    QVERIFY(refresh);
+    bool changed = false;
+    for (int i = 0; i < 5 && !changed; ++i)
+    {
+        refresh->click();
+        const auto current = scene->property("coverTextureSources").toList();
+        QCOMPARE(current.size(), 18);
+        changed = current != initial;
+    }
+    QVERIFY(changed);
+    QSignalSpy selected(&page, &darkeye::HomePage::detailRequested);
+    QVERIFY(QMetaObject::invokeMethod(scene, "coverClicked", Q_ARG(int, 0)));
+    QCOMPARE(selected.size(), 1);
+    QVERIFY(selected.first().first().toLongLong() > 0);
+    page.resize(1100, 650);
+    page.show();
+    QTest::qWait(400);
+    QVERIFY(!view->grabFramebuffer().isNull());
+    const QString snapshot = qEnvironmentVariable("DARKEYE_HOME_SNAPSHOT");
+    if (!snapshot.isEmpty()) QVERIFY(page.grab().save(snapshot));
+    QObject *outline = scene->findChild<QObject *>(QStringLiteral("hoverOutline"));
+    QVERIFY(QMetaObject::invokeMethod(outline, "updateForIndex", Q_ARG(QVariant, QVariant(2))));
+    QVERIFY(outline->property("visible").toBool());
+    QSignalSpy cameraChanged(scene, SIGNAL(cameraChanged()));
+    scene->setProperty("yawDeg", 5.0);
+    QCOMPARE(cameraChanged.size(), 1);
+}
 
 void MainWindowSmokeTest::backgroundChangesRefreshOpenPages()
 {
