@@ -102,6 +102,9 @@ set_tests_properties(darkeye_component_gallery_smoke PROPERTIES
 )
 darkeye_add_qt_test(darkeye_database_tests unit/SqliteConnectionTest.cpp)
 darkeye_add_qt_test(darkeye_schema_tests integration/SchemaManagerTest.cpp)
+target_compile_definitions(darkeye_schema_tests PRIVATE
+    DARKEYE_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+)
 darkeye_add_qt_test(darkeye_schema_snapshot_tests integration/SchemaSnapshotTest.cpp)
 darkeye_add_qt_test(darkeye_database_fixture_tests compatibility/DatabaseFixtureTest.cpp)
 darkeye_add_qt_test(darkeye_serial_number_tests compatibility/SerialNumberCompatibilityTest.cpp)

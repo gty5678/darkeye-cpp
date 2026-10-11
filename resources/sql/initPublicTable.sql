@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS "actress_name"(   --女优姓名表,解决女优多�
 	en TEXT,
 	kana TEXT,
 	redirect_actress_name_id INTEGER,--自引用外键，解决名字的链条问题，这个是NULL说明是最新的名字
-	FOREIGN KEY(actress_id) REFERENCES actress(actress_id)
+	FOREIGN KEY(actress_id) REFERENCES actress(actress_id),
 	FOREIGN KEY(redirect_actress_name_id) REFERENCES actress_name(actress_name_id)
 );
 CREATE TABLE IF NOT EXISTS db_version (

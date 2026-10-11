@@ -8,19 +8,18 @@ CREATE TABLE IF NOT EXISTS db_version (
     description TEXT
 );
 INSERT INTO db_version (version, applied_at, description) VALUES ('1.0', '2025-10-14 09:28:01', '初始版本');
-INSERT INTO db_version (version, applied_at, description) VALUES ('1.1', '2026-03-12 09:28:01', '私有表结构更新');
 
 
 CREATE TABLE IF NOT EXISTS favorite_actress(--收藏女优表
 	favorite_actress_id INTEGER PRIMARY KEY AUTOINCREMENT, --不重复主键
-	actress_id  UNIQUE INTEGER NOT NULL,--外键，这个要与公共表中的actress_id对应，但是要在软件层去解决数据一致性的问题，不需要唯一
+	actress_id INTEGER UNIQUE NOT NULL,--外键，这个要与公共表中的actress_id对应，但是要在软件层去解决数据一致性的问题，不需要唯一
 	jp_name TEXT NOT NULL,--备份日本姓名，避免公共表巨变时丢失actress_id信息，这个作为最后的恢复手段
 	added_time TEXT NOT NULL DEFAULT (DATETIME('now', 'localtime')) -- 收藏时间，这个写进去了就不更新了
 );
 
 CREATE TABLE IF NOT EXISTS favorite_work(--收藏影片表
 	favorite_work_id INTEGER PRIMARY KEY AUTOINCREMENT, --不重复主键
-	work_id UNIQUE INTEGER NOT NULL,--外键，这个要与公共表中的work_id对应，但是要在软件层去解决数据一致性的问题，不需要唯一
+	work_id INTEGER UNIQUE NOT NULL,--外键，这个要与公共表中的work_id对应，但是要在软件层去解决数据一致性的问题，不需要唯一
 	serial_number TEXT UNIQUE NOT NULL,--备份番号，避免公共表巨变时丢失work_id信息，这个作为最后的恢复手段
 	added_time TEXT NOT NULL DEFAULT (DATETIME('now', 'localtime')) -- 收藏时间，这个写进去了就不更新了
 );

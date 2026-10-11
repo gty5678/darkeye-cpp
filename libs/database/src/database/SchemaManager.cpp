@@ -123,6 +123,8 @@ bool insertConfigReferences(QSqlDatabase database, const QString &table, const Q
         insert.addBindValue(detail); if (!extraField.isEmpty()) insert.addBindValue(extra);
         if (!insert.exec()) return setError(errorMessage, insert.lastError().text());
         if (!makers) continue;
+        // SQLite's last inserted row ID changes when prefix rows are inserted.
+        const QVariant makerId = insert.lastInsertId();
         const QJsonValue prefixes = object.value(QStringLiteral("prefixes"));
         if (!prefixes.isUndefined() && !prefixes.isNull() && !prefixes.isArray())
             return setError(errorMessage, QStringLiteral("片商前缀配置必须是列表"));
@@ -136,7 +138,7 @@ bool insertConfigReferences(QSqlDatabase database, const QString &table, const Q
             if (prefix.isEmpty() || seen.contains(prefix)) continue;
             seen.insert(prefix);
             insertPrefix.bindValue(0, prefix);
-            insertPrefix.bindValue(1, insert.lastInsertId());
+            insertPrefix.bindValue(1, makerId);
             if (!insertPrefix.exec()) return setError(errorMessage, insertPrefix.lastError().text());
         }
     }
