@@ -13,6 +13,7 @@
 #include "ui/pages/PersonDetailPage.h"
 #include "ui/pages/PersonPage.h"
 #include "ui/pages/StatisticsPage.h"
+#include "ui/pages/PlotTabPage.h"
 #include "ui/pages/SettingsPage.h"
 #include "ui/pages/ShelfPage.h"
 #include "ui/pages/WorkPage.h"
@@ -37,17 +38,22 @@
 #include <QAction>
 #include <QComboBox>
 #include <QDialog>
+#include <QDir>
+#include <QFontDatabase>
+#include <QLayout>
 #include <QLineEdit>
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QKeySequenceEdit>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QQuickWidget>
 #include <QQuickItem>
 #include <QImage>
 #include <QVector3D>
 #include <QRegularExpression>
 #include <QSettings>
+#include <QSpinBox>
 #include <QSqlQuery>
 #include <QStackedWidget>
 #include <QTableWidget>
@@ -57,6 +63,24 @@
 
 namespace
 {
+QPushButton *findSettingsButton(QObject *root, const QString &text)
+{
+    if (!root)
+        return nullptr;
+    for (auto *button : root->findChildren<QPushButton *>())
+        if (button->text() == text && button->objectName() == QStringLiteral("DesignButton"))
+            return button;
+    return nullptr;
+}
+
+QComboBox *findThemeSelector(QObject *root)
+{
+    for (auto *combo : root->findChildren<QComboBox *>())
+        if (combo->accessibleName() == QStringLiteral("主题"))
+            return combo;
+    return nullptr;
+}
+
 template <typename T>
 T *findWorkControl(QObject *root, const QString &controlId)
 {
@@ -73,12 +97,62 @@ class MainWindowSmokeTest final : public QObject
     Q_OBJECT
 
 private slots:
+    void histogramShowsPercentileLines();
     void homeShowsThreeRandomRows();
     void exposesAllPrimaryNavigationPages();
     void backgroundChangesRefreshOpenPages();
     void summarySearchKeyboardNavigation_data();
     void summarySearchKeyboardNavigation();
 };
+
+void MainWindowSmokeTest::histogramShowsPercentileLines()
+{
+    QTemporaryDir directory;
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(directory.filePath(QStringLiteral("public.db")), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        connection, darkeye::DatabaseKind::Public, &error));
+    QSqlQuery query(connection.database());
+    QVERIFY(query.exec(QStringLiteral("INSERT INTO actress(height) VALUES (150), (160), (170)")));
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    darkeye::PlotTabPage page(connection.database(), {}, themes);
+    page.resize(1200, 700);
+    page.initialize();
+    for (auto *radio : page.findChildren<QRadioButton *>())
+        if (radio->text() == QStringLiteral("公共数据库")) radio->click();
+    for (auto *button : page.findChildren<QPushButton *>())
+        if (button->text() == QStringLiteral("女优身高分布直方图")) button->click();
+    page.show();
+    QTest::qWait(50);
+    QWidget *canvas = page.captureContent();
+    QVERIFY(canvas != nullptr);
+    const QImage image = canvas->grab().toImage();
+    const QString snapshot = qEnvironmentVariable("DARKEYE_PERCENTILE_SNAPSHOT");
+    if (!snapshot.isEmpty()) QVERIFY(image.save(snapshot));
+    const qreal dpr = image.devicePixelRatio();
+    const QRect plot = canvas->rect().adjusted(90, 66, -34, -84);
+    const auto hasRedLine = [&](qreal percentile) {
+        const int x = qRound((plot.left() + (percentile - 149.5) / 21 * plot.width()) * dpr);
+        int redRows = 0;
+        for (int y = qRound((plot.top() + 30) * dpr); y < qRound(plot.bottom() * dpr); ++y) {
+            for (int dx = -1; dx <= 1; ++dx) {
+                const QColor color = image.pixelColor(x + dx, y);
+                // Antialiasing blends the one-pixel line with the bar below it.
+                if (color.red() > color.green() + 40 && color.red() > color.blue() + 20) {
+                    ++redRows;
+                    break;
+                }
+            }
+        }
+        return redRows > plot.height() * dpr / 4;
+    };
+    // Python's cumulative-weight interpolation for equal weights:
+    // 5% is the first sample; 95% is 85% of the way from 160 to 170.
+    QVERIFY(hasRedLine(150));
+    QVERIFY(hasRedLine(168.5));
+    QVERIFY(!hasRedLine(170));
+}
 
 void MainWindowSmokeTest::homeShowsThreeRandomRows()
 {
@@ -274,6 +348,14 @@ void MainWindowSmokeTest::summarySearchKeyboardNavigation()
 
 void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
 {
+    // The offscreen plugin needs explicit fonts for readable preview images.
+    if (!qEnvironmentVariableIsEmpty("DARKEYE_SETTINGS_PREVIEW_DIR"))
+    {
+        const QDir fonts(QDir(qEnvironmentVariable("WINDIR")).filePath(QStringLiteral("Fonts")));
+        for (const QString &file : {QStringLiteral("msyh.ttc"), QStringLiteral("segoeui.ttf")})
+            if (QFileInfo::exists(fonts.filePath(file)))
+                QVERIFY(QFontDatabase::addApplicationFont(fonts.filePath(file)) >= 0);
+    }
     QTemporaryDir temporaryDirectory;
     QVERIFY(temporaryDirectory.isValid());
 
@@ -338,7 +420,7 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
              QKeySequence(QStringLiteral("C")));
     QCOMPARE(window.findChild<QAction *>(QStringLiteral("allcapture"))->shortcut(),
              QKeySequence(QStringLiteral("Shift+C")));
-    QVERIFY(window.findChild<QComboBox *>(QStringLiteral("themeSelector")) == nullptr);
+    QVERIFY(findThemeSelector(&window) == nullptr);
 
     emit sidebar->itemClicked(QStringLiteral("chart"));
     QVERIFY(qobject_cast<darkeye::StatisticsPage *>(pages->currentWidget()) != nullptr);
@@ -348,7 +430,7 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QVERIFY(statisticsPage->isInitialized());
 
     emit sidebar->itemClicked(QStringLiteral("setting"));
-    auto *themeSelector = window.findChild<QComboBox *>(QStringLiteral("themeSelector"));
+    auto *themeSelector = findThemeSelector(&window);
     QVERIFY(themeSelector != nullptr);
     QCOMPARE(themeSelector->count(), 7);
     QCOMPARE(themeSelector->itemText(0), QStringLiteral("亮色主题"));
@@ -363,8 +445,12 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QVERIFY(aboutPage);
     aboutPage->initialize();
     QCOMPARE(aboutPage->findChildren<darkeye::TokenLinkCard *>().size(), 8);
-    QVERIFY(aboutPage->findChild<QPushButton *>(QStringLiteral("CheckUpdateButton"))->isEnabled());
-    QVERIFY(aboutPage->findChild<QPushButton *>(QStringLiteral("FeedbackButton"))->isEnabled());
+    auto *checkUpdate = findSettingsButton(aboutPage, QStringLiteral("检查更新"));
+    auto *feedback = findSettingsButton(aboutPage, QStringLiteral("意见反馈"));
+    QVERIFY(checkUpdate);
+    QVERIFY(feedback);
+    QVERIFY(checkUpdate->isEnabled());
+    QVERIFY(feedback->isEnabled());
     QVERIFY(window.findChild<QWidget *>(QStringLiteral("PrimaryColorRow")));
     auto *shortcutPage = window.findChild<darkeye::ShortcutSettingsPage *>();
     QVERIFY(shortcutPage);
@@ -372,10 +458,11 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     const auto loadedShortcutRows =
         window.findChildren<QWidget *>(QRegularExpression(QStringLiteral("^ShortcutSettingRow_")));
     QCOMPARE(loadedShortcutRows.size(), 8);
-    auto *helpEditor = window.findChild<QKeySequenceEdit *>(
-        QStringLiteral("ShortcutEditor_open_help"));
+    auto *helpEditor = window.findChild<QWidget *>(QStringLiteral("ShortcutSettingRow_open_help"))
+                           ->findChild<QKeySequenceEdit *>(QStringLiteral("DesignKeySequenceEdit"));
     auto *helpReset =
-        window.findChild<QPushButton *>(QStringLiteral("ShortcutReset_open_help"));
+        findSettingsButton(window.findChild<QWidget *>(QStringLiteral("ShortcutSettingRow_open_help")),
+                           QStringLiteral("恢复"));
     QVERIFY(helpEditor);
     QVERIFY(helpReset);
     QCOMPARE(helpEditor->keySequence(), QKeySequence(QStringLiteral("H")));
@@ -387,17 +474,66 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QCOMPARE(helpEditor->keySequence(), QKeySequence(QStringLiteral("H")));
     QCOMPARE(window.findChild<QAction *>(QStringLiteral("open_help"))->shortcut(),
              QKeySequence(QStringLiteral("H")));
-    auto *player = window.findChild<QLineEdit *>(QStringLiteral("LocalVideoPlayerEdit"));
     auto *videoPage = window.findChild<darkeye::VideoSettingsPage *>();
     QVERIFY(videoPage);
     videoPage->initialize();
-    player = window.findChild<QLineEdit *>(QStringLiteral("LocalVideoPlayerEdit"));
+    auto *player = videoPage->findChild<QLineEdit *>(QStringLiteral("DesignInput"));
     auto *videoPaths =
         window.findChild<darkeye::MultiplePathManagement *>(QStringLiteral("VideoPathManagement"));
     QVERIFY(player);
     QVERIFY(videoPaths);
-    QVERIFY(window.findChild<QPushButton *>(QStringLiteral("ScanLocalVideosButton")));
-    QVERIFY(window.findChild<QPushButton *>(QStringLiteral("MatchLocalVideosButton")));
+    QVERIFY(findSettingsButton(videoPage, QStringLiteral("扫描本地视频提取番号并录入数据库")));
+    QVERIFY(findSettingsButton(videoPage, QStringLiteral("同步作品本地视频路径")));
+    QVERIFY(findSettingsButton(videoPaths, QStringLiteral("添加地址")));
+    QVERIFY(findSettingsButton(videoPaths, QStringLiteral("删除地址")));
+    QCOMPARE(player->objectName(), QStringLiteral("DesignInput"));
+    QCOMPARE(videoPaths->table()->objectName(), QStringLiteral("DesignTableWidget"));
+    QCOMPARE(helpEditor->objectName(), QStringLiteral("DesignKeySequenceEdit"));
+    QCOMPARE(themeSelector->objectName(), QStringLiteral("DesignComboBox"));
+    auto *translationPage = window.findChild<darkeye::TranslationSettingsPage *>();
+    QVERIFY(translationPage);
+    translationPage->initialize();
+    const auto translationSpins = translationPage->findChildren<QSpinBox *>();
+    QCOMPARE(translationSpins.size(), 9);
+    for (auto *spin : translationSpins)
+        QCOMPARE(spin->objectName(), QStringLiteral("DesignSpinBox"));
+    const auto translationTexts = translationPage->findChildren<QPlainTextEdit *>();
+    QCOMPARE(translationTexts.size(), 4);
+    for (auto *text : translationTexts)
+        QCOMPARE(text->objectName(), QStringLiteral("DesignPlainTextEdit"));
+    QCOMPARE(translationTexts.at(0)->height(), 96);
+    QCOMPARE(translationTexts.at(1)->height(), 96);
+    auto *databaseSettings = window.findChild<darkeye::DatabaseSettingsPage *>();
+    QVERIFY(databaseSettings);
+    databaseSettings->initialize();
+    const auto webDavInputs = databaseSettings->findChildren<QLineEdit *>(Qt::FindDirectChildrenOnly);
+    QCOMPARE(webDavInputs.size(), 3);
+    for (auto *input : webDavInputs)
+        QCOMPARE(input->objectName(), QStringLiteral("DesignInput"));
+    for (auto *spin : databaseSettings->findChildren<QSpinBox *>())
+        QCOMPARE(spin->objectName(), QStringLiteral("DesignSpinBox"));
+
+    const QString previewDirectory = qEnvironmentVariable("DARKEYE_SETTINGS_PREVIEW_DIR");
+    if (!previewDirectory.isEmpty())
+    {
+        const QList<QPair<QString, QWidget *>> previews = {
+            {QStringLiteral("video"), videoPage}, {QStringLiteral("translation"), translationPage},
+            {QStringLiteral("database"), databaseSettings}, {QStringLiteral("shortcuts"), shortcutPage}};
+        for (const auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Dark})
+        {
+            QVERIFY(themeService.setTheme(theme));
+            for (const auto &preview : previews)
+            {
+                preview.second->resize(800, preview.second->sizeHint().height());
+                preview.second->layout()->activate();
+                const QString suffix = theme == darkeye::ThemeId::Light ? QStringLiteral("light")
+                                                                        : QStringLiteral("dark");
+                QVERIFY(preview.second->grab().save(QDir(previewDirectory).filePath(
+                    preview.first + u'-' + suffix + QStringLiteral(".png"))));
+            }
+        }
+        QVERIFY(themeService.setTheme(darkeye::ThemeId::Light));
+    }
     emit sidebar->itemClicked(QStringLiteral("work"));
     QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("WorkPage"));
     auto *workPage = window.findChild<darkeye::WorkPage *>(QStringLiteral("WorkPage"));

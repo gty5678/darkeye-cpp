@@ -81,11 +81,17 @@ QComboBox#ShelfSortSelector::down-arrow {
     height: 16px;
 }
 
+QComboBox#DesignComboBox:disabled,
 QLineEdit#DesignInput:disabled,
 QTextEdit#DesignTextEdit:disabled,
 QPlainTextEdit#DesignPlainTextEdit:disabled {
     color: @TEXT_DISABLED@;
     background-color: @INPUT_BACKGROUND@;
+}
+
+QTextEdit#DesignTextEdit,
+QPlainTextEdit#DesignPlainTextEdit {
+    padding: 6px 8px;
 }
 
 QPushButton#DesignButton,
@@ -492,6 +498,49 @@ QHeaderView::section {
     padding: 6px;
 }
 
+/* Match Python's path table, including its row numbers and cell editor. */
+QTableWidget#DesignTableWidget[pathManagement="true"] {
+    border: 2px solid @BORDER@;
+    border-radius: 8px;
+}
+QTableWidget#DesignTableWidget[pathManagement="true"] QHeaderView::section {
+    background-color: @PAGE_BACKGROUND@;
+    padding: 4px 6px;
+}
+QTableWidget#DesignTableWidget[pathManagement="true"] QHeaderView::section:vertical {
+    color: @TEXT_PLACEHOLDER@;
+    border-right: 1px solid @BORDER@;
+}
+QTableWidget#DesignTableWidget[pathManagement="true"]::item {
+    background-color: @BACKGROUND@;
+    padding: 4px 6px;
+    border: none;
+}
+QTableWidget#DesignTableWidget[pathManagement="true"]::item:selected {
+    background-color: @PRIMARY@;
+    color: @TEXT_INVERSE@;
+}
+QTableWidget#DesignTableWidget[pathManagement="true"]::item:hover:!selected {
+    background-color: @INPUT_BACKGROUND@;
+    color: @TEXT@;
+}
+QTableWidget#DesignTableWidget[pathManagement="true"] QLineEdit {
+    background-color: @BACKGROUND@;
+    color: @TEXT@;
+    border: 2px solid @BORDER_FOCUS@;
+    border-radius: 8px;
+    padding: 4px 6px;
+    selection-background-color: @PRIMARY@;
+}
+QTableWidget#DesignTableWidget[pathManagement="true"] QLineEdit:focus {
+    background-color: @INPUT_BACKGROUND@;
+}
+
+QKeySequenceEdit#DesignKeySequenceEdit {
+    background-color: transparent;
+    border: none;
+}
+
 QDateTimeEdit#DesignDateTimeEdit,
 QLineEdit#DesignKeySequenceEditLineEdit {
     color: @TEXT@;
@@ -499,6 +548,21 @@ QLineEdit#DesignKeySequenceEditLineEdit {
     border: 2px solid @BORDER@;
     border-radius: 8px;
     padding: 4px 8px;
+}
+QLineEdit#DesignKeySequenceEditLineEdit {
+    min-height: 1.2em;
+    selection-background-color: @PRIMARY@;
+}
+QLineEdit#DesignKeySequenceEditLineEdit:hover {
+    border-color: @PRIMARY@;
+    background-color: @INPUT_BACKGROUND@;
+}
+QLineEdit#DesignKeySequenceEditLineEdit:disabled {
+    color: @TEXT_DISABLED@;
+    background-color: @INPUT_BACKGROUND@;
+}
+QLineEdit#DesignKeySequenceEditLineEdit:focus {
+    background-color: @INPUT_BACKGROUND@;
 }
 QDateTimeEdit#DesignDateTimeEdit:focus,
 QLineEdit#DesignKeySequenceEditLineEdit:focus {

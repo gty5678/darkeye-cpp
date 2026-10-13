@@ -448,6 +448,8 @@ QWidget *MainWindow::partialCaptureTarget()
         return m_actressPage->captureContent();
     if (route == QStringLiteral("actress_detail") && m_actressDetailPage != nullptr)
         return m_actressDetailPage->captureContent();
+    if (route == QStringLiteral("chart") && m_statisticsPage != nullptr)
+        return m_statisticsPage->captureContent();
     if (route == QStringLiteral("home"))
         return m_pages->currentWidget();
     return nullptr;

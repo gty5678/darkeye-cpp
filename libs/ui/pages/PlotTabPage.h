@@ -17,6 +17,7 @@ public:
                          QWidget *parent = nullptr);
 
     void refresh();
+    [[nodiscard]] QWidget *captureContent();
 
 private:
     void lazyLoad() override;
@@ -24,6 +25,7 @@ private:
     QSqlDatabase m_publicDatabase;
     QSqlDatabase m_privateDatabase;
     ThemeService &m_themeService;
+    QWidget *m_chart = nullptr;
 };
 
 } // namespace darkeye

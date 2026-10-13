@@ -40,6 +40,9 @@ public:
     void loadPaths(const QStringList &paths);
     [[nodiscard]] QTableWidget *table() const;
 
+signals:
+    void pathsChanged();
+
 public slots:
     void addRow();
     void deleteSelectedRows();
@@ -47,7 +50,6 @@ public slots:
 private slots:
     void handleCellDoubleClicked(int row, int column);
     void browseRow(int row);
-    void clearBrowseButtons();
 
 private:
     TokenTableWidget *m_table = nullptr;

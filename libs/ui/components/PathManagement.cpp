@@ -44,12 +44,6 @@ public:
     void paint(QPainter *painter, const QStyleOptionViewItem &option,
                const QModelIndex &index) const override
     {
-        if (!m_visibleRows.contains(index.row()))
-        {
-            QStyledItemDelegate::paint(painter, option, index);
-            return;
-        }
-
         QStyleOptionButton button;
         button.rect = option.rect;
         button.text = QStringLiteral("...");
@@ -64,15 +58,16 @@ public:
     bool editorEvent(QEvent *event, QAbstractItemModel *model,
                      const QStyleOptionViewItem &option, const QModelIndex &index) override
     {
-        if (!m_visibleRows.contains(index.row()))
-        {
-            return QStyledItemDelegate::editorEvent(event, model, option, index);
-        }
         switch (event->type())
         {
         case QEvent::MouseButtonPress:
         case QEvent::MouseButtonDblClick:
         case QEvent::MouseMove:
+            if (event->type() == QEvent::MouseMove)
+            {
+                if (auto *view = qobject_cast<QTableWidget *>(parent()))
+                    view->viewport()->update();
+            }
             return true;
         case QEvent::MouseButtonRelease:
         {
@@ -88,28 +83,7 @@ public:
         }
     }
 
-    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override
-    {
-        QSize size = QStyledItemDelegate::sizeHint(option, index);
-        if (m_visibleRows.contains(index.row()))
-        {
-            size.rwidth() += 10;
-        }
-        return size;
-    }
-
-    void showForRow(int row)
-    {
-        m_visibleRows.insert(row);
-    }
-
-    void clear()
-    {
-        m_visibleRows.clear();
-    }
-
 private:
-    QSet<int> m_visibleRows;
     BrowseHandler m_browseHandler;
 };
 
@@ -156,20 +130,19 @@ MultiplePathManagement::MultiplePathManagement(const QString &labelText, QWidget
     : QWidget(parent)
 {
     setObjectName(QStringLiteral("MultiplePathManagement"));
+    setProperty("designScrollMenuContent", true);
     auto *layout = new QVBoxLayout(this);
     auto *buttonLayout = new QHBoxLayout;
     buttonLayout->addWidget(new DesignLabel(labelText, this));
     auto *addButton = new DesignButton(QStringLiteral("添加地址"), this);
-    addButton->setObjectName(QStringLiteral("MultiplePathAddButton"));
     auto *deleteButton = new DesignButton(QStringLiteral("删除地址"), this);
-    deleteButton->setObjectName(QStringLiteral("MultiplePathDeleteButton"));
     buttonLayout->addWidget(addButton);
     buttonLayout->addWidget(deleteButton);
     buttonLayout->addStretch();
     layout->addLayout(buttonLayout);
 
     m_table = new TokenTableWidget(this);
-    m_table->setObjectName(QStringLiteral("MultiplePathTable"));
+    m_table->setProperty("pathManagement", true);
     m_table->setColumnCount(2);
     m_table->setHorizontalHeaderLabels(
         {QStringLiteral("路径（双击输入或选按钮）"), QStringLiteral("操作")});
@@ -182,6 +155,7 @@ MultiplePathManagement::MultiplePathManagement(const QString &labelText, QWidget
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
     m_table->setColumnWidth(1, 22);
+    m_table->setMouseTracking(true);
     m_delegate = new PathBrowseDelegate([this](int row) { browseRow(row); }, m_table);
     m_table->setItemDelegateForColumn(1, m_delegate);
     layout->addWidget(m_table);
@@ -194,8 +168,8 @@ MultiplePathManagement::MultiplePathManagement(const QString &labelText, QWidget
             &MultiplePathManagement::deleteSelectedRows);
     connect(m_table, &QTableWidget::cellDoubleClicked, this,
             &MultiplePathManagement::handleCellDoubleClicked);
-    connect(m_table->selectionModel(), &QItemSelectionModel::selectionChanged, this,
-            &MultiplePathManagement::clearBrowseButtons);
+    connect(m_table, &QTableWidget::itemChanged, this,
+            &MultiplePathManagement::pathsChanged);
 }
 
 QStringList MultiplePathManagement::paths() const
@@ -213,7 +187,6 @@ QStringList MultiplePathManagement::paths() const
 void MultiplePathManagement::loadPaths(const QStringList &paths)
 {
     m_table->setRowCount(0);
-    m_delegate->clear();
     for (const QString &path : paths)
     {
         const int row = m_table->rowCount();
@@ -221,7 +194,9 @@ void MultiplePathManagement::loadPaths(const QStringList &paths)
         auto *pathItem = new QTableWidgetItem(path);
         pathItem->setFlags(pathItem->flags() | Qt::ItemIsEditable);
         m_table->setItem(row, 0, pathItem);
-        m_table->setItem(row, 1, new QTableWidgetItem);
+        auto *browseItem = new QTableWidgetItem;
+        browseItem->setFlags(browseItem->flags() & ~Qt::ItemIsEditable);
+        m_table->setItem(row, 1, browseItem);
     }
 }
 
@@ -232,13 +207,14 @@ QTableWidget *MultiplePathManagement::table() const
 
 void MultiplePathManagement::addRow()
 {
-    m_delegate->clear();
     const int row = m_table->rowCount();
     m_table->insertRow(row);
     auto *pathItem = new QTableWidgetItem;
     pathItem->setFlags(pathItem->flags() | Qt::ItemIsEditable);
     m_table->setItem(row, 0, pathItem);
-    m_table->setItem(row, 1, new QTableWidgetItem);
+    auto *browseItem = new QTableWidgetItem;
+    browseItem->setFlags(browseItem->flags() & ~Qt::ItemIsEditable);
+    m_table->setItem(row, 1, browseItem);
     m_table->setCurrentCell(row, 0);
     handleCellDoubleClicked(row, 0);
 }
@@ -262,13 +238,11 @@ void MultiplePathManagement::deleteSelectedRows()
     {
         m_table->removeRow(row);
     }
-    m_delegate->clear();
+    emit pathsChanged();
 }
 
 void MultiplePathManagement::handleCellDoubleClicked(int row, int column)
 {
-    m_delegate->showForRow(row);
-    m_table->viewport()->update();
     if (column == 0)
     {
         m_table->editItem(m_table->item(row, 0));
@@ -290,12 +264,6 @@ void MultiplePathManagement::browseRow(int row)
     {
         item->setText(folder);
     }
-}
-
-void MultiplePathManagement::clearBrowseButtons()
-{
-    m_delegate->clear();
-    m_table->viewport()->update();
 }
 
 } // namespace darkeye

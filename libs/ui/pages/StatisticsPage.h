@@ -21,6 +21,7 @@ public:
                    QWidget *parent = nullptr);
 
     void refresh();
+    [[nodiscard]] QWidget *captureContent();
 
 signals:
     void actressDetailRequested(qint64 actressId);

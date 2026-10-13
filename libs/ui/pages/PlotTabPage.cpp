@@ -273,6 +273,48 @@ private:
         }
         p.setPen(QPen(primaryTint(0.70), 2));
         p.drawPath(path);
+
+        // Match Python weighted_percentile(): interpolate between adjacent
+        // samples at the cumulative-weight threshold, using the original
+        // values even when the height histogram uses integer-centred bins.
+        auto sortedValues = m_weighted;
+        std::stable_sort(sortedValues.begin(), sortedValues.end(),
+                         [](const auto &a, const auto &b) { return a.value < b.value; });
+        const auto percentile = [&](qreal fraction) {
+            const qreal target = fraction * totalWeight;
+            qreal cumulativeWeight = 0;
+            for (qsizetype i = 0; i < sortedValues.size(); ++i) {
+                const qreal previousWeight = cumulativeWeight;
+                cumulativeWeight += sortedValues[i].weight;
+                if (cumulativeWeight >= target) {
+                    if (i == 0 || cumulativeWeight == previousWeight)
+                        return sortedValues[i].value;
+                    const qreal ratio = (target - previousWeight)
+                                        / (cumulativeWeight - previousWeight);
+                    return sortedValues[i - 1].value
+                           + ratio * (sortedValues[i].value - sortedValues[i - 1].value);
+                }
+            }
+            return sortedValues.last().value;
+        };
+        const qreal low = percentile(0.05);
+        const qreal high = percentile(0.95);
+        p.save();
+        p.setFont(QFont(p.font().family(), 9));
+        const auto drawPercentile = [&](qreal value, const QString &label) {
+            const qreal x = r.left() + (value - lo) / (hi - lo) * r.width();
+            p.setPen(QPen(QColor("#D93025"), 1, Qt::DashLine));
+            p.drawLine(QPointF(x, r.top()), QPointF(x, r.bottom()));
+            p.setPen(QColor("#D93025"));
+            p.drawText(QRectF(x - 48, r.top() + 4, 96, 18), Qt::AlignCenter, label);
+        };
+        if (qFuzzyCompare(low, high))
+            drawPercentile(low, QStringLiteral("5% / 95%"));
+        else {
+            drawPercentile(low, QStringLiteral("5%"));
+            drawPercentile(high, QStringLiteral("95%"));
+        }
+        p.restore();
         p.setPen(QColor("#5f6368"));
         p.setFont(QFont(p.font().family(), 8));
         const auto drawTick = [&](qreal x, const QString &label) {
@@ -385,6 +427,8 @@ PlotTabPage::PlotTabPage(QSqlDatabase publicDatabase,QSqlDatabase privateDatabas
 void PlotTabPage::lazyLoad()
 {
     auto *splitter=new QSplitter(this);splitter->setChildrenCollapsible(false);splitter->setHandleWidth(1);splitter->setObjectName(QStringLiteral("StatisticsSplitter"));splitter->setStyleSheet(QStringLiteral("QSplitter::handle { background: #cccccc; width: 1px; height: 1px; border: none; margin: 0; } QSplitter::handle:hover { background: #888888; }"));auto *canvas=new StatisticsChart(m_themeService,splitter);auto *toolbar=new QWidget(splitter);splitter->addWidget(canvas);splitter->addWidget(toolbar);splitter->setStretchFactor(0,1);splitter->setStretchFactor(1,9);splitter->setSizes({1002,375});auto *layout=new QVBoxLayout(this);layout->setContentsMargins(0,0,0,0);layout->addWidget(splitter);
+    m_chart = canvas;
+    canvas->setToolTip(QStringLiteral("按 C 保存当前图表"));
     auto *tools=new QVBoxLayout(toolbar);auto *scopeBox=new TokenGroupBox(QStringLiteral("选择统计范围"),toolbar);auto *scopeLayout=new QVBoxLayout(scopeBox);auto *group=new QButtonGroup(scopeBox);const QList<QPair<QString,int>> scopes{{QStringLiteral("公共数据库"),-1},{QStringLiteral("收藏库内"),0},{QStringLiteral("撸过"),1},{QStringLiteral("撸过加权"),2}};for(const auto &[label,scope]:scopes){auto *radio=new TokenRadioButton(label,scopeBox);group->addButton(radio,scope);scopeLayout->addWidget(radio);if(scope==1)radio->setChecked(true);}tools->addWidget(scopeBox);auto *stats=new TokenGroupBox(QStringLiteral("多样化统计"),toolbar);auto *buttons=new QVBoxLayout(stats);tools->addWidget(stats);const auto scope=[group]{return group->checkedId();};const auto add=[buttons,canvas,stats](const QString &text,auto callback){auto *button=new DesignButton(text,stats);buttons->addWidget(button);QObject::connect(button,&QPushButton::clicked,canvas,callback);};
     add(QStringLiteral("作品拍摄时女优年龄分布直方图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->histogram(QStringLiteral("作品中女优平均拍摄年龄分布"),r.workActressAges(scope()),QStringLiteral("平均拍摄年龄（岁）"),50,1);});
     add(QStringLiteral("作品发行年份分布直方图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bars(QStringLiteral("每年数量统计"),r.workReleaseYears(scope()));});
@@ -399,6 +443,12 @@ void PlotTabPage::lazyLoad()
     add(QStringLiteral("按添加时间统计作品数"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->line(QStringLiteral("添加到数据库中作品数量随时间分布"),r.workAddedDates());});
     add(QStringLiteral("女优出道年龄分布直方图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->histogram(QStringLiteral("女优平均出道年龄分布（以出道日期减半年计算）"),r.actressDebutAges(),QStringLiteral("出道年龄"),40,1);});
     auto *yearReport=new DesignButton(QStringLiteral("撸管年回忆录"),toolbar);yearReport->setEnabled(false);tools->addWidget(yearReport);tools->addStretch();
+}
+
+QWidget *PlotTabPage::captureContent()
+{
+    initialize();
+    return m_chart;
 }
 
 void PlotTabPage::refresh(){initialize();}

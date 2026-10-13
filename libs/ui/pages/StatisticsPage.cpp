@@ -38,6 +38,12 @@ void StatisticsPage::lazyLoad()
     layout->addWidget(tabs);
 }
 
+QWidget *StatisticsPage::captureContent()
+{
+    initialize();
+    return m_plots->isVisible() ? m_plots->captureContent() : nullptr;
+}
+
 void StatisticsPage::refresh()
 {
     initialize();

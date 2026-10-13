@@ -279,7 +279,6 @@ void AboutSettingsPage::lazyLoad()
     versionRow->addWidget(version);
 
     auto *checkUpdate = new DesignButton(QStringLiteral("检查更新"), this);
-    checkUpdate->setObjectName(QStringLiteral("CheckUpdateButton"));
     checkUpdate->setToolTip(QStringLiteral("检查官方发布的最新版本。"));
     connect(checkUpdate, &QPushButton::clicked, this, [this, checkUpdate] {
         checkUpdate->setEnabled(false);
@@ -352,19 +351,15 @@ void AboutSettingsPage::lazyLoad()
     });
     versionRow->addWidget(localUpdate);
 
-    const auto addExternalButton = [this, versionRow](const QString &text, const QString &url,
-                                                       const QString &objectName = QString())
+    const auto addExternalButton = [this, versionRow](const QString &text, const QString &url)
     {
         auto *button = new DesignButton(text, this);
-        if (!objectName.isEmpty())
-            button->setObjectName(objectName);
         connect(button, &QPushButton::clicked, this,
                 [url] { QDesktopServices::openUrl(QUrl(url)); });
         versionRow->addWidget(button);
     };
     addExternalButton(QStringLiteral("意见反馈"),
-                      QStringLiteral("https://github.com/de4321/darkeye/issues"),
-                      QStringLiteral("FeedbackButton"));
+                      QStringLiteral("https://github.com/de4321/darkeye/issues"));
     addExternalButton(QStringLiteral("版本记录"),
                       QStringLiteral("https://de4321.github.io/darkeye/CHANGELOG/"));
     versionRow->addStretch();
@@ -473,7 +468,6 @@ void VideoSettingsPage::lazyLoad()
     auto *playerRow = new QHBoxLayout;
     playerRow->addWidget(new DesignLabel(QStringLiteral("本地播放器（可选）："), this));
     m_player = new DesignLineEdit(this);
-    m_player->setObjectName(QStringLiteral("LocalVideoPlayerEdit"));
     m_player->setPlaceholderText(
         QStringLiteral("留空则使用系统默认程序；书架/DVD 与作品页播放本地文件时生效"));
     m_player->setClearButtonEnabled(true);
@@ -492,12 +486,10 @@ void VideoSettingsPage::lazyLoad()
     layout->addWidget(m_paths);
 
     auto *scan = new DesignButton(QStringLiteral("扫描本地视频提取番号并录入数据库"), this);
-    scan->setObjectName(QStringLiteral("ScanLocalVideosButton"));
     scan->setToolTip(
         QStringLiteral("扫描本地视频的路径下的所有视频，并提取视频番号，将没有的番号尝试去抓取信息"));
     layout->addWidget(scan);
     auto *match = new DesignButton(QStringLiteral("同步作品本地视频路径"), this);
-    match->setObjectName(QStringLiteral("MatchLocalVideosButton"));
     match->setToolTip(QStringLiteral(
         "扫描已配置文件夹中的视频，从文件名提取番号并与库中作品匹配，"
         "将匹配到的本地绝对路径写入作品表的 video_url（多条英文逗号分隔、去重）；"
@@ -506,12 +498,8 @@ void VideoSettingsPage::lazyLoad()
 
     connect(m_player, &QLineEdit::editingFinished, this, &VideoSettingsPage::savePlayer);
     connect(browse, &QPushButton::clicked, this, &VideoSettingsPage::browsePlayer);
-    connect(m_paths->table(), &QTableWidget::itemChanged, this,
+    connect(m_paths, &MultiplePathManagement::pathsChanged, this,
             &VideoSettingsPage::savePaths);
-    connect(m_paths->findChild<QPushButton *>(QStringLiteral("MultiplePathAddButton")),
-            &QPushButton::clicked, this, &VideoSettingsPage::savePaths);
-    connect(m_paths->findChild<QPushButton *>(QStringLiteral("MultiplePathDeleteButton")),
-            &QPushButton::clicked, this, &VideoSettingsPage::savePaths);
     connect(scan, &QPushButton::clicked, this, &VideoSettingsPage::scanMissingSerials);
     connect(match, &QPushButton::clicked, this, &VideoSettingsPage::synchronizeVideoUrls);
 }
@@ -674,17 +662,16 @@ void ShortcutSettingsPage::lazyLoad()
     for (const auto &definition : definitions)
     {
         auto *row = new QWidget(this);
+        row->setProperty("designScrollMenuContent", true);
         row->setObjectName(QStringLiteral("ShortcutSettingRow_%1").arg(definition.id));
         auto *rowLayout = new QHBoxLayout(row);
         auto *label = new DesignLabel(definition.name, row);
         label->setFixedWidth(100);
         auto *editor = new TokenKeySequenceEdit(row);
-        editor->setObjectName(QStringLiteral("ShortcutEditor_%1").arg(definition.id));
         editor->setFixedWidth(150);
         editor->setKeySequence(QKeySequence(
             m_userShortcuts.value(definition.id).toString(definition.key)));
         auto *reset = new DesignButton(QStringLiteral("恢复"), row);
-        reset->setObjectName(QStringLiteral("ShortcutReset_%1").arg(definition.id));
         reset->setFixedWidth(50);
         rowLayout->addWidget(label);
         rowLayout->addWidget(editor);
@@ -750,6 +737,7 @@ void CommonSettingsPage::lazyLoad()
     auto *layout = new QFormLayout(this);
 
     m_primaryColorRow = new QWidget(this);
+    m_primaryColorRow->setProperty("designScrollMenuContent", true);
     m_primaryColorRow->setObjectName(QStringLiteral("PrimaryColorRow"));
     auto *primaryLayout = new QHBoxLayout(m_primaryColorRow);
     primaryLayout->setContentsMargins(0, 0, 0, 0);
@@ -762,7 +750,6 @@ void CommonSettingsPage::lazyLoad()
     primaryLayout->addStretch();
 
     m_themeSelector = new DesignComboBox(this);
-    m_themeSelector->setObjectName(QStringLiteral("themeSelector"));
     m_themeSelector->setAccessibleName(QStringLiteral("主题"));
 
     layout->addRow(new DesignLabel(QStringLiteral("主色"), this), m_primaryColorRow);
@@ -829,6 +816,7 @@ void CrawlerSettingsPage::lazyLoad()
         (*field)->setText(value.toString());
         (*field)->setClearButtonEnabled(true);
         auto *row = new QWidget(this);
+        row->setProperty("designScrollMenuContent", true);
         auto *rowLayout = new QHBoxLayout(row);
         rowLayout->setContentsMargins(0, 0, 0, 0);
         auto *reset = new DesignButton(QStringLiteral("还原默认"), row);
@@ -862,6 +850,7 @@ void CrawlerSettingsPage::lazyLoad()
     form->addRow(new DesignLabel(QStringLiteral("打开软件自动启动信息补充器"), this),
                  m_autoStartCollector);
     auto *controls = new QWidget(this);
+    controls->setProperty("designScrollMenuContent", true);
     auto *controlsLayout = new QHBoxLayout(controls);
     controlsLayout->setContentsMargins(0, 0, 0, 0);
     auto *start = new DesignButton(QStringLiteral("启动"), controls);
@@ -976,7 +965,7 @@ void TranslationSettingsPage::lazyLoad()
     auto *layout = new QVBoxLayout(this);
     auto *form = new QFormLayout;
     const auto spin = [this](int minimum, int maximum, int value) {
-        auto *control = new QSpinBox(this);
+        auto *control = new TokenSpinBox(this);
         control->setRange(minimum, maximum);
         control->setValue(value);
         connect(control, &QSpinBox::valueChanged, this, [this](int) { save(); });
@@ -999,6 +988,9 @@ void TranslationSettingsPage::lazyLoad()
     line(form, QStringLiteral("模型"), values.model, &m_model);
     line(form, QStringLiteral("Base URL"), values.baseUrl, &m_baseUrl);
     line(form, QStringLiteral("API Key"), values.apiKey, &m_apiKey);
+    m_model->setPlaceholderText(QStringLiteral("例如: deepseek-chat / gpt-4.1-mini"));
+    m_baseUrl->setPlaceholderText(QStringLiteral("例如: https://api.openai.com/v1"));
+    m_apiKey->setPlaceholderText(QStringLiteral("输入 API Key"));
     m_timeout = spin(1, 120, values.timeoutSeconds);
     m_retries = spin(0, 10, values.retries);
     form->addRow(new DesignLabel(QStringLiteral("超时（秒）"), this), m_timeout);
@@ -1009,11 +1001,22 @@ void TranslationSettingsPage::lazyLoad()
     m_fallback->setCurrentIndex(m_fallback->findData(values.fallback.trimmed().toLower()));
     if (m_fallback->currentIndex() < 0) m_fallback->setCurrentIndex(0);
     form->addRow(new DesignLabel(QStringLiteral("失败回退"), this), m_fallback);
+    m_testInput = new DesignPlainTextEdit(this);
+    m_testInput->setPlaceholderText(QStringLiteral("输入要测试翻译的文本（日文）"));
+    m_testInput->setFixedHeight(96);
+    m_testOutput = new DesignPlainTextEdit(this);
+    m_testOutput->setReadOnly(true);
+    m_testOutput->setFixedHeight(96);
+    auto *testTranslationButton = new DesignButton(QStringLiteral("测试翻译"), this);
+    form->addRow(new DesignLabel(QStringLiteral("测试输入"), this), m_testInput);
+    form->addRow(new DesignLabel(QStringLiteral("测试输出"), this), m_testOutput);
+    form->addRow(testTranslationButton);
     layout->addLayout(form);
 
     layout->addWidget(new DesignLabel(QStringLiteral("<h3>llama.cpp 辅助</h3>"), this));
     auto *llamaForm = new QFormLayout;
     auto *llamaLinks = new QWidget(this);
+    llamaLinks->setProperty("designScrollMenuContent", true);
     auto *llamaLinksLayout = new QHBoxLayout(llamaLinks);
     llamaLinksLayout->setContentsMargins(0, 0, 0, 0);
     const auto addLlamaLink = [this, llamaLinksLayout](const QString &text, const QString &url) {
@@ -1032,9 +1035,14 @@ void TranslationSettingsPage::lazyLoad()
                  QStringLiteral("https://de4321.github.io/darkeye/usage/#llamacpp"));
     llamaLinksLayout->addStretch();
     llamaForm->addRow(new DesignLabel(QStringLiteral("快速下载"), this), llamaLinks);
-    line(llamaForm, QStringLiteral("llama-server.exe"), values.llama.serverExecutable,
-         &m_serverExecutable);
-    line(llamaForm, QStringLiteral("GGUF 模型"), values.llama.modelPath, &m_modelPath);
+    m_serverExecutable = new DesignLineEdit(this);
+    m_serverExecutable->setText(values.llama.serverExecutable);
+    m_serverExecutable->setPlaceholderText(QStringLiteral("llama-server.exe 的绝对路径"));
+    m_modelPath = new DesignLineEdit(this);
+    m_modelPath->setText(values.llama.modelPath);
+    m_modelPath->setPlaceholderText(QStringLiteral("GGUF 模型文件路径"));
+    connect(m_serverExecutable, &QLineEdit::editingFinished, this, &TranslationSettingsPage::save);
+    connect(m_modelPath, &QLineEdit::editingFinished, this, &TranslationSettingsPage::save);
     auto *serverBrowse = new DesignButton(QStringLiteral("浏览…"), this);
     auto *modelBrowse = new DesignButton(QStringLiteral("浏览…"), this);
     auto *serverRow = new QHBoxLayout;
@@ -1043,14 +1051,17 @@ void TranslationSettingsPage::lazyLoad()
     auto *modelRow = new QHBoxLayout;
     modelRow->addWidget(m_modelPath, 1);
     modelRow->addWidget(modelBrowse);
-    llamaForm->addRow(new DesignLabel(QStringLiteral("选择服务程序"), this), serverRow);
-    llamaForm->addRow(new DesignLabel(QStringLiteral("选择模型文件"), this), modelRow);
+    llamaForm->addRow(new DesignLabel(QStringLiteral("llama-server.exe"), this), serverRow);
+    llamaForm->addRow(new DesignLabel(QStringLiteral("GGUF 模型"), this), modelRow);
     m_host = new DesignLineEdit(this);
     m_host->setText(values.llama.host);
+    m_host->setPlaceholderText(QStringLiteral("127.0.0.1"));
     connect(m_host, &QLineEdit::editingFinished, this, &TranslationSettingsPage::save);
     m_port = spin(1, 65535, values.llama.port);
     auto *hostRow = new QHBoxLayout;
+    hostRow->addWidget(new DesignLabel(QStringLiteral("host"), this));
     hostRow->addWidget(m_host, 1);
+    hostRow->addWidget(new DesignLabel(QStringLiteral("port"), this));
     hostRow->addWidget(m_port);
     llamaForm->addRow(new DesignLabel(QStringLiteral("监听地址"), this), hostRow);
     m_mode = new DesignComboBox(this);
@@ -1087,11 +1098,12 @@ void TranslationSettingsPage::lazyLoad()
     llamaForm->addRow(new DesignLabel(QStringLiteral("mlock"), this), m_mlock);
     llamaForm->addRow(new DesignLabel(QStringLiteral("自动回填翻译配置"), this), m_autoSync);
     llamaForm->addRow(new DesignLabel(QStringLiteral("打开软件自动启动"), this), m_autoStart);
-    m_commandPreview = new QPlainTextEdit(this);
+    m_commandPreview = new DesignPlainTextEdit(this);
     m_commandPreview->setReadOnly(true);
     m_commandPreview->setFixedHeight(72);
     llamaForm->addRow(new DesignLabel(QStringLiteral("命令预览"), this), m_commandPreview);
     auto *controls = new QWidget(this);
+    controls->setProperty("designScrollMenuContent", true);
     auto *controlsLayout = new QHBoxLayout(controls);
     controlsLayout->setContentsMargins(0, 0, 0, 0);
     m_startLlamaButton = new DesignButton(QStringLiteral("启动 llama-server"), controls);
@@ -1101,24 +1113,13 @@ void TranslationSettingsPage::lazyLoad()
     llamaForm->addRow(new DesignLabel(QStringLiteral("控制"), this), controls);
     m_llamaStatus = new DesignLabel(QStringLiteral("状态：未启动"), this);
     llamaForm->addRow(new DesignLabel(QStringLiteral("运行状态"), this), m_llamaStatus);
-    m_llamaLog = new QPlainTextEdit(this);
+    m_llamaLog = new DesignPlainTextEdit(this);
     m_llamaLog->setReadOnly(true);
     m_llamaLog->setFixedHeight(96);
     llamaForm->addRow(new DesignLabel(QStringLiteral("日志输出"), this), m_llamaLog);
     llamaForm->addRow(new DesignLabel(QStringLiteral("提示"), this),
                       new DesignLabel(QStringLiteral("显存不足请先降 GPU layers；启动后可点 /v1/models 检查。"), this));
     layout->addLayout(llamaForm);
-    layout->addWidget(new DesignLabel(QStringLiteral("翻译测试"), this));
-    m_testInput = new QPlainTextEdit(this);
-    m_testInput->setPlaceholderText(QStringLiteral("输入需要翻译的日文文本"));
-    m_testInput->setFixedHeight(64);
-    m_testOutput = new QPlainTextEdit(this);
-    m_testOutput->setReadOnly(true);
-    m_testOutput->setFixedHeight(64);
-    auto *testTranslationButton = new DesignButton(QStringLiteral("测试翻译"), this);
-    layout->addWidget(m_testInput);
-    layout->addWidget(testTranslationButton);
-    layout->addWidget(m_testOutput);
     layout->addStretch();
 
     connect(m_fallback, qOverload<int>(&QComboBox::currentIndexChanged), this,
@@ -1361,7 +1362,6 @@ void DatabaseSettingsPage::lazyLoad()
         QStringLiteral("软件所需公共数据库版本：%1  |  当前公共数据库版本：%2")
             .arg(SchemaManager::requiredVersion(DatabaseKind::Public),
                  detectedDatabaseVersion(m_paths.publicDatabase())), this);
-    publicVersion->setObjectName(QStringLiteral("publicDatabaseVersionLabel"));
     publicVersion->setTextFormat(Qt::PlainText);
     publicVersion->setWordWrap(true);
     layout->addWidget(publicVersion);
@@ -1369,7 +1369,6 @@ void DatabaseSettingsPage::lazyLoad()
         QStringLiteral("软件所需私有数据库版本：%1  |  当前私有数据库版本：%2")
             .arg(SchemaManager::requiredVersion(DatabaseKind::Private),
                  detectedDatabaseVersion(m_paths.privateDatabase())), this);
-    privateVersion->setObjectName(QStringLiteral("privateDatabaseVersionLabel"));
     privateVersion->setTextFormat(Qt::PlainText);
     privateVersion->setWordWrap(true);
     layout->addWidget(privateVersion);
@@ -1393,33 +1392,38 @@ void DatabaseSettingsPage::lazyLoad()
     const CrawlerSettings crawler = settings::crawler(m_paths.settingsFile());
     auto *form = new QFormLayout;
     m_webDavEnabled = new ToggleSwitch(48, 24, nullptr, this); m_webDavEnabled->setChecked(crawler.webDav.enabled);
-    m_webDavProfile = new QLineEdit(crawler.webDav.profileName, this);
-    m_webDavBaseUrl = new QLineEdit(crawler.webDav.baseUrl.toString(), this);
-    m_webDavRemoteRoot = new QLineEdit(crawler.webDav.remoteRoot, this);
-    m_webDavTimeout = new QSpinBox(this); m_webDavTimeout->setRange(3, 300); m_webDavTimeout->setValue(crawler.webDav.timeoutSeconds);
+    m_webDavProfile = new DesignLineEdit(this);
+    m_webDavProfile->setText(crawler.webDav.profileName);
+    m_webDavBaseUrl = new DesignLineEdit(this);
+    m_webDavBaseUrl->setText(crawler.webDav.baseUrl.toString());
+    m_webDavRemoteRoot = new DesignLineEdit(this);
+    m_webDavRemoteRoot->setText(crawler.webDav.remoteRoot);
+    m_webDavTimeout = new TokenSpinBox(this); m_webDavTimeout->setRange(3, 300); m_webDavTimeout->setValue(crawler.webDav.timeoutSeconds);
     m_webDavAutoUpload = new ToggleSwitch(48, 24, nullptr, this); m_webDavAutoUpload->setChecked(crawler.webDav.autoUploadOnBackup);
-    m_webDavCredentialStatus = new QLabel(this);
-    form->addRow(QStringLiteral("启用 WebDAV"), m_webDavEnabled);
-    form->addRow(QStringLiteral("Profile"), m_webDavProfile);
-    form->addRow(QStringLiteral("Base URL"), m_webDavBaseUrl);
-    form->addRow(QStringLiteral("Remote Root"), m_webDavRemoteRoot);
-    form->addRow(QStringLiteral("超时(秒)"), m_webDavTimeout);
-    form->addRow(QStringLiteral("备份后自动上传"), m_webDavAutoUpload);
-    form->addRow(QStringLiteral("凭据状态"), m_webDavCredentialStatus);
+    m_webDavCredentialStatus = new DesignLabel(QString{}, this);
+    form->addRow(new DesignLabel(QStringLiteral("启用 WebDAV"), this), m_webDavEnabled);
+    form->addRow(new DesignLabel(QStringLiteral("Profile"), this), m_webDavProfile);
+    form->addRow(new DesignLabel(QStringLiteral("Base URL"), this), m_webDavBaseUrl);
+    form->addRow(new DesignLabel(QStringLiteral("Remote Root"), this), m_webDavRemoteRoot);
+    form->addRow(new DesignLabel(QStringLiteral("超时(秒)"), this), m_webDavTimeout);
+    form->addRow(new DesignLabel(QStringLiteral("备份后自动上传"), this), m_webDavAutoUpload);
+    form->addRow(new DesignLabel(QStringLiteral("凭据状态"), this), m_webDavCredentialStatus);
     auto *credentials = new QWidget(this); auto *credentialsLayout = new QHBoxLayout(credentials);
+    credentials->setProperty("designScrollMenuContent", true);
     credentialsLayout->setContentsMargins(0, 0, 0, 0);
     auto *saveCredentials = new DesignButton(QStringLiteral("保存/更新凭据"), credentials);
     auto *clearCredentials = new DesignButton(QStringLiteral("清除凭据"), credentials);
     credentialsLayout->addWidget(saveCredentials); credentialsLayout->addWidget(clearCredentials); credentialsLayout->addStretch();
-    form->addRow(QStringLiteral("凭据管理"), credentials);
+    form->addRow(new DesignLabel(QStringLiteral("凭据管理"), this), credentials);
     auto *operations = new QWidget(this); auto *operationsLayout = new QHBoxLayout(operations);
+    operations->setProperty("designScrollMenuContent", true);
     operationsLayout->setContentsMargins(0, 0, 0, 0);
     auto *test = new DesignButton(QStringLiteral("测试连接"), operations);
     auto *upload = new DesignButton(QStringLiteral("上传最近一次本地备份"), operations);
     auto *list = new DesignButton(QStringLiteral("浏览云端备份"), operations);
     auto *restore = new DesignButton(QStringLiteral("从云端下载并恢复"), operations);
     operationsLayout->addWidget(test); operationsLayout->addWidget(upload); operationsLayout->addWidget(list); operationsLayout->addWidget(restore); operationsLayout->addStretch();
-    form->addRow(QStringLiteral("云端操作"), operations);
+    form->addRow(new DesignLabel(QStringLiteral("云端操作"), this), operations);
     layout->addLayout(form);
     const auto persist = [this] { saveWebDavSettings(); };
     connect(m_webDavEnabled, &ToggleSwitch::toggled, this, persist);

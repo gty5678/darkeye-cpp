@@ -38,6 +38,7 @@
 #include <QCompleter>
 #include <QContextMenuEvent>
 #include <QFile>
+#include <QFileDialog>
 #include <QFrame>
 #include <QGraphicsScene>
 #include <QHeaderView>
@@ -46,6 +47,7 @@
 #include <QStandardItemModel>
 #include <QTabBar>
 #include <QTemporaryDir>
+#include <QTimer>
 #include <QtTest>
 
 #include <algorithm>
@@ -95,6 +97,7 @@ private slots:
     void personCardKeepsAvatarInteractionContract();
     void idCheckListKeepsStableSelectionWhileFiltering();
     void pathManagementKeepsPythonContract();
+    void pathManagementBrowsesWithOneClick();
     void workCompletenessIndicatorsKeepPythonContract();
 };
 
@@ -193,6 +196,44 @@ void ComponentLibraryTest::pathManagementKeepsPythonContract()
     QCOMPARE(table->rowCount(), 3);
     QCOMPARE(multiple.paths(),
              QStringList({QStringLiteral("C:/one"), QString{}, QString{}}));
+}
+
+void ComponentLibraryTest::pathManagementBrowsesWithOneClick()
+{
+    QTemporaryDir first;
+    QTemporaryDir second;
+    QVERIFY(first.isValid());
+    QVERIFY(second.isValid());
+    darkeye::MultiplePathManagement multiple;
+    multiple.loadPaths({first.path(), first.path()});
+    multiple.resize(500, 250);
+    multiple.show();
+    auto *table = multiple.table();
+    table->selectRow(0);
+    QCoreApplication::processEvents();
+
+    // A single click must work before the row has been selected or edited.
+    const bool nativeDialogsDisabled = QApplication::testAttribute(Qt::AA_DontUseNativeDialogs);
+    QApplication::setAttribute(Qt::AA_DontUseNativeDialogs, true);
+    bool opened = false;
+    QTimer::singleShot(0, &multiple, [&] {
+        for (QWidget *widget : QApplication::topLevelWidgets())
+        {
+            if (auto *dialog = qobject_cast<QFileDialog *>(widget))
+            {
+                opened = true;
+                dialog->selectFile(second.path());
+                QMetaObject::invokeMethod(dialog, "accept", Qt::DirectConnection);
+            }
+        }
+    });
+    QTest::mouseClick(table->viewport(), Qt::LeftButton, Qt::NoModifier,
+                      table->visualItemRect(table->item(1, 1)).center());
+    QCoreApplication::processEvents();
+    QApplication::setAttribute(Qt::AA_DontUseNativeDialogs, nativeDialogsDisabled);
+    QVERIFY(opened);
+    QCOMPARE(multiple.paths(), QStringList({first.path(), second.path()}));
+    QVERIFY(!(table->item(1, 1)->flags() & Qt::ItemIsEditable));
 }
 
 void ComponentLibraryTest::tokenControlsKeepPythonObjectNames()
