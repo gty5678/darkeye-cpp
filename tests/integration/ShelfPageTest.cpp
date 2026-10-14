@@ -12,6 +12,7 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QQmlContext>
+#include <QQmlExpression>
 #include <QQuickItem>
 #include <QQuickWidget>
 #include <QTemporaryDir>
@@ -23,6 +24,8 @@ class ShelfPageTest final : public QObject
     Q_OBJECT
 
 private slots:
+    void initialCameraFramesShelf_data();
+    void initialCameraFramesShelf();
     void filtersAndLoadsVirtualizedShelf();
     void filtersByPrivateScope();
     void heartTogglesPersistedFavorite_data();
@@ -33,6 +36,73 @@ private slots:
     void routeJumpClearsFiltersAndKeepsWorkExpanded_data();
     void routeJumpClearsFiltersAndKeepsWorkExpanded();
 };
+
+void ShelfPageTest::initialCameraFramesShelf_data()
+{
+    QTest::addColumn<int>("workCount");
+    QTest::addColumn<int>("viewportWidth");
+    QTest::newRow("empty") << 0 << 1200;
+    QTest::newRow("single") << 1 << 1200;
+    QTest::newRow("short-shelf") << 8 << 1200;
+    QTest::newRow("fits-wide-screen") << 30 << 1200;
+    QTest::newRow("fills-narrow-screen") << 30 << 600;
+    QTest::newRow("virtualized-shelf") << 100 << 1200;
+}
+
+void ShelfPageTest::initialCameraFramesShelf()
+{
+    QFETCH(int, workCount);
+    QFETCH(int, viewportWidth);
+    darkeye::DvdShelfView view({}, {}, nullptr, {}, {});
+    auto *quick = view.findChild<QQuickWidget *>();
+    QVERIFY(quick != nullptr);
+    QCOMPARE(quick->status(), QQuickWidget::Ready);
+    view.resize(viewportWidth, 600);
+    view.show();
+    QTest::qWait(100);
+    QList<darkeye::WorkSummary> works;
+    for (int index = 0; index < workCount; ++index)
+    {
+        darkeye::WorkSummary work;
+        work.id = index + 1;
+        works.append(work);
+    }
+    view.setWorks(works);
+    QTest::qWait(100);
+    QCOMPARE(view.cameraTargetX(), view.cameraX());
+    QCOMPARE(quick->rootContext()->contextProperty("dvdVisibleStart").toInt(), 0);
+    if (workCount == 0)
+    {
+        QCOMPARE(view.cameraX(), 0.0);
+        return;
+    }
+    auto projectX = [quick](qreal x) {
+        QQmlExpression expression(quick->rootContext(), quick->rootObject(),
+            QStringLiteral("mapFrom3DScene(Qt.vector3d(%1, 0.1, 0)).x").arg(x, 0, 'g', 16));
+        const QVariant result = expression.evaluate();
+        return expression.hasError() ? qQNaN() : result.toReal();
+    };
+    const qreal left = projectX(-0.0067071);
+    const qreal right = projectX((workCount - 1) * 0.0145 + 0.0067071);
+    if (right <= viewportWidth + 0.1)
+        QVERIFY(qAbs(left + right - viewportWidth) < 0.1);
+    else
+        QVERIFY(qAbs(left) < 0.1);
+
+    // A wider first layout must reframe the collection while it is still
+    // untouched. Explicit scrolling then owns the camera across resizes.
+    view.resize(2400, 600);
+    QTest::qWait(100);
+    const qreal wideLeft = projectX(-0.0067071);
+    const qreal wideRight = projectX((workCount - 1) * 0.0145 + 0.0067071);
+    QVERIFY(qAbs(wideLeft + wideRight - 2400) < 0.1 || qAbs(wideLeft) < 0.1);
+    view.set_camera_x(view.cameraX());
+    const qreal scrolledCamera = view.cameraX();
+    view.resize(600, 600);
+    QCOMPARE(view.cameraX(), scrolledCamera);
+    view.setWorks(works.mid(0, 1));
+    QCOMPARE(view.cameraX(), 0.0);
+}
 
 void ShelfPageTest::filtersAndLoadsVirtualizedShelf()
 {
@@ -252,7 +322,10 @@ void ShelfPageTest::deletingExpandedWorkResetsScene()
     view->on_delete_clicked(root->property("selectedWorkVirtualIndex").toInt());
     QCOMPARE(deleted.count(), 1);
     QCOMPARE(deleted.first().first().toLongLong(), deletedId);
-    QCOMPARE(view->cameraX(), 0.0);
+    const qreal shelfLength = quickView->rootContext()->contextProperty("dvdShelfLength").toReal();
+    QVERIFY(view->cameraX() >= 0.0);
+    QVERIFY(view->cameraX() <= shelfLength * 0.5);
+    QCOMPARE(view->cameraX(), view->cameraTargetX());
     QVERIFY(!cameraChanged.isEmpty());
     QCOMPARE(root->property("selectedDelegateIndex").toInt(), -1);
     QCOMPARE(root->property("expandedDelegateIndex").toInt(), -1);

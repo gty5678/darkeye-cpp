@@ -53,6 +53,8 @@ constexpr qint64 dvdTextureSizeFallbackThreshold = 320 * 1024;
 constexpr qreal dvdSpacing = 0.0145;
 constexpr qreal shelfCameraDistance = 0.25;
 constexpr qreal shelfVerticalFieldOfView = 60.0;
+// Closed DVD boxes extend equally either side of their shelf position.
+constexpr qreal dvdHalfWidth = 0.0067071;
 
 QString fileUrl(const QString &path)
 {
@@ -178,6 +180,13 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     context->setContextProperty(QStringLiteral("hdrPath"), QStringLiteral("qrc:/assets/hdr/"));
     m_quickWidget->setSource(
         QUrl(QStringLiteral("qrc:/qml/dvd/dvd_scene.qml")));
+    if (QQuickItem *root = m_quickWidget->rootObject())
+    {
+        // Follow the actual viewport size, including the first layout after
+        // works were loaded while the page was still hidden.
+        connect(root, &QQuickItem::widthChanged, this, &DvdShelfView::updateInitialCamera);
+        connect(root, &QQuickItem::heightChanged, this, &DvdShelfView::updateInitialCamera);
+    }
 }
 
 void DvdShelfView::setWorks(const QList<WorkSummary> &works)
@@ -205,8 +214,9 @@ void DvdShelfView::setWorks(const QList<WorkSummary> &works)
     context->setContextProperty(QStringLiteral("dvdCount"), 0);
     context->setContextProperty(QStringLiteral("dvdTextureSources"), QVariantList{});
     m_works = works;
-    m_cameraX = 0;
-    m_cameraTargetX = 0;
+    m_useInitialCamera = true;
+    m_cameraX = initialCameraX();
+    m_cameraTargetX = m_cameraX;
     m_cameraVelocityX = 0;
     m_cameraElapsed.invalidate();
     m_cameraTimer->stop();
@@ -241,6 +251,9 @@ void DvdShelfView::refreshVisibleWindow(bool force)
     const int windowSize = qBound(0, m_renderWindowSize, dvdWindowSize);
     int desiredStart = qBound(0, qRound(m_cameraX / dvdSpacing) - windowSize / 2,
                               qMax(0, count - windowSize));
+    // Initial batches must retain the first DVD even when the viewport is
+    // wider than the first batch. Subsequent batches fill the screen to its right.
+    if (m_useInitialCamera) desiredStart = 0;
     // Keep the Python shelf's window policy: once the camera moves beyond the
     // centered margin, follow it immediately, but constrain a single update
     // to ten covers so a large programmatic jump never rebuilds every delegate.
@@ -288,14 +301,35 @@ void DvdShelfView::finishInitialPopulation()
     m_renderWindowSize = targetWindowSize();
 }
 
+qreal DvdShelfView::visibleShelfWidth() const
+{
+    const qreal aspectRatio = qreal(m_quickWidget->width()) / qMax(1, m_quickWidget->height());
+    return 2.0 * shelfCameraDistance
+        * qTan(qDegreesToRadians(shelfVerticalFieldOfView * 0.5)) * aspectRatio;
+}
+
+qreal DvdShelfView::initialCameraX() const
+{
+    if (m_works.isEmpty()) return 0;
+    const qreal shelfCenter = (m_works.size() - 1) * dvdSpacing * 0.5;
+    return qMin(shelfCenter, qMax(qreal(0), visibleShelfWidth() * 0.5 - dvdHalfWidth));
+}
+
+void DvdShelfView::updateInitialCamera()
+{
+    if (!m_useInitialCamera) return;
+    m_cameraX = initialCameraX();
+    m_cameraTargetX = m_cameraX;
+    emit cameraXChanged();
+    emit cameraTargetXChanged();
+}
+
 int DvdShelfView::targetWindowSize() const
 {
     if (m_works.isEmpty()) return 0;
     if (m_quickWidget->width() < 320 || m_quickWidget->height() < 320)
         return qMin(fallbackDvdWindowSize, m_works.size());
-    const qreal aspectRatio = qreal(m_quickWidget->width()) / m_quickWidget->height();
-    const qreal visibleWidth = 2.0 * shelfCameraDistance
-        * qTan(qDegreesToRadians(shelfVerticalFieldOfView * 0.5)) * aspectRatio;
+    const qreal visibleWidth = visibleShelfWidth();
     const int visibleCovers = qCeil(visibleWidth / dvdSpacing) + dvdWindowOverscan;
     return qMin(m_works.size(), qBound(minimumDvdWindowSize, visibleCovers, dvdWindowSize));
 }
@@ -397,6 +431,7 @@ qint64 DvdShelfView::workIdAt(int virtualIndex) const
 
 void DvdShelfView::set_camera_x(qreal cameraX)
 {
+    m_useInitialCamera = false;
     constexpr qreal spacing = 0.0145;
     constexpr qreal settleEpsilon = spacing * 0.02;
     constexpr qreal settleVelocity = spacing * 0.1;
@@ -731,6 +766,7 @@ bool DvdShelfView::openWork(qint64 workId)
     hideOverlays();
     m_cameraTimer->stop();
     m_cameraVelocityX = 0;
+    m_useInitialCamera = false;
     m_cameraX = virtualIndex * spacing;
     m_cameraTargetX = m_cameraX;
     emit cameraXChanged();

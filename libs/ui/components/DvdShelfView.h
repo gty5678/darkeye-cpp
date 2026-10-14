@@ -121,6 +121,9 @@ private:
     void advanceInitialPopulation();
     void finishInitialPopulation();
     [[nodiscard]] int targetWindowSize() const;
+    [[nodiscard]] qreal visibleShelfWidth() const;
+    [[nodiscard]] qreal initialCameraX() const;
+    void updateInitialCamera();
     [[nodiscard]] QString textureForWork(const WorkSummary &work);
     void cacheTexture(qint64 workId, const QString &texture);
     void queueThumbnail(qint64 workId, const QString &sourcePath, const QString &thumbnailPath);
@@ -143,6 +146,7 @@ private:
     qreal m_cameraX = 0.0;
     qreal m_cameraTargetX = 0.0;
     qreal m_cameraVelocityX = 0.0;
+    bool m_useInitialCamera = true;
     QElapsedTimer m_cameraElapsed;
     int m_visibleStart = 0;
     int m_loadedStart = -1;
