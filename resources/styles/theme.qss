@@ -504,7 +504,7 @@ QListWidget#DesignListWidget[personSelectorList="true"]:focus {
     background-color: @INPUT_BACKGROUND@;
 }
 QListWidget#DesignListWidget[personSelectorList="true"]::item {
-    padding: 2px 8px;
+    padding: 1px 8px;
     color: @TEXT@;
 }
 QListWidget#DesignListWidget[personSelectorList="true"]::item:selected {
