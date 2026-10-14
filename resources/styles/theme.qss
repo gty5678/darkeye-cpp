@@ -489,8 +489,7 @@ QListWidget#DesignListWidget {
     selection-background-color: @PRIMARY@;
     outline: none;
 }
-/* Python's person selectors use TokenListView rows, even though the C++
- * implementation stores them in QListWidget. Keep the same row padding. */
+/* Person selectors use compact text rows within the themed list frame. */
 QListWidget#DesignListWidget[personSelectorList="true"] {
     background-color: @BACKGROUND@;
     color: @TEXT@;
@@ -505,7 +504,7 @@ QListWidget#DesignListWidget[personSelectorList="true"]:focus {
     background-color: @INPUT_BACKGROUND@;
 }
 QListWidget#DesignListWidget[personSelectorList="true"]::item {
-    padding: 6px 8px;
+    padding: 2px 8px;
     color: @TEXT@;
 }
 QListWidget#DesignListWidget[personSelectorList="true"]::item:selected {
