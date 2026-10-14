@@ -1,9 +1,14 @@
 #include "ui/layouts/myads/WorkspaceWidget.h"
 
 #include <QApplication>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #include <QEvent>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QLabel>
+#include <QMimeData>
 #include <QPainter>
 #include <QSplitter>
 #include <QTimer>
@@ -99,6 +104,56 @@ void WorkspaceWidget::setActivePane(PaneWidget *target)
 
 bool WorkspaceWidget::eventFilter(QObject *watched, QEvent *event)
 {
+    QWidget *receiver = qobject_cast<QWidget *>(watched);
+    if (event->type() == QEvent::DragLeave && receiver && receiver == m_dockDragTarget) {
+        m_dockDragTarget.clear();
+        hideDropPreview();
+        event->accept();
+        return true;
+    }
+    if (receiver && (event->type() == QEvent::DragEnter ||
+                     event->type() == QEvent::DragMove || event->type() == QEvent::Drop)) {
+        PaneWidget *target = nullptr;
+        for (QWidget *widget = receiver; widget && widget != this; widget = widget->parentWidget()) {
+            if (auto *candidate = qobject_cast<PaneWidget *>(widget)) {
+                if (m_panes.value(candidate->paneId()) == candidate) target = candidate;
+                break;
+            }
+        }
+        auto *drop = static_cast<QDropEvent *>(event);
+        if (target && drop->mimeData()->hasFormat(MyAdsTabMimeType)) {
+            // Child views (for example QGraphicsView) accept drops themselves.
+            // Route dock drags here before those views pass them to their scenes.
+            const QJsonObject payload = QJsonDocument::fromJson(
+                drop->mimeData()->data(MyAdsTabMimeType)).object();
+            const QString sourceId = payload.value(QStringLiteral("pane_id")).toString();
+            const QString contentId = payload.value(QStringLiteral("content_id")).toString();
+            PaneWidget *source = pane(sourceId);
+            if (!source || !source->contentWidget(contentId) ||
+                !(drop->possibleActions() & Qt::MoveAction)) {
+                drop->ignore();
+                hideDropPreview();
+                return true;
+            }
+            const QPoint global = receiver->mapToGlobal(drop->position().toPoint());
+            if (event->type() == QEvent::Drop) {
+                m_dockDragTarget.clear();
+                const bool moved = moveContent(sourceId, contentId, target->paneId(),
+                                               dropZone(target, global));
+                hideDropPreview();
+                if (!moved) {
+                    drop->ignore();
+                    return true;
+                }
+            } else {
+                m_dockDragTarget = receiver;
+                handleDragMove(target, global);
+            }
+            drop->setDropAction(Qt::MoveAction);
+            drop->accept();
+            return true;
+        }
+    }
     if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::FocusIn) {
         QWidget *widget = qobject_cast<QWidget *>(watched);
         while (widget) {

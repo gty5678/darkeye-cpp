@@ -6,6 +6,7 @@
 
 #include <QHash>
 #include <QJsonObject>
+#include <QPointer>
 #include <QWidget>
 #include <functional>
 #include <optional>
@@ -112,6 +113,7 @@ private:
     QHash<QString, PaneWidget *> m_panes;
     QHash<QString, PaneWidget *> m_reusablePanes;
     PreviewOverlay *m_preview = nullptr;
+    QPointer<QWidget> m_dockDragTarget;
     DockTheme m_theme;
     QString m_activePaneId;
     int m_contentCounter = 0;

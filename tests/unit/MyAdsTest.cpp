@@ -2,8 +2,16 @@
 #include "ui/layouts/myads/WorkspaceWidget.h"
 
 #include <QFile>
+#include <QDragEnterEvent>
+#include <QDragLeaveEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
+#include <QGraphicsScene>
+#include <QGraphicsView>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QLabel>
+#include <QMimeData>
 #include <QPointer>
 #include <QTabBar>
 #include <QTemporaryDir>
@@ -31,6 +39,9 @@ private slots:
     void hitTestingMatchesPythonZones();
     void previewGeometryMatchesPythonOverlay();
     void activePaneFollowsUserInteraction();
+    void docksThroughGraphicsView_data();
+    void docksThroughGraphicsView();
+    void preservesChildDropsAndRejectsInvalidDockData();
 };
 
 void MyAdsTest::splitAndSerialize()
@@ -355,6 +366,113 @@ void MyAdsTest::activePaneFollowsUserInteraction()
     PaneWidget *bottom = workspace.split(workspace.activePane(), Placement::Bottom);
     QVERIFY(bottom);
     QCOMPARE(workspace.activePane(), bottom);
+}
+
+void MyAdsTest::docksThroughGraphicsView_data()
+{
+    QTest::addColumn<int>("zone");
+    QTest::newRow("center") << int(DropZone::Center);
+    QTest::newRow("pane-right") << int(DropZone::Right);
+    QTest::newRow("root-bottom") << int(DropZone::RootBottom);
+}
+
+void MyAdsTest::docksThroughGraphicsView()
+{
+    QFETCH(int, zone);
+    WorkspaceWidget workspace;
+    workspace.resize(800, 600);
+    PaneWidget *source = workspace.rootPane();
+    const QString sourceId = source->paneId();
+    QVERIFY(workspace.fillPane(source, ContentConfig("moving").setWidget(new QLabel("moving"))));
+    QVERIFY(workspace.fillPane(source, ContentConfig("stay").setWidget(new QLabel("stay"))));
+    PaneWidget *target = workspace.split(source, Placement::Right);
+    const QString targetId = target->paneId();
+    auto *view = new QGraphicsView;
+    auto *scene = new QGraphicsScene(view);
+    scene->addText("tag selector");
+    view->setScene(scene);
+    QVERIFY(workspace.fillPane(target, ContentConfig("tags").setWidget(view)));
+    workspace.show();
+    QCoreApplication::processEvents();
+
+    QWidget *preview = nullptr;
+    for (QWidget *child : workspace.findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly))
+        if (child->testAttribute(Qt::WA_TransparentForMouseEvents)) preview = child;
+    QVERIFY(preview);
+    QWidget *receiver = view->viewport();
+    QPoint global = target->mapToGlobal(target->rect().center());
+    if (DropZone(zone) == DropZone::Right)
+        global = target->mapToGlobal(QPoint(target->width() * 9 / 10, target->height() / 2));
+    if (DropZone(zone) == DropZone::RootBottom)
+        global = workspace.mapToGlobal(QPoint(workspace.width() * 6 / 10, workspace.height() - 12));
+    const QPoint local = receiver->mapFromGlobal(global);
+    QVERIFY(receiver->rect().contains(local));
+    QMimeData mime;
+    mime.setData(MyAdsTabMimeType, QJsonDocument(QJsonObject{
+        {"pane_id", sourceId}, {"content_id", "moving"}}).toJson());
+    QDragEnterEvent enter(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(receiver, &enter);
+    QVERIFY(enter.isAccepted());
+    QDragMoveEvent move(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(receiver, &move);
+    QVERIFY(move.isAccepted());
+    QVERIFY(preview->isVisible());
+    QDragLeaveEvent leave;
+    QApplication::sendEvent(receiver, &leave);
+    QVERIFY(!preview->isVisible());
+    QDragEnterEvent reenter(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(receiver, &reenter);
+    QVERIFY(reenter.isAccepted());
+    QDropEvent drop(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(receiver, &drop);
+    QVERIFY(drop.isAccepted());
+    QCOMPARE(drop.dropAction(), Qt::MoveAction);
+    QVERIFY(!preview->isVisible());
+    PaneWidget *destination = workspace.findPaneByContentId("moving");
+    QVERIFY(destination);
+    QCOMPARE(destination->paneId() == targetId, DropZone(zone) == DropZone::Center);
+    QCOMPARE(workspace.panes().size(), DropZone(zone) == DropZone::Center ? 2 : 3);
+    QCOMPARE(workspace.pane(sourceId)->contentIds(), QStringList{"stay"});
+    QCOMPARE(workspace.findPaneByContentId("tags")->contentWidget("tags"), view);
+}
+
+void MyAdsTest::preservesChildDropsAndRejectsInvalidDockData()
+{
+    class DropReceiver final : public QWidget {
+    public:
+        DropReceiver() { setAcceptDrops(true); }
+        int received = 0;
+    protected:
+        void dragEnterEvent(QDragEnterEvent *event) override {
+            ++received;
+            event->acceptProposedAction();
+        }
+    };
+    WorkspaceWidget workspace;
+    WorkspaceWidget otherWorkspace;
+    auto *child = new DropReceiver;
+    QVERIFY(workspace.fillPane(workspace.rootPane(), ContentConfig("keep").setWidget(child)));
+    workspace.resize(400, 300);
+    workspace.show();
+    QCoreApplication::processEvents();
+    QMimeData mime;
+    mime.setText("ordinary child drag");
+    QDragEnterEvent ordinary(child->rect().center(), Qt::CopyAction, &mime,
+                             Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(child, &ordinary);
+    QVERIFY(ordinary.isAccepted());
+    QCOMPARE(child->received, 1);
+    QDragLeaveEvent leave;
+    QApplication::sendEvent(child, &leave);
+
+    mime.setData(MyAdsTabMimeType, "invalid json");
+    QDragEnterEvent invalid(child->rect().center(), Qt::MoveAction, &mime,
+                            Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(child, &invalid);
+    QVERIFY(!invalid.isAccepted());
+    QCOMPARE(child->received, 1);
+    QVERIFY(workspace.findPaneByContentId("keep"));
+    QCOMPARE(otherWorkspace.rootPane()->contentCount(), 0);
 }
 
 QTEST_MAIN(MyAdsTest)
