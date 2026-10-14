@@ -37,8 +37,26 @@ public:
     void bars(QString title, QVector<ChartValue> values, bool horizontal = false)
     { m_type=Type::Bars; m_title=std::move(title); m_values=std::move(values); m_horizontal=horizontal; update(); }
     void histogram(QString title, QVector<WeightedChartValue> values, QString unit,
-                   int bins, qreal bandwidth)
-    { m_type=Type::Histogram; m_title=std::move(title); m_weighted=std::move(values); m_unit=std::move(unit); m_bins=bins; m_bandwidth=bandwidth; update(); }
+                   int bins, qreal bandwidth, qreal minimum = 0, qreal maximum = 0)
+    {
+        m_type = Type::Histogram;
+        m_title = std::move(title);
+        m_histogramMinimum = minimum;
+        m_histogramMaximum = maximum;
+        if (maximum > minimum) {
+            values.erase(std::remove_if(values.begin(), values.end(),
+                                        [=](const auto &value) {
+                                            return !std::isfinite(value.value)
+                                                   || value.value < minimum
+                                                   || value.value > maximum;
+                                        }), values.end());
+        }
+        m_weighted = std::move(values);
+        m_unit = std::move(unit);
+        m_bins = bins;
+        m_bandwidth = bandwidth;
+        update();
+    }
     void pie(QString title, QVector<ChartValue> values)
     { m_type=Type::Pie; m_title=std::move(title); m_values=std::move(values); update(); }
     void bubbles(QString title, QVector<WaistHipChartValue> values)
@@ -210,6 +228,7 @@ private:
     void paintHistogram(QPainter &p)
     {
         const bool integerBins = m_bins == 0;
+        const bool fixedRange = m_histogramMaximum > m_histogramMinimum;
         qreal lo = m_weighted.first().value;
         qreal hi = lo;
         qreal totalWeight = 0;
@@ -220,7 +239,10 @@ private:
             totalWeight += value.weight;
         }
         int bins = m_bins;
-        if (integerBins) {
+        if (fixedRange) {
+            lo = m_histogramMinimum;
+            hi = m_histogramMaximum;
+        } else if (integerBins) {
             // One bin per integer centimetre, centred on that height.
             lo = qRound(lo) - 0.5;
             hi = qRound(hi) + 0.5;
@@ -321,8 +343,8 @@ private:
             p.drawLine(QPointF(x, r.bottom()), QPointF(x, r.bottom() + 5));
             p.drawText(QRectF(x - 28, r.bottom() + 8, 56, 18), Qt::AlignCenter, label);
         };
-        if (integerBins) {
-            // Thin labels when needed, without changing the 1 cm bins.
+        if (integerBins || (fixedRange && qFuzzyCompare(binWidth, qreal(1)))) {
+            // Thin labels when needed, without changing the unit-width bins.
             const int labelWidth = p.fontMetrics().horizontalAdvance(
                                        QString::number(qRound(hi - 0.5))) + 10;
             const int tickStep = qMax(1, static_cast<int>(std::ceil(labelWidth / w)));
@@ -418,6 +440,8 @@ private:
     {
         std::sort(m_dates.begin(),m_dates.end());QMap<QDate,int> increments;for(const auto&d:m_dates)++increments[d];const QDate first=increments.firstKey(),last=increments.lastKey();QVector<QPointF> points;int total=0;const QRect r=rect().adjusted(72,52,-38,-96);const int daySpan=qMax(1,first.daysTo(last));for(QDate d=first;d<=last;d=d.addDays(1)){total+=increments.value(d);points.append({static_cast<qreal>(r.left())+static_cast<qreal>(r.width())*first.daysTo(d)/daySpan,static_cast<qreal>(r.bottom())-static_cast<qreal>(r.height())*total/static_cast<qreal>(m_dates.size())});}axes(p,r,QStringLiteral("日期"),QStringLiteral("作品数量"));p.setPen(QPen(QColor("#9aa0a6"),1));p.setFont(QFont(p.font().family(),8));for(int i=0;i<=4;++i){const qreal y=r.bottom()-r.height()*i/4;p.drawLine(QPointF(r.left(),y),QPointF(r.right(),y));p.drawText(QRectF(8,y-9,r.left()-14,18),Qt::AlignRight|Qt::AlignVCenter,QString::number(m_dates.size()*i/4));}p.setPen(QPen(QColor("#2f6f9f"),2));p.drawPolyline(points);p.setPen(QColor("#5f6368"));for(int i=0;i<8;++i){const int offset=qRound(daySpan*i/7.0);const qreal x=r.left()+r.width()*offset/daySpan;const QString label=first.addDays(offset).toString(QStringLiteral("yyyy-MM-dd"));p.drawLine(QPointF(x,r.bottom()),QPointF(x,r.bottom()+5));p.drawText(QRectF(x-48,r.bottom()+8+((i%2)!=0?16:0),96,18),Qt::AlignCenter,label);}
     }
+    qreal m_histogramMinimum = 0;
+    qreal m_histogramMaximum = 0;
     Type m_type=Type::Message;QString m_title=QStringLiteral("请选择右侧统计项"),m_unit;QVector<ChartValue> m_values;QVector<WeightedChartValue> m_weighted;QVector<WaistHipChartValue> m_bubbles;QVector<QDate> m_dates;int m_bins=30;qreal m_bandwidth=1;bool m_horizontal=false;
 };
 }
@@ -430,7 +454,7 @@ void PlotTabPage::lazyLoad()
     m_chart = canvas;
     canvas->setToolTip(QStringLiteral("按 C 保存当前图表"));
     auto *tools=new QVBoxLayout(toolbar);auto *scopeBox=new TokenGroupBox(QStringLiteral("选择统计范围"),toolbar);auto *scopeLayout=new QVBoxLayout(scopeBox);auto *group=new QButtonGroup(scopeBox);const QList<QPair<QString,int>> scopes{{QStringLiteral("公共数据库"),-1},{QStringLiteral("收藏库内"),0},{QStringLiteral("撸过"),1},{QStringLiteral("撸过加权"),2}};for(const auto &[label,scope]:scopes){auto *radio=new TokenRadioButton(label,scopeBox);group->addButton(radio,scope);scopeLayout->addWidget(radio);if(scope==1)radio->setChecked(true);}tools->addWidget(scopeBox);auto *stats=new TokenGroupBox(QStringLiteral("多样化统计"),toolbar);auto *buttons=new QVBoxLayout(stats);tools->addWidget(stats);const auto scope=[group]{return group->checkedId();};const auto add=[buttons,canvas,stats](const QString &text,auto callback){auto *button=new DesignButton(text,stats);buttons->addWidget(button);QObject::connect(button,&QPushButton::clicked,canvas,callback);};
-    add(QStringLiteral("作品拍摄时女优年龄分布直方图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->histogram(QStringLiteral("作品中女优平均拍摄年龄分布"),r.workActressAges(scope()),QStringLiteral("平均拍摄年龄（岁）"),50,1);});
+    add(QStringLiteral("作品拍摄时女优年龄分布直方图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->histogram(QStringLiteral("作品中女优平均拍摄年龄分布"),r.workActressAges(scope()),QStringLiteral("平均拍摄年龄（岁）"),24,1,16.5,40.5);});
     add(QStringLiteral("作品发行年份分布直方图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bars(QStringLiteral("每年数量统计"),r.workReleaseYears(scope()));});
     add(QStringLiteral("女优出道年份分布直方图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bars(QStringLiteral("女优出道年份统计"),r.actressDebutYears(scope()));});
     add(QStringLiteral("女优身高分布直方图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->histogram(QStringLiteral("女优身高分布"),r.actressHeights(scope()),QStringLiteral("身高（cm）"),0,2);});
