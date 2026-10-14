@@ -8,12 +8,12 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QQuickItem>
 #include <QQuickWidget>
 #include <QRandomGenerator>
 #include <QUrl>
-#include <QVBoxLayout>
 
 namespace darkeye {
 
@@ -29,7 +29,7 @@ HomePage::HomePage(QSqlDatabase database, const QString &coverDirectory, ThemeSe
 void HomePage::lazyLoad()
 {
     Resources::ensureInitialized();
-    auto *root = new QVBoxLayout(this);
+    auto *root = new QGridLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
     auto *bar = new QHBoxLayout;
@@ -40,8 +40,9 @@ void HomePage::lazyLoad()
     reload->setToolTip(QStringLiteral("刷新"));
     reload->setAccessibleName(QStringLiteral("刷新"));
     reload->setObjectName(QStringLiteral("HomeRefreshButton"));
+    reload->setStyleSheet(QStringLiteral(
+        "QPushButton#HomeRefreshButton { background: transparent; border: none; }"));
     bar->addWidget(reload);
-    root->addLayout(bar);
 
     m_view = new QQuickWidget(this);
     m_view->setObjectName(QStringLiteral("HomeShopView"));
@@ -49,7 +50,9 @@ void HomePage::lazyLoad()
     m_view->setMinimumHeight(360);
     m_view->setClearColor(QColor(QStringLiteral("#18181c")));
     m_view->setSource(QUrl(QStringLiteral("qrc:/qml/shop/shop_viewport.qml")));
-    root->addWidget(m_view, 1);
+    root->addWidget(m_view, 0, 0);
+    root->addLayout(bar, 0, 0, Qt::AlignTop);
+    reload->raise();
     connect(reload, &QPushButton::clicked, this, &HomePage::refresh);
     if (QObject *scene = m_view->rootObject())
         connect(scene, SIGNAL(coverClicked(int)), this, SLOT(openCover(int)));
