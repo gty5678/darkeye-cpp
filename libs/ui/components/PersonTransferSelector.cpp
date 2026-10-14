@@ -15,41 +15,38 @@
 namespace darkeye
 {
 
-PersonTransferSelector::PersonTransferSelector(QString personLabel, QWidget *parent)
+PersonTransferSelector::PersonTransferSelector(QString personLabel, QWidget *parent,
+                                               ThemeService *themes)
     : QWidget(parent)
 {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(4);
     auto *searchRow = new QHBoxLayout;
     m_search = new DesignLineEdit(this);
-    m_search->setObjectName(QStringLiteral("PersonSelectorSearch"));
     m_search->setPlaceholderText(QStringLiteral("搜索中文名或日文名"));
-    auto *add = new IconButton(QStringLiteral("circle_plus"), nullptr, this);
-    add->setObjectName(QStringLiteral("PersonSelectorAddButton"));
+    m_search->setClearButtonEnabled(true);
+    auto *add = new IconButton(QStringLiteral("circle_plus"), themes, this);
     add->setToolTip(QStringLiteral("添加%1并选择").arg(personLabel));
     searchRow->addWidget(m_search, 1);
     searchRow->addWidget(add);
     layout->addLayout(searchRow);
 
     m_available = new TokenListWidget(this);
-    m_available->setObjectName(QStringLiteral("PersonSelectorAvailableList"));
+    m_available->setProperty("personSelectorList", true);
     layout->addWidget(m_available, 1);
     auto *actions = new QHBoxLayout;
-    auto *choose = new IconButton(QStringLiteral("arrow_down"), nullptr, this);
-    choose->setObjectName(QStringLiteral("PersonSelectorChooseButton"));
+    auto *choose = new IconButton(QStringLiteral("arrow_down"), themes, this);
     choose->setToolTip(QStringLiteral("选择参演%1").arg(personLabel));
     auto *label = new DesignLabel(QStringLiteral("参演%1").arg(personLabel), this);
     label->setAlignment(Qt::AlignCenter);
-    auto *remove = new IconButton(QStringLiteral("arrow_up"), nullptr, this);
-    remove->setObjectName(QStringLiteral("PersonSelectorRemoveButton"));
+    auto *remove = new IconButton(QStringLiteral("arrow_up"), themes, this);
     remove->setToolTip(QStringLiteral("移除参演%1").arg(personLabel));
     actions->addWidget(choose);
     actions->addWidget(label, 1);
     actions->addWidget(remove);
     layout->addLayout(actions);
     m_selected = new TokenListWidget(this);
-    m_selected->setObjectName(QStringLiteral("PersonSelectorSelectedList"));
+    m_selected->setProperty("personSelectorList", true);
     layout->addWidget(m_selected, 1);
 
     connect(m_search, &QLineEdit::textChanged, this, [this] { rebuildAvailable(); });

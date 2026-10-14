@@ -10,6 +10,7 @@ class QListWidget;
 
 namespace darkeye
 {
+class ThemeService;
 
 // Python ActressSelector / ActorSelector 对应控件：上方待选、下方已选，使用按钮移动条目。
 class PersonTransferSelector final : public QWidget
@@ -17,7 +18,8 @@ class PersonTransferSelector final : public QWidget
     Q_OBJECT
 
 public:
-    explicit PersonTransferSelector(QString personLabel, QWidget *parent = nullptr);
+    explicit PersonTransferSelector(QString personLabel, QWidget *parent = nullptr,
+                                    ThemeService *themes = nullptr);
 
     void setOptions(const QList<IdLabelOption> &options);
     [[nodiscard]] QList<qint64> selectedIds() const;

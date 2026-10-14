@@ -347,9 +347,9 @@ void AddWorkTabPage3::lazyLoad()
     localVideoRow->setMinimumHeight(kFormControlMinimumHeight);
     localVideoRow->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     addFormRow(QStringLiteral("本地视频："), localVideoRow);
-    m_actresses = new PersonTransferSelector(QStringLiteral("女优"), this);
+    m_actresses = new PersonTransferSelector(QStringLiteral("女优"), this, &m_themes);
     m_actresses->setObjectName(QStringLiteral("WorkActressSelector"));
-    m_actors = new PersonTransferSelector(QStringLiteral("男优"), this);
+    m_actors = new PersonTransferSelector(QStringLiteral("男优"), this, &m_themes);
     m_actors->setObjectName(QStringLiteral("WorkActorSelector"));
     QString tagError;
     const QList<TagOption> tagOptions = withShortDatabase(
