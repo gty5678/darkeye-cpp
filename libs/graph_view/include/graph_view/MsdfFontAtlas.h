@@ -16,6 +16,8 @@ public:
         int atlasWidth = 1024;
         int atlasHeight = 1024;
         float pxRange = 6.0f;
+        // 0: automatic (at most 8 workers and half the logical CPUs); 1: serial.
+        int maxGenerationThreads = 0;
     };
 
     struct GlyphInfo {

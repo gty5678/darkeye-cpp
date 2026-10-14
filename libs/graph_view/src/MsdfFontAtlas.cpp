@@ -13,7 +13,11 @@
 #include <msdfgen-ext.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
+#include <exception>
+#include <future>
+#include <thread>
 #include <unordered_set>
 #include <utility>
 
@@ -191,6 +195,7 @@ bool MsdfFontAtlas::buildAtlasData(const QStringList& labels, AtlasData& out, QS
         int height = 0;
         int x = 0;
         int y = 0;
+        bool loaded = false;
     };
 
     // 收集所有需要的 Unicode 码点（去重）
@@ -219,30 +224,36 @@ bool MsdfFontAtlas::buildAtlasData(const QStringList& labels, AtlasData& out, QS
     const int sdfPadding = std::max(2, static_cast<int>(std::ceil(m_config.pxRange)) + 1);
     const double targetInnerPixels = 32.0;  // 字形主体目标像素数（控制分辨率）
 
-    for (const uint32_t cp : codepoints) {
+    // Each task writes only its own slot. Merge in codepoint order afterwards
+    // so parallel generation preserves the serial atlas packing and UVs.
+    std::vector<PendingGlyph> generated(codepoints.size());
+    auto generateGlyph = [&](size_t index, MsdfFontAtlas& font) {
+        const uint32_t cp = codepoints[index];
         // 获取字形索引
         msdfgen::GlyphIndex glyphIndex;
-        const bool hasGlyph = msdfgen::getGlyphIndex(glyphIndex, static_cast<msdfgen::FontHandle*>(m_font), cp);
+        const bool hasGlyph = msdfgen::getGlyphIndex(glyphIndex, static_cast<msdfgen::FontHandle*>(font.m_font), cp);
         if (!hasGlyph) {
-            continue;
+            return;
         }
 
         // 加载字形轮廓和 advance（水平推进量）
         msdfgen::Shape shape;
         double advance = 0.0;
-        const bool loaded = msdfgen::loadGlyph(shape, static_cast<msdfgen::FontHandle*>(m_font), glyphIndex, &advance);
+        const bool loaded = msdfgen::loadGlyph(shape, static_cast<msdfgen::FontHandle*>(font.m_font), glyphIndex, &advance);
         if (!loaded) {
-            continue;
+            return;
         }
 
         GlyphInfo info;
         info.codepoint = cp;
         info.advance = static_cast<float>(advance / m_emSize);
         info.drawable = false;
-        newGlyphs[cp] = info;
+        PendingGlyph& pg = generated[index];
+        pg.info = info;
+        pg.loaded = true;
 
         if (shape.contours.empty()) {
-            continue;  // 空格等无轮廓字形，只保留 advance
+            return;  // 空格等无轮廓字形，只保留 advance
         }
 
         // 规范化轮廓并做 MSDF 边着色（三通道分配）
@@ -260,7 +271,6 @@ bool MsdfFontAtlas::buildAtlasData(const QStringList& labels, AtlasData& out, QS
         const int bitmapW = std::max(4, static_cast<int>(std::ceil(glyphW * fontUnitsToPx)) + 2 * sdfPadding);
         const int bitmapH = std::max(4, static_cast<int>(std::ceil(glyphH * fontUnitsToPx)) + 2 * sdfPadding);
 
-        PendingGlyph pg;
         pg.bitmap = msdfgen::Bitmap<float, 3>(bitmapW, bitmapH);
         pg.width = bitmapW;
         pg.height = bitmapH;
@@ -285,7 +295,65 @@ bool MsdfFontAtlas::buildAtlasData(const QStringList& labels, AtlasData& out, QS
         pg.info.planeBottom = static_cast<float>((bounds.b - paddingFontUnits) / m_emSize);
         pg.info.planeRight = static_cast<float>((bounds.r + paddingFontUnits) / m_emSize);
         pg.info.planeTop = static_cast<float>((bounds.t + paddingFontUnits) / m_emSize);
-        pending.push_back(std::move(pg));
+    };
+
+    // Leave CPU capacity for the force simulation and UI. Small character sets
+    // stay serial to avoid paying for additional font loads and thread startup.
+    const unsigned cpuBudget = std::max(1u, std::thread::hardware_concurrency() / 2);
+    const unsigned requested = m_config.maxGenerationThreads > 0
+        ? static_cast<unsigned>(m_config.maxGenerationThreads) : 8u;
+    const unsigned workBudget = static_cast<unsigned>(std::max<size_t>(1, codepoints.size() / 32));
+    const unsigned workerCount = std::min({8u, cpuBudget, requested, workBudget});
+    std::atomic<size_t> nextGlyph{0};
+    auto generateRemaining = [&](MsdfFontAtlas& font) {
+        for (;;) {
+            const size_t index = nextGlyph.fetch_add(1, std::memory_order_relaxed);
+            if (index >= codepoints.size()) {
+                return;
+            }
+            generateGlyph(index, font);
+        }
+    };
+
+    try {
+        // Futures join even on exceptions, before any captured buffers die.
+        std::vector<std::future<QString>> workers;
+        workers.reserve(workerCount - 1);
+        for (unsigned i = 1; i < workerCount; ++i) {
+            workers.push_back(std::async(std::launch::async, [&]() -> QString {
+                // FreeType library and font face are never shared by workers.
+                MsdfFontAtlas workerFont;
+                QString error;
+                if (!workerFont.initialize(m_config, &error)) {
+                    return error;
+                }
+                generateRemaining(workerFont);
+                return {};
+            }));
+        }
+        // The existing background build thread also participates in generation.
+        generateRemaining(*this);
+        for (auto& worker : workers) {
+            const QString error = worker.get();
+            if (!error.isEmpty()) {
+                setError(errorMessage, error);
+                return false;
+            }
+        }
+    } catch (const std::exception& error) {
+        setError(errorMessage, QStringLiteral("MSDF glyph generation failed: %1")
+            .arg(QString::fromUtf8(error.what())));
+        return false;
+    }
+
+    for (auto& pg : generated) {
+        if (!pg.loaded) {
+            continue;
+        }
+        newGlyphs[pg.info.codepoint] = pg.info;
+        if (pg.info.drawable) {
+            pending.push_back(std::move(pg));
+        }
     }
 
     // 矩形装箱：按行从左到右放置字形，行满则换行

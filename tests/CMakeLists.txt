@@ -166,6 +166,17 @@ target_link_libraries(darkeye_graph_view_physics_tests PRIVATE darkeye::graph_vi
 darkeye_apply_compiler_options(darkeye_graph_view_physics_tests)
 add_test(NAME darkeye_graph_view_physics_tests COMMAND darkeye_graph_view_physics_tests)
 
+qt_add_executable(darkeye_msdf_font_atlas_tests
+    ../libs/graph_view/tests/MsdfFontAtlasTest.cpp
+)
+target_link_libraries(darkeye_msdf_font_atlas_tests PRIVATE darkeye::graph_view Qt6::Test)
+darkeye_apply_compiler_options(darkeye_msdf_font_atlas_tests)
+add_test(NAME darkeye_msdf_font_atlas_tests COMMAND darkeye_msdf_font_atlas_tests -o -,txt)
+set_tests_properties(darkeye_msdf_font_atlas_tests PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}"
+    TIMEOUT 60
+)
+
 qt_add_executable(darkeye_graph_page_rendering_tests
     ../libs/graph_view/tests/GraphPageRenderingTest.cpp
 )
