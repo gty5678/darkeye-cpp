@@ -44,6 +44,7 @@
 #include <QLineEdit>
 #include <QLabel>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QKeySequenceEdit>
 #include <QPushButton>
 #include <QRadioButton>
@@ -187,6 +188,11 @@ void MainWindowSmokeTest::homeShowsThreeRandomRows()
     QVERIFY(scene->findChild<QObject *>(QStringLiteral("ShopBackPanel")));
     const auto initial = scene->property("coverTextureSources").toList();
     QCOMPARE(initial.size(), 18);
+    QPointer<QObject> firstCover = scene->findChild<QObject *>(QStringLiteral("HomeCover0"));
+    QVERIFY(firstCover);
+    QPointer<QObject> firstImage = scene->findChild<QObject *>(QStringLiteral("HomeCoverImage0"));
+    QVERIFY(firstImage);
+    QVERIFY(firstImage->property("asynchronous").toBool());
     QCOMPARE(page.findChildren<QPushButton *>().size(), 1);
     auto *refresh = page.findChild<QPushButton *>(QStringLiteral("HomeRefreshButton"));
     QVERIFY(refresh);
@@ -199,6 +205,16 @@ void MainWindowSmokeTest::homeShowsThreeRandomRows()
         changed = current != initial;
     }
     QVERIFY(changed);
+    QVERIFY(firstCover);
+    QVERIFY(firstImage);
+    QCOMPARE(scene->findChild<QObject *>(QStringLiteral("HomeCover0")), firstCover.data());
+    QCOMPARE(scene->findChild<QObject *>(QStringLiteral("HomeCoverImage0")), firstImage.data());
+    QCOMPARE(firstImage->property("source").toUrl(),
+             QUrl(scene->property("coverTextureSources").toList().first().toString()));
+    QTRY_COMPARE(firstImage->property("status").toInt(), 1); // Image.Ready
+    const QSize decodedSize = firstImage->property("sourceSize").toSize();
+    QVERIFY(decodedSize.width() > 0 && decodedSize.width() <= 768);
+    QVERIFY(decodedSize.height() > 0 && decodedSize.height() <= 768);
     QSignalSpy selected(&page, &darkeye::HomePage::detailRequested);
     QVERIFY(QMetaObject::invokeMethod(scene, "coverClicked", Q_ARG(int, 0)));
     QCOMPARE(selected.size(), 1);
