@@ -17,7 +17,6 @@
 #include <QScreen>
 #include <QShowEvent>
 #include <QTimer>
-#include <QToolTip>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 #include <QtMath>
@@ -192,11 +191,21 @@ protected:
             event->accept();
             return;
         }
-        const int oldScroll = m_scroll->horizontalScrollBar()->value();
-        const double anchorDay = (oldScroll + event->position().x() - trackPad) / m_ppd;
-        setPpd(m_ppd * (event->angleDelta().y() > 0 ? 1.2 : 1.0 / 1.2));
+        const int delta = event->angleDelta().y();
+        if (delta == 0) {
+            event->accept();
+            return;
+        }
+        const double canvasX = event->position().x();
+        const double viewportX = canvasX - m_scroll->horizontalScrollBar()->value();
+        const double anchorDate = m_dateMin.toJulianDay() + (canvasX - trackPad) / m_ppd;
+        const bool unknownAnchor = m_unknownX >= 0 && canvasX >= m_unknownX - markerSize / 2;
+        const double unknownOffset = canvasX - m_unknownX;
+        setPpd(m_ppd * qPow(1.2, delta / 120.0));
+        const double newCanvasX = unknownAnchor ? m_unknownX + unknownOffset
+            : trackPad + (anchorDate - m_dateMin.toJulianDay()) * m_ppd;
         m_scroll->horizontalScrollBar()->setValue(
-            qRound(trackPad + anchorDay * m_ppd - event->position().x()));
+            qRound(newCanvasX - viewportX));
         event->accept();
     }
 
@@ -267,17 +276,14 @@ protected:
     {
         if (event->type() == QEvent::ToolTip) {
             const auto *help = static_cast<QHelpEvent *>(event);
-            for (const Marker &marker : std::as_const(m_markers)) {
-                if (marker.rect.contains(help->pos())) {
-                    QToolTip::showText(help->globalPos(),
-                        QStringLiteral("%1\n%2\n%3")
-                            .arg(marker.work.serialNumber, marker.work.title,
-                                 marker.work.releaseDate.trimmed().isEmpty()
-                                     ? QStringLiteral("日期未知") : marker.work.releaseDate), this);
-                    return true;
-                }
+            if (const Marker *marker = markerAt(help->pos())) {
+                m_hideTimer->stop();
+                showPopup(*marker);
+            } else {
+                schedulePopupHide();
             }
-            QToolTip::hideText();
+            event->accept();
+            return true;
         }
         return QWidget::event(event);
     }
@@ -368,6 +374,14 @@ private:
             m_dateMin = coreMin.addDays(-120).addYears(-90);
             const QDate end = coreMax.addDays(120).addYears(90);
             m_numDays = m_dateMin.daysTo(end) + 1;
+            // Respect QWidget's width limit, including the unknown-date section.
+            m_ppd = qMin(m_ppd, (QWIDGETSIZE_MAX - unknownWidth - 2.0 * trackPad - 32)
+                                      / m_numDays);
+            // Keep room to pan and preserve the pointer anchor even at minimum zoom.
+            const int extraDays = qMax(0, qCeil((3.0 * m_scroll->viewport()->width()
+                                                / m_ppd - m_numDays) / 2.0));
+            m_dateMin = m_dateMin.addDays(-extraDays);
+            m_numDays += 2 * extraDays;
         } else {
             m_dateMin = {};
             m_numDays = 0;
@@ -471,14 +485,31 @@ void ActressWorkTimeline::resizeEvent(QResizeEvent *event)
 
 void ActressWorkTimeline::fitDefaultWindow()
 {
-    if (!m_initialFitPending || m_scroll->viewport()->width() < 100) return;
-    const int span = defaultStart.daysTo(defaultEnd) + 1;
-    m_canvas->setPpd(qBound(minPpd,
-        (m_scroll->viewport()->width() - 64.0) / static_cast<double>(span), maxPpd));
-    const int day = m_canvas->dateMinimum().daysTo(defaultStart);
-    m_scroll->horizontalScrollBar()->setValue(
-        qMax(0, qRound(trackPad + day * m_canvas->ppd() - 32)));
-    m_initialFitPending = false;
+    if (!m_initialFitPending || m_initialFitScheduled || !isVisible()) return;
+    m_initialFitScheduled = true;
+    // The detail-page layout and QScrollArea geometry settle after show/resize.
+    QTimer::singleShot(0, this, [this] {
+        m_initialFitScheduled = false;
+        if (!m_initialFitPending || !isVisible() || m_scroll->viewport()->width() < 100) return;
+        const int viewportWidth = m_scroll->viewport()->width();
+        const int span = defaultStart.daysTo(defaultEnd) + 1;
+        m_canvas->setPpd(qBound(minPpd,
+            (viewportWidth - 64.0) / static_cast<double>(span), maxPpd));
+        m_initialFitScheduled = true;
+        // Resizing the canvas can change scrollbar ranges and viewport geometry.
+        QTimer::singleShot(0, this, [this, viewportWidth] {
+            m_initialFitScheduled = false;
+            if (!m_initialFitPending || !isVisible()) return;
+            if (viewportWidth != m_scroll->viewport()->width()) {
+                fitDefaultWindow();
+                return;
+            }
+            const int day = m_canvas->dateMinimum().daysTo(defaultStart);
+            m_scroll->horizontalScrollBar()->setValue(
+                qMax(0, qRound(trackPad + day * m_canvas->ppd() - 32)));
+            m_initialFitPending = false;
+        });
+    });
 }
 
 } // namespace darkeye

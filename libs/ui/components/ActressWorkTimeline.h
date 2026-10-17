@@ -39,6 +39,7 @@ private:
     TimelineCanvas *m_canvas = nullptr;
     QWidget *m_empty = nullptr;
     bool m_initialFitPending = false;
+    bool m_initialFitScheduled = false;
 };
 
 } // namespace darkeye

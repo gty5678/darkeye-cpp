@@ -14,6 +14,8 @@
 #include "ui/pages/ModifyActressPage.h"
 #include "ui/components/PersonInfoPanel.h"
 #include "ui/components/ActressWorkTimeline.h"
+#include "ui/components/AsyncImageLabel.h"
+#include "ui/components/WorkCard.h"
 #include "ui/components/WikiTextEdit.h"
 
 #include <QApplication>
@@ -23,6 +25,8 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QImage>
+#include <QHelpEvent>
+#include <QLabel>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QLineEdit>
@@ -35,6 +39,8 @@
 #include <QStackedWidget>
 #include <QTableWidget>
 #include <QTemporaryDir>
+#include <QToolTip>
+#include <QWheelEvent>
 #include <QtTest>
 
 class PersonPageTest final : public QObject
@@ -47,6 +53,8 @@ private slots:
     void filtersActressesAndRespectsFavoriteScope();
     void detailAndEditorCompletePersonRoundTrip();
     void actressTimelineSupportsPreviewAndMiddleButtonPan();
+    void actressTimelineFitsAfterLayout();
+    void actressTimelineZoomKeepsPointerAnchor();
 };
 
 void PersonPageTest::pageSwitchDoesNotFocusNameFilter_data()
@@ -138,10 +146,38 @@ void PersonPageTest::actressTimelineSupportsPreviewAndMiddleButtonPan()
     auto *scroll = timeline.findChild<QScrollArea *>();
     QVERIFY(canvas != nullptr);
     QVERIFY(scroll != nullptr);
+    QTRY_VERIFY(scroll->horizontalScrollBar()->value() > 0);
     const QPoint marker = timeline.markerCenter(work.id);
     QVERIFY(!marker.isNull());
     QTest::mouseMove(canvas, marker);
     QTRY_VERIFY(timeline.hoverPreviewVisible());
+
+    // A delayed Qt tooltip request must keep the standard card, without adding
+    // a second plain-text popup over its serial number, cover and title.
+    QHelpEvent help(QEvent::ToolTip, marker, canvas->mapToGlobal(marker));
+    QApplication::sendEvent(canvas, &help);
+    QVERIFY(timeline.hoverPreviewVisible());
+    QVERIFY(!QToolTip::isVisible());
+    darkeye::WorkCard *preview = nullptr;
+    int visiblePreviews = 0;
+    for (QWidget *window : QApplication::topLevelWidgets()) {
+        auto *card = window->findChild<darkeye::WorkCard *>();
+        if (card && card->isVisible() && card->workId() == work.id) {
+            preview = card;
+            ++visiblePreviews;
+        }
+    }
+    QCOMPARE(visiblePreviews, 1);
+    QVERIFY(preview);
+    auto *serial = preview->findChild<QLabel *>(QStringLiteral("WorkCardSerialNumber"));
+    QVERIFY(serial);
+    QCOMPARE(serial->text(), work.serialNumber);
+    QVERIFY(preview->findChild<darkeye::AsyncImageLabel *>(QStringLiteral("WorkCardCover")));
+    bool titleVisible = false;
+    for (auto *label : preview->findChildren<QLabel *>()) {
+        if (label->text() == work.title && label->isVisible()) titleVisible = true;
+    }
+    QVERIFY(titleVisible);
 
     const int before = scroll->horizontalScrollBar()->value();
     const QPoint dragStart(qBound(20, marker.x(), canvas->width() - 20), marker.y());
@@ -151,6 +187,86 @@ void PersonPageTest::actressTimelineSupportsPreviewAndMiddleButtonPan()
                         dragStart - QPoint(50, 0));
     QVERIFY(scroll->horizontalScrollBar()->value() > before);
     QVERIFY(!timeline.hoverPreviewVisible());
+}
+
+void PersonPageTest::actressTimelineFitsAfterLayout()
+{
+    darkeye::ActressWorkTimeline timeline;
+    darkeye::PersonWorkSummary start;
+    start.id = 1;
+    start.releaseDate = QStringLiteral("2016-01-01");
+    auto end = start;
+    end.id = 2;
+    end.releaseDate = QStringLiteral("2026-12-31");
+    timeline.setWorks({start, end});
+    timeline.show();
+    // Detail-page layouts can assign the final width after the first show event.
+    timeline.resize(1080, 180);
+    auto *scroll = timeline.findChild<QScrollArea *>();
+    QVERIFY(scroll);
+    const auto visibleX = [&](qint64 id) {
+        return timeline.markerCenter(id).x() - scroll->horizontalScrollBar()->value();
+    };
+    QTRY_VERIFY(qAbs(visibleX(start.id) - 32) <= 2);
+    QTRY_VERIFY(qAbs(visibleX(end.id) - (scroll->viewport()->width() - 32)) <= 3);
+    timeline.hide();
+    timeline.resize(760, 180);
+    timeline.setWorks({start, end});
+    timeline.show();
+    QTRY_VERIFY(qAbs(visibleX(start.id) - 32) <= 2);
+    QTRY_VERIFY(qAbs(visibleX(end.id) - (scroll->viewport()->width() - 32)) <= 3);
+}
+
+void PersonPageTest::actressTimelineZoomKeepsPointerAnchor()
+{
+    darkeye::ActressWorkTimeline timeline;
+    timeline.resize(760, 180);
+    darkeye::PersonWorkSummary work;
+    work.id = 42;
+    work.releaseDate = QStringLiteral("2020-06-18");
+    timeline.setWorks({work});
+    timeline.show();
+    auto *scroll = timeline.findChild<QScrollArea *>();
+    auto *canvas = timeline.findChild<QWidget *>(QStringLiteral("ActressWorkTimelineCanvas"));
+    QVERIFY(scroll);
+    QVERIFY(canvas);
+    QTRY_VERIFY(scroll->horizontalScrollBar()->value() > 0);
+    QApplication::processEvents();
+    const auto visibleX = [&] {
+        return timeline.markerCenter(work.id).x() - scroll->horizontalScrollBar()->value();
+    };
+    const auto zoom = [&](int delta) {
+        const QPoint position(timeline.markerCenter(work.id));
+        QWheelEvent event(position, canvas->mapToGlobal(position), QPoint(), QPoint(0, delta),
+                          Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+        QApplication::sendEvent(canvas, &event);
+        QApplication::processEvents();
+    };
+    const double initialScale = timeline.pixelsPerDay();
+    zoom(0);
+    QCOMPARE(timeline.pixelsPerDay(), initialScale);
+    zoom(60);
+    QVERIFY(qAbs(timeline.pixelsPerDay() / initialScale - qSqrt(1.2)) < 1e-6);
+    zoom(-60);
+    for (int i = 0; i < 12; ++i) {
+        const int anchorX = visibleX();
+        zoom(120);
+        QVERIFY(qAbs(visibleX() - anchorX) <= 2);
+    }
+    for (int i = 0; i < 50; ++i) {
+        const int anchorX = visibleX();
+        zoom(-120);
+        QVERIFY(qAbs(visibleX() - anchorX) <= 2);
+        QVERIFY(canvas->width() >= scroll->viewport()->width());
+    }
+    const double minimumScale = timeline.pixelsPerDay();
+    zoom(0);
+    QCOMPARE(timeline.pixelsPerDay(), minimumScale);
+    for (int i = 0; i < 90; ++i) zoom(120);
+    QVERIFY(canvas->width() < QWIDGETSIZE_MAX);
+    const int maximumAnchor = visibleX();
+    zoom(120);
+    QVERIFY(qAbs(visibleX() - maximumAnchor) <= 2);
 }
 
 void PersonPageTest::filtersActressesAndRespectsFavoriteScope()
