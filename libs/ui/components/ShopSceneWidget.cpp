@@ -2,6 +2,7 @@
 #include "render3d/GltfLoader.h"
 #include "render3d/Raycaster.h"
 #include <QMouseEvent>
+#include <QContextMenuEvent>
 #include <QPainter>
 #include <QVBoxLayout>
 #include <algorithm>
@@ -209,16 +210,26 @@ bool ShopSceneWidget::eventFilter(QObject *watched, QEvent *event) {
     if (event->type()==QEvent::Resize) updateCamera();
     if (event->type()==QEvent::DevicePixelRatioChange) requestCovers();
     if (event->type()==QEvent::Leave) { m_outline->hide(); m_canvas->unsetCursor(); }
+    // Windows delivers the context-menu event after release, when m_rotating
+    // is already false. Keep the gesture result until the next right press.
+    if (event->type()==QEvent::ContextMenu
+        && static_cast<QContextMenuEvent *>(event)->reason()==QContextMenuEvent::Mouse
+        && (m_rotating || m_rightDragged)) {
+        event->accept();
+        return true;
+    }
     if (event->type()==QEvent::MouseButtonPress) {
         auto *mouse = static_cast<QMouseEvent *>(event);
         m_lastPosition = mouse->position();
         m_rotating = mouse->button()==Qt::RightButton;
+        if (m_rotating) m_rightDragged = false;
         if (m_rotating) updateHover(m_lastPosition);
     }
     if (event->type()==QEvent::MouseMove) {
         auto *mouse = static_cast<QMouseEvent *>(event);
         if (m_rotating) {
             const auto delta = mouse->position()-m_lastPosition;
+            if (!delta.isNull()) m_rightDragged = true;
             m_camera.yaw -= float(delta.x())*0.12f;
             m_camera.pitch = std::clamp(m_camera.pitch-float(delta.y())*0.12f,-89.0f,89.0f);
             m_canvas->setCamera(m_camera);
@@ -228,6 +239,8 @@ bool ShopSceneWidget::eventFilter(QObject *watched, QEvent *event) {
     }
     if (event->type()==QEvent::MouseButtonRelease) {
         auto *mouse = static_cast<QMouseEvent *>(event);
+        if (mouse->button()==Qt::RightButton && m_rotating
+            && mouse->position()!=m_lastPosition) m_rightDragged = true;
         m_rotating = false;
         updateHover(mouse->position());
         if (mouse->button()==Qt::LeftButton && m_hovered>=0) emit coverClicked(m_hovered);

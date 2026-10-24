@@ -38,12 +38,14 @@
 #include <QApplication>
 #include <QAction>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QDialog>
 #include <QDir>
 #include <QFontDatabase>
 #include <QLayout>
 #include <QLineEdit>
 #include <QLabel>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QPointer>
 #include <QKeySequenceEdit>
@@ -59,6 +61,7 @@
 #include <QTableWidget>
 #include <QTabWidget>
 #include <QTemporaryDir>
+#include <QTimer>
 #include <QtTest>
 
 namespace
@@ -243,6 +246,34 @@ void MainWindowSmokeTest::homeShowsThreeRandomRows()
     QTest::mouseRelease(canvas, Qt::RightButton, Qt::NoModifier, QPoint(440,320));
     QVERIFY(canvas->camera().yaw!=before.yaw);
     QCOMPARE(canvas->camera().position(),before.position());
+    const auto menuAppears = [&](QContextMenuEvent::Reason reason) {
+        bool appeared = false;
+        QTimer::singleShot(0, canvas, [&] {
+            if (auto *menu = qobject_cast<QMenu *>(QApplication::activePopupWidget())) {
+                appeared = true;
+                menu->close();
+            }
+        });
+        QContextMenuEvent context(reason, QPoint(440,320),
+                                  canvas->mapToGlobal(QPoint(440,320)));
+        QApplication::sendEvent(canvas, &context);
+        QApplication::processEvents();
+        return appeared;
+    };
+    QVERIFY(!menuAppears(QContextMenuEvent::Mouse));
+    // A new stationary click must clear the previous drag suppression.
+    QTest::mouseClick(canvas, Qt::RightButton, Qt::NoModifier, QPoint(440,320));
+    QVERIFY(menuAppears(QContextMenuEvent::Mouse));
+    // Moving back to the press position still counts as a camera drag.
+    QTest::mousePress(canvas, Qt::RightButton, Qt::NoModifier, QPoint(440,320));
+    for (const QPoint position : {QPoint(441,320), QPoint(440,320)}) {
+        QMouseEvent move(QEvent::MouseMove, position, canvas->mapToGlobal(position),
+                         Qt::NoButton, Qt::RightButton, Qt::NoModifier);
+        QApplication::sendEvent(canvas, &move);
+    }
+    QTest::mouseRelease(canvas, Qt::RightButton, Qt::NoModifier, QPoint(440,320));
+    QVERIFY(!menuAppears(QContextMenuEvent::Mouse));
+    QVERIFY(menuAppears(QContextMenuEvent::Keyboard));
     const auto frame = canvas->grabFramebuffer();
     QVERIFY(!frame.isNull());
     QVERIFY(canvas->lastError().isEmpty());

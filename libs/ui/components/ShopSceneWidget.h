@@ -38,6 +38,7 @@ private:
     QColor m_outlineColor;
     QPointF m_lastPosition;
     bool m_rotating = false;
+    bool m_rightDragged = false;
     int m_hovered = -1;
 };
 
