@@ -24,6 +24,8 @@ public:
     [[nodiscard]] float cameraTargetX() const;
     [[nodiscard]] bool isExpanded() const;
     [[nodiscard]] bool isFullyExpanded() const;
+    // Both lid hinges are within 8 degrees of their closed pose.
+    [[nodiscard]] bool isNearlyClosed() const;
     [[nodiscard]] std::optional<QRectF> selectedFrontRect() const;
     [[nodiscard]] std::optional<QRectF> selectedCaseRect() const;
     [[nodiscard]] std::optional<QPointF> selectedDiscCenter() const;

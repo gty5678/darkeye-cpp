@@ -160,6 +160,7 @@ void Renderer::release()
     m_samples = 0;
     m_size = {};
     m_targetsReady=false;
+    m_textureBudgetDirty=true;
 }
 
 bool Renderer::ensureTargets(QRhiRenderTarget *target, QString &error)
@@ -322,8 +323,21 @@ bool Renderer::prepare(QRhi *rhi, QRhiRenderTarget *target,
     }
     const double quality=std::min(1.0,std::sqrt(double(m_textureBudget-4)
         /double(std::max<quint64>(1,originalTextureBytes))));
-    for(auto &[source,size]:desiredSizes)
-        if(source) size={std::max(1,int(size.width()*quality)),std::max(1,int(size.height()*quality))};
+    // A moving shelf promotes/demotes individual covers. Recalculating the
+    // size of every resident texture for each promotion caused full-window
+    // CPU rescaling, GPU uploads and binding churn on nearly every frame.
+    // Retain immutable resident allocations; distribute the current fair share
+    // only to new/replaced textures. Restore full quality with spare headroom.
+    const bool restoreFullQuality=originalTextureBytes<=((m_textureBudget-4)*3/4);
+    for(auto &[source,size]:desiredSizes) {
+        if(!source) continue;
+        const auto resident=m_textures.find(source);
+        if(!m_textureBudgetDirty && !restoreFullQuality && resident!=m_textures.end()
+           && resident->second.sourceSize==size)
+            size=resident->second.texture->pixelSize();
+        else
+            size={std::max(1,int(size.width()*quality)),std::max(1,int(size.height()*quality))};
+    }
     const auto desiredCost=[&] {
         quint64 total=0;
         for(const auto &[source,size]:desiredSizes)
@@ -331,16 +345,29 @@ bool Renderer::prepare(QRhi *rhi, QRhiRenderTarget *target,
         return total;
     };
     while(desiredCost()>m_textureBudget) {
-        bool reduced=false;
-        for(auto &[source,size]:desiredSizes)
-            if(source && (size.width()>1 || size.height()>1)) {
-                size={std::max(1,size.width()/2),std::max(1,size.height()/2)};
-                reduced=true;
+        // Reclaim only as much as the incoming covers need. Highest relative
+        // resolution first keeps quality balanced without resizing the whole
+        // window. 7/8 steps leave a little headroom for the next arrival.
+        auto candidate=desiredSizes.end();
+        double highestQuality=-1;
+        quint64 largestCost=0;
+        for(auto it=desiredSizes.begin();it!=desiredSizes.end();++it) {
+            const auto &[source,size]=*it;
+            if(!source || (size.width()<=1 && size.height()<=1)) continue;
+            const auto original=source->image.size();
+            const double relative=double(size.width())*size.height()
+                /std::max(1.0,double(original.width())*original.height());
+            const auto cost=textureCost(size,source->mipmap!=TextureData::Mipmap::None);
+            if(relative>highestQuality || (relative==highestQuality && cost>largestCost)) {
+                candidate=it; highestQuality=relative; largestCost=cost;
             }
-        if(!reduced) {
+        }
+        if(candidate==desiredSizes.end()) {
             error=QStringLiteral("Texture budget cannot fit one texel per active texture");
             return false;
         }
+        auto &size=candidate->second;
+        size={std::max(1,size.width()*7/8),std::max(1,size.height()*7/8)};
     }
     // Evict obsolete textures/bindings before uploading a replacement window.
     // Pipeline layout bindings use a persistent white texture, not these SRBs.
@@ -413,6 +440,7 @@ bool Renderer::prepare(QRhi *rhi, QRhiRenderTarget *target,
             if(image.size()!=desired) image=image.scaled(desired,Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
             Texture texture;
             texture.source = source;
+            texture.sourceSize = source?source->image.size():QSize(1,1);
             QRhiTexture::Flags flags;
             if(source && source->srgb) flags|=QRhiTexture::sRGB;
             const bool mipmapped=source && source->mipmap!=TextureData::Mipmap::None
@@ -429,6 +457,8 @@ bool Renderer::prepare(QRhi *rhi, QRhiRenderTarget *target,
             if (!texture.texture->create() || !texture.sampler->create())
                 return fail(QStringLiteral("Failed to create texture/sampler: %1").arg(source ? source->source : "white fallback"));
             uploads->uploadTexture(texture.texture.get(), image);
+            ++stats.textureUploads;
+            stats.textureUploadBytes+=quint64(image.sizeInBytes());
             if(mipmapped) uploads->generateMips(texture.texture.get());
             texture.bytes = textureCost(image.size(),mipmapped);
             m_textures.emplace(source.get(), std::move(texture));
@@ -604,6 +634,7 @@ bool Renderer::prepare(QRhi *rhi, QRhiRenderTarget *target,
     stats.geometryCount = int(m_geometry.size());
     stats.textureCount = int(m_textures.size());
     stats.visibleItems = int(items.size());
+    m_textureBudgetDirty=false;
     return true;
 }
 

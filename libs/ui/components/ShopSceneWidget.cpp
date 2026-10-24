@@ -58,10 +58,11 @@ ShopSceneWidget::ShopSceneWidget(QWidget *parent)
     layout->setContentsMargins(0,0,0,0);
     layout->addWidget(m_canvas);
     m_canvas->setObjectName(QStringLiteral("HomeShopCanvas"));
-    m_canvas->setSampleCount(4);
+    m_canvas->setSampleCount(2);
     m_canvas->setClearColor(QColor(QStringLiteral("#18181c")));
-    m_canvas->setTextureBudget(512ULL*1024*1024);
-    m_covers.setBudget(512ULL*1024*1024);
+    constexpr quint64 coverBudget = 64ULL*1024*1024;
+    m_canvas->setTextureBudget(coverBudget);
+    m_covers.setBudget(coverBudget);
     m_canvas->setScene(m_scene);
     m_canvas->setMouseTracking(true);
     m_canvas->installEventFilter(this);
@@ -136,12 +137,11 @@ void ShopSceneWidget::setCoverPaths(const QStringList &paths) {
     updateHover(m_lastPosition);
 }
 void ShopSceneWidget::requestCovers() {
-    // The cover is a wraparound image: its front uses less than half the width.
-    // Request enough source texels for that UV region at physical screen size,
-    // with headroom for perspective and linear/mipmap filtering.
+    // Match the small home covers to their physical screen size. Bucket requests
+    // to avoid decoding again for every resize, without supersampling them.
     const float projectedHeight = m_canvas->height()*float(m_canvas->devicePixelRatioF())*0.19f
         /(2*std::max(0.06f,m_camera.distance)*std::tan(m_camera.verticalFov*3.14159265f/360));
-    const int pixels = std::clamp(int(std::ceil(projectedHeight*4/1024))*1024,2048,4096);
+    const int pixels = std::clamp(int(std::ceil(projectedHeight/256))*256,256,4096);
     if (pixels == m_coverPixels) return;
     m_coverPixels = pixels;
     QStringList keys;

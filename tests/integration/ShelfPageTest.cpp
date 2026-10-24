@@ -20,6 +20,11 @@
 #include <QContextMenuEvent>
 #include <QMenu>
 #include <QPainter>
+#include <QElapsedTimer>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QFile>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QToolButton>
@@ -42,7 +47,9 @@ private slots:
     void initialCameraFramesShelf();
     void filtersAndLoadsVirtualizedShelf();
     void nativeRenderingAndActions();
+    void relationGraphWaitsUntilLidNearlyCloses();
     void existingShelfVisualProbe();
+    void scrollPerformanceProbe();
     void filtersByPrivateScope();
     void heartTogglesPersistedFavorite_data();
     void heartTogglesPersistedFavorite();
@@ -489,6 +496,138 @@ void ShelfPageTest::nativeRenderingAndActions()
     scene->toggleOpen();
     QVERIFY(relation->isHidden());
 
+}
+
+void ShelfPageTest::relationGraphWaitsUntilLidNearlyCloses()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(directory.filePath("public.db"),false,&error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(connection,darkeye::DatabaseKind::Public,&error));
+    darkeye::WorkRepository repository(connection.database());
+    darkeye::Work work;
+    work.serialNumber=QStringLiteral("CLOSE-TIMING-001");
+    const auto id=repository.insertComplete(work,{},{},{},&error);
+    QVERIFY(id);
+    darkeye::graph::GraphManager graph(connection.database());
+    QVERIFY(graph.initialize(&error));
+    darkeye::DvdShelfView view(connection.database(),{},&graph,{},{ });
+    QList<darkeye::WorkSummary> works;
+    darkeye::WorkSummary summary; summary.id=*id; summary.serialNumber=work.serialNumber;
+    works.append(summary);
+    view.resize(1000,650);
+    view.setWorks(works);
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    auto *scene=view.findChild<darkeye::dvd_scene::DvdSceneWidget *>();
+    auto *relation=view.findChild<QWidget *>("ShelfRelationGraphOverlay");
+    QVERIFY(scene && relation);
+    scene->renderWidget()->setAttribute(Qt::WA_TransparentForMouseEvents);
+    QVERIFY(scene->focusItem(QString::number(*id)));
+    QTRY_VERIFY(relation->isVisible());
+    scene->toggleOpen();
+    QVERIFY(relation->isHidden());
+    QTRY_VERIFY(scene->isFullyExpanded());
+    scene->toggleOpen();
+    QVERIFY(!scene->isExpanded());
+    QVERIFY(relation->isHidden()); // closing intent must not reveal the graph
+    QTest::qWait(180);
+    QVERIFY(relation->isHidden());
+    QTRY_VERIFY_WITH_TIMEOUT(relation->isVisible(),1500);
+    QVERIFY(scene->isNearlyClosed());
+    // Reopening during a close must not leave a delayed graph reveal behind.
+    scene->toggleOpen();
+    QTRY_VERIFY(scene->isFullyExpanded());
+    scene->toggleOpen();
+    QTest::qWait(100);
+    scene->toggleOpen();
+    QTRY_VERIFY(scene->isFullyExpanded());
+    QVERIFY(relation->isHidden());
+}
+
+void ShelfPageTest::scrollPerformanceProbe()
+{
+    const auto output=qEnvironmentVariable("DARKEYE_SHELF_PERF_OUTPUT");
+    if(output.isEmpty()) QSKIP("Optional production-material shelf performance probe");
+    darkeye::DvdShelfView view({}, {}, nullptr, {}, {});
+    auto *scene=view.findChild<darkeye::dvd_scene::DvdSceneWidget *>();
+    QVERIFY(scene);
+    auto *canvas=scene->renderWidget();
+    canvas->setAttribute(Qt::WA_TransparentForMouseEvents);
+    view.resize(1280,800);
+    QTemporaryDir covers;
+    const bool uniqueCovers=qEnvironmentVariableIsSet("DARKEYE_SHELF_PERF_UNIQUE_COVERS");
+    if(uniqueCovers) {
+        QVERIFY(covers.isValid());
+        QImage image(1024,2048,QImage::Format_RGB32);
+        for(int i=0;i<96;++i) {
+            image.fill(QColor::fromHsv((i*37)%360,150,220));
+            QVERIFY(image.save(covers.filePath(QStringLiteral("cover-%1.jpg").arg(i)),"JPG",95));
+        }
+    }
+    QList<darkeye::WorkSummary> works;
+    for(int i=0;i<1000;++i) {
+        darkeye::WorkSummary work; work.id=i+1;
+        if(uniqueCovers) work.imageUrl=covers.filePath(QStringLiteral("cover-%1.jpg").arg(i%96));
+        works.append(work);
+    }
+    view.setWorks(works);
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    QTest::qWait(600);
+    const auto fullLighting=canvas->lighting();
+    QJsonArray measurements;
+    for(const auto &name:QStringList{"full","no-ibl","no-ao","no-shadows","single-sample","half-resolution"}) {
+        auto lighting=fullLighting;
+        lighting.imageBasedLighting=name!="no-ibl" && fullLighting.imageBasedLighting;
+        lighting.ambientOcclusion=name!="no-ao" && fullLighting.ambientOcclusion;
+        lighting.shadows=name!="no-shadows" && fullLighting.shadows;
+        canvas->setLighting(lighting);
+        canvas->setSampleCount(name=="single-sample"?1:4);
+        canvas->setFixedColorBufferSize(name=="half-resolution"?QSize(1920,1200):QSize());
+        scene->setCameraX(1.0f,true);
+        QTest::qWait(400);
+        QElapsedTimer clock;
+        QVector<double> cpu,intervals;
+        qint64 previous=0;
+        const auto connection=connect(canvas,&QRhiWidget::frameSubmitted,&view,[&] {
+            const auto time=clock.nsecsElapsed();
+            if(previous) intervals.append((time-previous)/1e6);
+            previous=time;
+            cpu.append(canvas->statistics().cpuFrameMs);
+        });
+        QTimer driver;
+        driver.setTimerType(Qt::PreciseTimer);
+        driver.setInterval(16);
+        connect(&driver,&QTimer::timeout,&view,[&] { scene->setCameraX(1.0f+float(clock.elapsed())*0.0001f); });
+        const auto firstFrame=canvas->statistics().submittedFrames;
+        const auto firstUploads=canvas->statistics().textureUploads;
+        const auto firstBytes=canvas->statistics().textureUploadBytes;
+        const auto firstBindings=canvas->statistics().materialBindingBuilds;
+        clock.start(); driver.start();
+        QTest::qWait(2200);
+        driver.stop(); disconnect(connection);
+        const double seconds=clock.nsecsElapsed()/1e9;
+        std::sort(cpu.begin(),cpu.end()); std::sort(intervals.begin(),intervals.end());
+        const auto percentile=[](const QVector<double> &values) {
+            return values.isEmpty()?0:values[std::min(values.size()-1,qsizetype(values.size()*0.95))];
+        };
+        const auto s=canvas->statistics();
+        measurements.append(QJsonObject{{"variant",name},{"submissionFps",(s.submittedFrames-firstFrame)/seconds},
+            {"p95CpuMs",percentile(cpu)},{"p95FrameIntervalMs",percentile(intervals)},
+            {"drawCalls",s.drawCalls},{"visiblePrimitives",s.visibleItems},{"transmissionPasses",s.transmissionPasses},
+            {"width",s.pixelSize.width()},{"height",s.pixelSize.height()},{"samples",s.samples},
+            {"textureUploads",double(s.textureUploads-firstUploads)},
+            {"uploadMiB",(s.textureUploadBytes-firstBytes)/1048576.0},
+            {"materialBindingBuilds",double(s.materialBindingBuilds-firstBindings)},
+            {"textureMiB",s.textureBytes/1048576.0}});
+    }
+    QFile file(output); QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(QJsonDocument(QJsonObject{{"measurements",measurements},
+        {"uniqueCovers",uniqueCovers},
+        {"note","Production shelf model/materials/HDR, 1000 items, 60 resident. Submission FPS, not presentation FPS."}}).toJson());
 }
 
 void ShelfPageTest::existingShelfVisualProbe()

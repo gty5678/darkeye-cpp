@@ -10,6 +10,10 @@
 #include <QRhiWidget>
 #include <memory>
 
+class QAction;
+class QShowEvent;
+class QHideEvent;
+
 namespace darkeye::render3d {
 
 class Renderer;
@@ -23,6 +27,8 @@ struct RenderStatistics {
     quint64 pipelineGenerations = 0;
     quint64 geometryUploads = 0;
     quint64 materialBindingBuilds = 0;
+    quint64 textureUploads = 0;
+    quint64 textureUploadBytes = 0;
     // Only this renderer's buffers; excludes Qt render targets/driver overhead.
     quint64 bufferBytes = 0;
     quint64 textureBytes = 0; // source texels + renderer-owned linear targets
@@ -38,6 +44,7 @@ struct RenderStatistics {
 
 class RhiSceneWidget final : public QRhiWidget {
     Q_OBJECT
+    Q_PROPERTY(bool statisticsVisible READ statisticsVisible WRITE setStatisticsVisible NOTIFY statisticsVisibleChanged)
 public:
     explicit RhiSceneWidget(QWidget *parent = nullptr);
     ~RhiSceneWidget() override;
@@ -58,14 +65,23 @@ public:
     [[nodiscard]] LightingSettings lighting() const;
     [[nodiscard]] const RenderStatistics &statistics() const;
     [[nodiscard]] QString lastError() const;
+    // Optional overlay, disabled by default. The action can be shared with a host menu.
+    void setStatisticsVisible(bool visible);
+    [[nodiscard]] bool statisticsVisible() const { return m_statisticsVisible; }
+    [[nodiscard]] QAction *statisticsAction() const { return m_statisticsAction; }
 
 signals:
     void renderingError(const QString &message);
+    void statisticsVisibleChanged(bool visible);
 
 protected:
+    bool event(QEvent *event) override;
+    bool eventFilter(QObject *object, QEvent *event) override;
     void initialize(QRhiCommandBuffer *cb) override;
     void render(QRhiCommandBuffer *cb) override;
     void releaseResources() override;
+    void showEvent(QShowEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
 
 private:
     void reportError(const QString &message);
@@ -78,6 +94,10 @@ private:
     std::unique_ptr<Renderer> m_renderer;
     RenderStatistics m_statistics;
     QString m_lastError;
+    struct StatisticsOverlay;
+    std::unique_ptr<StatisticsOverlay> m_statisticsOverlay;
+    QAction *m_statisticsAction = nullptr;
+    bool m_statisticsVisible = false;
 };
 
 } // namespace darkeye::render3d

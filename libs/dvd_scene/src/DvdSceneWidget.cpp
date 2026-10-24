@@ -366,6 +366,20 @@ bool DvdSceneWidget::isFullyExpanded() const
         && d->interaction.state()==DvdInteractionController::State::Focused
         && !d->interaction.active(it->second);
 }
+bool DvdSceneWidget::isNearlyClosed() const
+{
+    const auto it=d->cases.find(selectedId());
+    if(it==d->cases.end() || it->second.expanded) return false;
+    // Use the actual animated pose, so interruptions and slow frames do not
+    // reveal overlays while the lid is still visibly open.
+    const float minimumDot=std::cos(8.0f*3.14159265f/360.0f);
+    for(const auto hinge:{it->second.spine,it->second.front}) {
+        const auto *node=d->scene->node(hinge);
+        if(!node || std::abs(QQuaternion::dotProduct(node->transform.rotation,QQuaternion()))<minimumDot)
+            return false;
+    }
+    return true;
+}
 std::optional<QRectF> DvdSceneWidget::selectedFrontRect() const
 {
     const auto it=d->cases.find(selectedId());

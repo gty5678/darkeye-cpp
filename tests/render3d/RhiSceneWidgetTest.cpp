@@ -1,6 +1,10 @@
 #include "render3d/RhiSceneWidget.h"
 
 #include <QImage>
+#include <QAction>
+#include <QFrame>
+#include <QLabel>
+#include <QToolButton>
 #include <QTest>
 #include <QVBoxLayout>
 #include <cmath>
@@ -46,6 +50,107 @@ MeshHandle texturedQuad()
 class RhiSceneWidgetTest final : public QObject {
     Q_OBJECT
 private slots:
+    void coverLodChangesDoNotResizeTheEntireTextureCache()
+    {
+        RhiSceneWidget view;
+        view.resize(400,300);
+        constexpr quint64 budget=2*1024*1024;
+        view.setTextureBudget(budget);
+        const auto scene=std::make_shared<Scene>();
+        const auto mesh=texturedQuad();
+        std::vector<std::shared_ptr<Material>> materials;
+        for(int i=0;i<12;++i) {
+            auto texture=std::make_shared<TextureData>();
+            texture->image=QImage(256,512,QImage::Format_RGBA8888);
+            texture->image.fill(QColor::fromHsv(i*29,160,220));
+            auto material=std::make_shared<Material>();
+            material->baseColorTexture=texture;
+            materials.push_back(material);
+            QVERIFY(scene->setMesh(scene->createNode(),mesh,material));
+        }
+        view.setScene(scene); view.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&view));
+        QVERIFY(!view.grabFramebuffer().isNull());
+        QVERIFY(view.statistics().sourceTextureBytes<=budget);
+        const auto uploads=view.statistics().textureUploads;
+        auto promoted=std::make_shared<TextureData>();
+        promoted->image=QImage(256,544,QImage::Format_RGBA8888);
+        promoted->image.fill(Qt::blue);
+        materials.front()->baseColorTexture=promoted;
+        view.update();
+        QVERIFY(!view.grabFramebuffer().isNull());
+        // A small source-resolution change previously resized all 12 images.
+        // Only the replacement and the minimum budget reclamation may upload.
+        QVERIFY(view.statistics().textureUploads-uploads<=3);
+        QVERIFY(view.statistics().sourceTextureBytes<=budget);
+        const auto stableUploads=view.statistics().textureUploads;
+        auto camera=view.camera(); camera.target.setX(0.1f); view.setCamera(camera);
+        QVERIFY(!view.grabFramebuffer().isNull());
+        QCOMPARE(view.statistics().textureUploads,stableUploads);
+        view.setTextureBudget(8*1024*1024);
+        QVERIFY(!view.grabFramebuffer().isNull());
+        QVERIFY(view.statistics().sourceTextureBytes>budget);
+        QVERIFY(view.statistics().sourceTextureBytes<=8*1024*1024);
+        view.setTextureBudget(budget/4);
+        QVERIFY(!view.grabFramebuffer().isNull());
+        QVERIFY(view.statistics().sourceTextureBytes<=budget/4);
+        QVERIFY(view.lastError().isEmpty());
+    }
+
+    void statisticsPanelCanToggleWithoutDrivingIdleRendering()
+    {
+        QWidget window;
+        window.resize(480,360);
+        RhiSceneWidget view(&window);
+        view.setGeometry(window.rect());
+        const auto scene=std::make_shared<Scene>();
+        const auto node=scene->createNode();
+        QVERIFY(scene->setMesh(node,texturedQuad(),std::make_shared<Material>()));
+        view.setScene(scene);
+        QVERIFY(!view.statisticsVisible());
+        view.statisticsAction()->trigger();
+        QVERIFY(view.statisticsVisible());
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        auto *panel=window.findChild<QFrame *>(QStringLiteral("RhiStatisticsPanel"));
+        auto *values=window.findChild<QLabel *>(QStringLiteral("RhiStatisticsValues"));
+        QVERIFY(panel && panel->isVisible());
+        QVERIFY(values);
+        QCOMPARE(panel->pos(),view.mapToGlobal(QPoint(12,12)));
+        QTRY_VERIFY(!view.statistics().backend.isEmpty()
+                    && values->text().contains(view.statistics().backend));
+        const auto panelImage=panel->grab().toImage();
+        const auto background=panelImage.pixelColor(panelImage.width()/2,qRound(4*panelImage.devicePixelRatio()));
+        QVERIFY(background.alpha()>200 && background.red()<50);
+        const auto screenshot=qEnvironmentVariable("DARKEYE_STATISTICS_SCREENSHOT");
+        if(!screenshot.isEmpty()) QVERIFY(panel->grab().save(screenshot));
+        // Updating the statistics UI must not keep an otherwise static scene
+        // rendering or count its own repaints as a continuous FPS workload.
+        QTest::qWait(1600);
+        const auto frames=view.statistics().submittedFrames;
+        QTest::qWait(600);
+        QCOMPARE(view.statistics().submittedFrames,frames);
+        QVERIFY(values->text().contains(QStringLiteral("FPS（提交）  0.0")));
+        auto *close=window.findChild<QToolButton *>(QStringLiteral("RhiStatisticsClose"));
+        QVERIFY(close);
+        QTest::mouseClick(close,Qt::LeftButton);
+        QVERIFY(!view.statisticsVisible());
+        QVERIFY(!view.statisticsAction()->isChecked());
+        QVERIFY(panel->isHidden());
+        view.statisticsAction()->trigger();
+        QVERIFY(panel->isVisible());
+        view.hide();
+        QTest::qWait(100);
+        const auto hiddenFrames=view.statistics().submittedFrames;
+        QTest::qWait(600);
+        QCOMPARE(view.statistics().submittedFrames,hiddenFrames);
+        view.setParent(nullptr);
+        view.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&view));
+        QVERIFY(panel->isVisible());
+        QCOMPARE(panel->pos(),view.mapToGlobal(QPoint(12,12)));
+    }
+
     void replacingOneCoverPreservesOtherMaterialBindings()
     {
         RhiSceneWidget view;

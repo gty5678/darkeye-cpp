@@ -105,6 +105,7 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     m_scene->setObjectName(QStringLiteral("ShelfDvdScene"));
     m_scene->setMinimumHeight(400);
     m_scene->renderWidget()->setSampleCount(4);
+    m_scene->renderWidget()->setStatisticsVisible(false);
     m_scene->renderWidget()->installEventFilter(this);
     m_scene->setCoverBudget(128ULL*1024*1024);
     m_contextMenu = new QMenu(this);
@@ -122,6 +123,8 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     action(QStringLiteral("编辑"), QStringLiteral("ShelfEdit"), [this] { on_edit_clicked(selectedIndex()); });
     action(QStringLiteral("删除"), QStringLiteral("ShelfDelete"), [this] { on_delete_clicked(selectedIndex()); });
     action(QStringLiteral("放回书架（Esc）"), QStringLiteral("ShelfReturn"), [this] { m_scene->returnToShelf(); });
+    m_contextMenu->addSeparator();
+    m_contextMenu->addAction(m_scene->renderWidget()->statisticsAction());
     m_coverInfo=new QScrollArea(this);
     m_coverInfo->setObjectName(QStringLiteral("ShelfCoverInfo"));
     m_coverInfo->setWidgetResizable(false);
@@ -280,7 +283,8 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     lighting.environmentIntensity=0.8f;
     lighting.keyLightDirection={-0.5f,0.8f,1.0f};
     lighting.keyLightIntensity=1.8f;
-    lighting.keyLightCameraRelative=true;
+    // Keep the key light fixed above-left of the initial camera view.
+    lighting.keyLightCameraRelative=false;
     m_scene->renderWidget()->setLighting(lighting);
     if(!environment) qWarning().noquote()<<environmentError;
 }
@@ -463,6 +467,10 @@ void DvdShelfView::updateCoverInfo()
 }
 void DvdShelfView::layoutOverlays()
 {
+    // expanded becomes false as soon as closing starts. Reveal the prepared
+    // graph only near the end of the actual lid animation.
+    if(m_relationGraphContainer && m_relationGraphContainer->isHidden())
+        showRelationGraph(m_relationGraphWorkId);
     const auto front=m_scene->selectedFrontRect();
     if(const auto anchor=m_scene->selectedInfoAnchor())
         set_force_view_overlay(anchor->x(),anchor->y());
@@ -768,7 +776,7 @@ bool DvdShelfView::openWork(qint64 workId)
 void DvdShelfView::showRelationGraph(qint64 workId)
 {
     if (m_relationGraph == nullptr || m_relationGraphContainer == nullptr || workId <= 0 ||
-        m_suppressRelationGraphUntilDeselected || m_scene->isExpanded()
+        workId!=currentWorkId() || m_suppressRelationGraphUntilDeselected || !m_scene->isNearlyClosed()
         || m_scene->state()!=dvd_scene::DvdInteractionController::State::Focused)
         return;
     if (m_relationGraphCenterX >= 0 && m_relationGraphCenterY >= 0)
@@ -875,6 +883,10 @@ bool DvdShelfView::eventFilter(QObject *object,QEvent *event)
             if(currentWorkId()>0 && (context->reason()==QContextMenuEvent::Keyboard || !m_rightDragged)) {
                 refresh_expanded_favorite_state(selectedIndex());
                 m_contextMenu->exec(context->globalPos());
+            } else if(currentWorkId()<=0 && (context->reason()==QContextMenuEvent::Keyboard || !m_rightDragged)) {
+                QMenu menu(this);
+                menu.addAction(m_scene->renderWidget()->statisticsAction());
+                menu.exec(context->globalPos());
             }
             return true;
         }

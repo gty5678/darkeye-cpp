@@ -15,7 +15,10 @@ class Renderer {
 public:
     ~Renderer();
     void release();
-    void setTextureBudget(quint64 bytes) { m_textureBudget=std::max<quint64>(65536,bytes); }
+    void setTextureBudget(quint64 bytes) {
+        const auto budget=std::max<quint64>(65536,bytes);
+        if(m_textureBudget!=budget) { m_textureBudget=budget; m_textureBudgetDirty=true; }
+    }
     void setLighting(const LightingSettings &settings) { m_lightingSettings=settings; }
     LightingSettings lighting() const { return m_lightingSettings; }
     void setEnvironment(std::shared_ptr<const EnvironmentMap> environment) { m_environment=std::move(environment); }
@@ -36,6 +39,7 @@ private:
     };
     struct Texture {
         std::shared_ptr<const TextureData> source;
+        QSize sourceSize;
         std::unique_ptr<QRhiTexture> texture;
         std::unique_ptr<QRhiSampler> sampler;
         quint64 bytes = 0;
@@ -79,6 +83,7 @@ private:
     int m_samples = 0;
     bool m_targetsReady=false;
     quint64 m_textureBudget=32*1024*1024;
+    bool m_textureBudgetDirty=true;
     LightingSettings m_lightingSettings;
     std::shared_ptr<const EnvironmentMap> m_environment;
     std::unique_ptr<LightingResources> m_lighting;

@@ -184,7 +184,7 @@ void MainWindowSmokeTest::homeShowsThreeRandomRows()
     QVERIFY(canvas->property("modelError").toString().isEmpty());
     QCOMPARE(view->coverPaths().size(), 18);
     QCOMPARE(canvas->camera().target, QVector3D(0, 0.865f, 0));
-    QCOMPARE(canvas->sampleCount(), 4);
+    QCOMPARE(canvas->sampleCount(), 2);
     const auto initial = view->coverPaths();
     const auto scene = canvas->scene();
     const auto size = scene->size();
@@ -208,12 +208,12 @@ void MainWindowSmokeTest::homeShowsThreeRandomRows()
             if (item.material && item.material->name==QStringLiteral("pic")
                 && item.material->baseColorTexture
                 && view->coverPaths().contains(item.material->baseColorTexture->source)
-                && item.material->baseColorTexture->image.width()>=2048
+                && item.material->baseColorTexture->image.width()>=256
+                && item.material->baseColorTexture->image.width()<=1024
                 && item.material->baseColorTexture->maxAnisotropy==8) ++ready;
         return ready==18;
     }());
-    // Include the mip chain: the GPU budget must fit all 18 high-resolution
-    // textures rather than silently scaling them back down during upload.
+    // Small home covers should stay inexpensive, including their mip chains.
     quint64 textureBytes = 0;
     for (const auto &item : scene->renderItems()) {
         if (!item.material || item.material->name!=QStringLiteral("pic")) continue;
@@ -226,6 +226,7 @@ void MainWindowSmokeTest::homeShowsThreeRandomRows()
     }
     canvas->update();
     QTRY_VERIFY(canvas->statistics().sourceTextureBytes>=textureBytes);
+    QVERIFY(textureBytes<64ULL*1024*1024);
     QSignalSpy selected(&page, &darkeye::HomePage::detailRequested);
     const auto center = canvas->camera().project({-0.394006f,1.115f,-0.043f},canvas->size());
     QVERIFY(center);
