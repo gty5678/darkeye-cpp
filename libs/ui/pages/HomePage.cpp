@@ -1,6 +1,7 @@
 #include "ui/pages/HomePage.h"
 
 #include "app/Resources.h"
+#include "ui/components/ShopSceneWidget.h"
 #include "database/repositories/WorkRepository.h"
 #include "darkeye_ui/components/InteractionEffects.h"
 #include "darkeye_ui/theme/ThemeService.h"
@@ -10,10 +11,7 @@
 #include <QFileInfo>
 #include <QGridLayout>
 #include <QHBoxLayout>
-#include <QQuickItem>
-#include <QQuickWidget>
 #include <QRandomGenerator>
-#include <QUrl>
 
 namespace darkeye {
 
@@ -44,26 +42,28 @@ void HomePage::lazyLoad()
         "QPushButton#HomeRefreshButton { background: transparent; border: none; }"));
     bar->addWidget(reload);
 
-    m_view = new QQuickWidget(this);
+    m_view = new ShopSceneWidget(this);
     m_view->setObjectName(QStringLiteral("HomeShopView"));
-    m_view->setResizeMode(QQuickWidget::SizeRootObjectToView);
     m_view->setMinimumHeight(360);
-    m_view->setClearColor(QColor(QStringLiteral("#18181c")));
-    m_view->setSource(QUrl(QStringLiteral("qrc:/qml/shop/shop_viewport.qml")));
     root->addWidget(m_view, 0, 0);
     root->addLayout(bar, 0, 0, Qt::AlignTop);
     reload->raise();
     connect(reload, &QPushButton::clicked, this, &HomePage::refresh);
-    if (QObject *scene = m_view->rootObject())
-        connect(scene, SIGNAL(coverClicked(int)), this, SLOT(openCover(int)));
+    connect(m_view, &ShopSceneWidget::coverClicked, this, &HomePage::openCover);
+    connect(m_view, &ShopSceneWidget::sceneError, this, [this](const QString &message) {
+        ToastNotification::showMessage(window(), message, ToastNotification::Level::Error);
+    });
+    const auto modelError = m_view->canvas()->property("modelError").toString();
+    if (!modelError.isEmpty())
+        ToastNotification::showMessage(window(), modelError, ToastNotification::Level::Error);
     updateOutlineColor();
     refresh();
 }
 
 void HomePage::updateOutlineColor()
 {
-    if (m_view != nullptr && m_view->rootObject() != nullptr)
-        m_view->rootObject()->setProperty("outlineColor", QColor(m_themes.currentTokens().primary));
+    if (m_view != nullptr)
+        m_view->setOutlineColor(QColor(m_themes.currentTokens().primary));
 }
 
 void HomePage::openCover(int index)
@@ -87,16 +87,14 @@ void HomePage::refresh()
         return;
     }
     m_works = works;
-    QVariantList textures;
+    QStringList textures;
     for (const WorkSummary &work : m_works)
     {
         const QString path = QDir(m_coverDirectory).filePath(work.imageUrl);
         textures.append(!work.imageUrl.isEmpty() && QFileInfo::exists(path)
-            ? QUrl::fromLocalFile(path).toString()
-            : QStringLiteral("qrc:/assets/maps/0.png"));
+            ? path : QString());
     }
-    if (QObject *scene = m_view->rootObject())
-        scene->setProperty("coverTextureSources", textures);
+    m_view->setCoverPaths(textures);
 }
 
 } // namespace darkeye

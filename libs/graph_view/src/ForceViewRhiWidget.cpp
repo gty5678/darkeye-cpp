@@ -1256,6 +1256,11 @@ void ForceViewRhiWidget::setBackgroundColor(const QColor& color)
 {
     if (color.isValid()) {
         m_backgroundColor = color;
+        if(m_canvas) {
+            m_canvas->setAttribute(Qt::WA_OpaquePaintEvent,color.alpha()==255);
+            m_canvas->setAutoFillBackground(false);
+            m_canvas->update();
+        }
         update();
     }
 }

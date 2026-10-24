@@ -43,6 +43,9 @@
 /vcpkg_installed/
 
 # Local databases, logs, and test artifacts
+# Documentation assets should not contain raw test output.
+/docs/assets/qrhi3d/**/*.txt
+/docs/assets/qrhi3d/**/*.log
 *.db
 *.db-wal
 *.db-shm

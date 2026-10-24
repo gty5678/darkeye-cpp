@@ -28,10 +28,7 @@ target_link_libraries(darkeye_business_ui PUBLIC
     darkeye::graph_view
     darkeye::darkeye_ui
     darkeye::docking
-    Qt6::Qml
-    Qt6::Quick
-    Qt6::Quick3D
-    Qt6::QuickWidgets
+    darkeye::dvd_scene
     Qt6::Widgets
 )
 darkeye_apply_compiler_options(darkeye_business_ui)

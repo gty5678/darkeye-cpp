@@ -408,7 +408,7 @@ int ShelfPage::reloadDvdScene()
     if (!connection.open(m_database.databaseName(), true, &error)) return -1;
     WorkSearch search = currentSearch();
     // DvdShelfView receives the complete result set but submits only a moving
-    // 60-item window to Qt Quick 3D, matching the Python shelf virtualization.
+    // 60-item window to the native QRhi DVD scene.
     search.limit = 0;
     search.offset = 0;
     const QList<WorkSummary> works = WorkRepository(connection.database()).search(search, &error);

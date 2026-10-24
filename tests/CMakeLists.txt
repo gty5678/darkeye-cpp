@@ -1,4 +1,7 @@
 add_subdirectory(demos)
+add_subdirectory(render3d)
+add_subdirectory(dvd_scene)
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime")
 
 # Exercise the real entry point in its own runtime directory so startup tests
 # never read or change the desktop executable's settings or databases.
@@ -16,7 +19,7 @@ foreach(mode IN ITEMS reject accept)
     set_tests_properties(darkeye_startup_${mode} PROPERTIES
         RUN_SERIAL TRUE
         TIMEOUT 30
-        ENVIRONMENT "QT_QPA_PLATFORM=windows;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
+        ENVIRONMENT "QT_QPA_PLATFORM=windows;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;TEMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime"
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}")
 endforeach()
 
@@ -48,6 +51,9 @@ darkeye_apply_compiler_options(darkeye_fixture_database_builder)
 
 darkeye_add_qt_test(darkeye_app_tests unit/AppPathsTest.cpp)
 darkeye_add_qt_test(darkeye_ui_smoke_tests integration/MainWindowSmokeTest.cpp)
+set_tests_properties(darkeye_ui_smoke_tests PROPERTIES
+    RUN_SERIAL TRUE TIMEOUT 120
+    ENVIRONMENT "QT_QPA_PLATFORM=windows;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;TEMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime")
 target_link_libraries(darkeye_ui_smoke_tests PRIVATE darkeye::desktop_ui)
 darkeye_add_qt_test(darkeye_theme_tests unit/ThemeServiceTest.cpp)
 darkeye_add_qt_test(darkeye_layout_tests unit/LayoutTest.cpp)
@@ -139,6 +145,10 @@ set_target_properties(darkeye_crawler_refresh_tests PROPERTIES WIN32_EXECUTABLE 
 set_tests_properties(darkeye_crawler_refresh_tests PROPERTIES TIMEOUT 30)
 darkeye_add_qt_test(darkeye_work_page_tests integration/WorkPageTest.cpp)
 darkeye_add_qt_test(darkeye_shelf_page_tests integration/ShelfPageTest.cpp)
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/shelf-runtime")
+set_tests_properties(darkeye_shelf_page_tests PROPERTIES
+    RUN_SERIAL TRUE TIMEOUT 120
+    ENVIRONMENT "QT_QPA_PLATFORM=windows;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;TEMP=${CMAKE_CURRENT_BINARY_DIR}/shelf-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/shelf-runtime")
 darkeye_add_qt_test(darkeye_av_page_tests integration/AvPageTest.cpp)
 darkeye_add_qt_test(darkeye_person_page_tests integration/PersonPageTest.cpp)
 

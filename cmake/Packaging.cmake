@@ -17,7 +17,7 @@ function(darkeye_configure_packaging target)
                 "$<$<CONFIG:Debug>:--debug>"
                 "$<$<NOT:$<CONFIG:Debug>>:--release>"
                 --no-translations
-                --qmldir "${PROJECT_SOURCE_DIR}/resources/qml"
+                --no-quick-import
                 --dir "$<TARGET_FILE_DIR:${target}>"
                 "$<TARGET_FILE:${target}>"
             COMMENT "Deploying Qt runtime beside ${target}"
@@ -87,7 +87,6 @@ function(darkeye_configure_packaging target)
         OUTPUT_SCRIPT deploy_script
         NO_TRANSLATIONS
         NO_UNSUPPORTED_PLATFORM_ERROR
-        DEPLOY_TOOL_OPTIONS --qmldir "${PROJECT_SOURCE_DIR}/resources/qml"
     )
 
     install(SCRIPT "${deploy_script}")

@@ -9,6 +9,7 @@
 #include "MainWindow.h"
 #include "ui/pages/DashboardPage.h"
 #include "ui/pages/HomePage.h"
+#include "ui/components/ShopSceneWidget.h"
 #include "ui/pages/ManagementPage.h"
 #include "ui/pages/PersonDetailPage.h"
 #include "ui/pages/PersonPage.h"
@@ -48,8 +49,6 @@
 #include <QKeySequenceEdit>
 #include <QPushButton>
 #include <QRadioButton>
-#include <QQuickWidget>
-#include <QQuickItem>
 #include <QImage>
 #include <QVector3D>
 #include <QRegularExpression>
@@ -169,7 +168,7 @@ void MainWindowSmokeTest::homeShowsThreeRandomRows()
         darkeye::Work work;
         work.serialNumber = QStringLiteral("HOME-%1").arg(i);
         work.imageUrl = QStringLiteral("%1.png").arg(i);
-        QImage cover(320, 450, QImage::Format_RGB32);
+        QImage cover(3200, 2200, QImage::Format_RGB32);
         cover.fill(QColor::fromHsv((i * 30) % 360, 150, 200));
         QVERIFY(cover.save(directory.filePath(work.imageUrl)));
         QVERIFY(repository.insertComplete(work, {}, {}, {}, &error).has_value());
@@ -177,60 +176,77 @@ void MainWindowSmokeTest::homeShowsThreeRandomRows()
     darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
     darkeye::HomePage page(connection.database(), directory.path(), themes);
     page.initialize();
-    auto *view = page.findChild<QQuickWidget *>();
+    auto *view = page.findChild<darkeye::ShopSceneWidget *>();
     QVERIFY(view);
-    QVERIFY2(view->status() == QQuickWidget::Ready, "Home QML failed to load");
-    QObject *scene = view->rootObject();
-    QVERIFY(scene);
-    QCOMPARE(scene->property("camPos").value<QVector3D>(), QVector3D(0, 0.865, 0.86));
-    QCOMPARE(scene->property("outlineColor").value<QColor>(), QColor(themes.currentTokens().primary));
-    QVERIFY(scene->findChild<QObject *>(QStringLiteral("hoverOutline")));
-    QVERIFY(scene->findChild<QObject *>(QStringLiteral("ShopBackPanel")));
-    const auto initial = scene->property("coverTextureSources").toList();
-    QCOMPARE(initial.size(), 18);
-    QPointer<QObject> firstCover = scene->findChild<QObject *>(QStringLiteral("HomeCover0"));
-    QVERIFY(firstCover);
-    QPointer<QObject> firstImage = scene->findChild<QObject *>(QStringLiteral("HomeCoverImage0"));
-    QVERIFY(firstImage);
-    QVERIFY(firstImage->property("asynchronous").toBool());
-    QCOMPARE(page.findChildren<QPushButton *>().size(), 1);
+    for (const auto *widget : page.findChildren<QWidget *>())
+        QVERIFY(!widget->inherits("QQuickWidget"));
+    auto *canvas = view->canvas();
+    QVERIFY(canvas->property("modelError").toString().isEmpty());
+    QCOMPARE(view->coverPaths().size(), 18);
+    QCOMPARE(canvas->camera().target, QVector3D(0, 0.865f, 0));
+    QCOMPARE(canvas->sampleCount(), 4);
+    const auto initial = view->coverPaths();
+    const auto scene = canvas->scene();
+    const auto size = scene->size();
+    const auto firstMesh = scene->renderItems().back().mesh;
     auto *refresh = page.findChild<QPushButton *>(QStringLiteral("HomeRefreshButton"));
     QVERIFY(refresh);
     bool changed = false;
-    for (int i = 0; i < 5 && !changed; ++i)
-    {
+    for (int i=0; i<5 && !changed; ++i) {
         refresh->click();
-        const auto current = scene->property("coverTextureSources").toList();
-        QCOMPARE(current.size(), 18);
-        changed = current != initial;
+        changed = view->coverPaths()!=initial;
     }
     QVERIFY(changed);
-    QVERIFY(firstCover);
-    QVERIFY(firstImage);
-    QCOMPARE(scene->findChild<QObject *>(QStringLiteral("HomeCover0")), firstCover.data());
-    QCOMPARE(scene->findChild<QObject *>(QStringLiteral("HomeCoverImage0")), firstImage.data());
-    QCOMPARE(firstImage->property("source").toUrl(),
-             QUrl(scene->property("coverTextureSources").toList().first().toString()));
-    QTRY_COMPARE(firstImage->property("status").toInt(), 1); // Image.Ready
-    const QSize decodedSize = firstImage->property("sourceSize").toSize();
-    QVERIFY(decodedSize.width() > 0 && decodedSize.width() <= 768);
-    QVERIFY(decodedSize.height() > 0 && decodedSize.height() <= 768);
-    QSignalSpy selected(&page, &darkeye::HomePage::detailRequested);
-    QVERIFY(QMetaObject::invokeMethod(scene, "coverClicked", Q_ARG(int, 0)));
-    QCOMPARE(selected.size(), 1);
-    QVERIFY(selected.first().first().toLongLong() > 0);
+    QCOMPARE(scene->size(), size);
+    QCOMPARE(scene->renderItems().back().mesh, firstMesh);
     page.resize(1100, 650);
     page.show();
-    QTest::qWait(400);
-    QVERIFY(!view->grabFramebuffer().isNull());
+    QTRY_VERIFY(canvas->statistics().submittedFrames>0);
+    QTRY_VERIFY([&] {
+        int ready = 0;
+        for (const auto &item : scene->renderItems())
+            if (item.material && item.material->name==QStringLiteral("pic")
+                && item.material->baseColorTexture
+                && view->coverPaths().contains(item.material->baseColorTexture->source)
+                && item.material->baseColorTexture->image.width()>=2048
+                && item.material->baseColorTexture->maxAnisotropy==8) ++ready;
+        return ready==18;
+    }());
+    // Include the mip chain: the GPU budget must fit all 18 high-resolution
+    // textures rather than silently scaling them back down during upload.
+    quint64 textureBytes = 0;
+    for (const auto &item : scene->renderItems()) {
+        if (!item.material || item.material->name!=QStringLiteral("pic")) continue;
+        QSize mip = item.material->baseColorTexture->image.size();
+        while (true) {
+            textureBytes += quint64(mip.width())*mip.height()*4;
+            if (mip==QSize(1,1)) break;
+            mip = QSize(std::max(1,mip.width()/2),std::max(1,mip.height()/2));
+        }
+    }
+    canvas->update();
+    QTRY_VERIFY(canvas->statistics().sourceTextureBytes>=textureBytes);
+    QSignalSpy selected(&page, &darkeye::HomePage::detailRequested);
+    const auto center = canvas->camera().project({-0.394006f,1.115f,-0.043f},canvas->size());
+    QVERIFY(center);
+    QMouseEvent hover(QEvent::MouseMove, *center, canvas->mapToGlobal(center->toPoint()),
+                      Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &hover);
+    QCOMPARE(canvas->cursor().shape(), Qt::PointingHandCursor);
+    QTest::mouseClick(canvas, Qt::LeftButton, Qt::NoModifier, center->toPoint());
+    QCOMPARE(selected.size(), 1);
+    QVERIFY(selected.first().first().toLongLong()>0);
+    const auto before = canvas->camera();
+    QTest::mousePress(canvas, Qt::RightButton, Qt::NoModifier, QPoint(400,300));
+    QTest::mouseMove(canvas,QPoint(440,320));
+    QTest::mouseRelease(canvas, Qt::RightButton, Qt::NoModifier, QPoint(440,320));
+    QVERIFY(canvas->camera().yaw!=before.yaw);
+    QCOMPARE(canvas->camera().position(),before.position());
+    const auto frame = canvas->grabFramebuffer();
+    QVERIFY(!frame.isNull());
+    QVERIFY(canvas->lastError().isEmpty());
     const QString snapshot = qEnvironmentVariable("DARKEYE_HOME_SNAPSHOT");
     if (!snapshot.isEmpty()) QVERIFY(page.grab().save(snapshot));
-    QObject *outline = scene->findChild<QObject *>(QStringLiteral("hoverOutline"));
-    QVERIFY(QMetaObject::invokeMethod(outline, "updateForIndex", Q_ARG(QVariant, QVariant(2))));
-    QVERIFY(outline->property("visible").toBool());
-    QSignalSpy cameraChanged(scene, SIGNAL(cameraChanged()));
-    scene->setProperty("yawDeg", 5.0);
-    QCOMPARE(cameraChanged.size(), 1);
 }
 
 void MainWindowSmokeTest::backgroundChangesRefreshOpenPages()

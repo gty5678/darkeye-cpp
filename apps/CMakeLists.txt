@@ -1,2 +1,5 @@
 add_subdirectory(desktop)
 add_subdirectory(component_gallery)
+if(DARKEYE_BUILD_RENDER3D_DEMO OR DARKEYE_BUILD_TESTS)
+    add_subdirectory(render3d_demo)
+endif()
