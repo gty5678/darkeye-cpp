@@ -799,12 +799,25 @@ QList<WorkStateRecord> WorkRepository::listByDeletedState(bool deleted, const QS
                                                           QString *errorMessage) const
 {
     QSqlQuery query(m_database);
-    Q_UNUSED(keyword);
     // Keep the same active/deleted predicate and natural table order as Python's
     // WorkSoftDeletePage (SELECT * FROM work WHERE IFNULL(is_deleted, 0) = 0).
-    const QString sql = QStringLiteral("SELECT * FROM work WHERE IFNULL(is_deleted, 0)=?");
+    QString sql = QStringLiteral("SELECT * FROM work WHERE IFNULL(is_deleted, 0)=?");
+    if (!keyword.trimmed().isEmpty())
+        sql += QStringLiteral(" AND (serial_number LIKE ? ESCAPE '\\' OR "
+                              "cn_title LIKE ? ESCAPE '\\' OR jp_title LIKE ? ESCAPE '\\')");
     query.prepare(sql);
     query.addBindValue(deleted ? 1 : 0);
+    if (!keyword.trimmed().isEmpty())
+    {
+        QString literal = keyword.trimmed();
+        literal.replace(QStringLiteral("\\"), QStringLiteral("\\\\"));
+        literal.replace(QStringLiteral("%"), QStringLiteral("\\%"));
+        literal.replace(QStringLiteral("_"), QStringLiteral("\\_"));
+        const QString pattern = QStringLiteral("%") + literal + QStringLiteral("%");
+        query.addBindValue(pattern);
+        query.addBindValue(pattern);
+        query.addBindValue(pattern);
+    }
     if (!query.exec())
     {
         if (errorMessage != nullptr)

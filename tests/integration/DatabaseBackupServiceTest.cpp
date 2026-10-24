@@ -1,5 +1,6 @@
 #include "database/DatabaseBackupService.h"
 #include "database/DatabaseMaintenanceService.h"
+#include "database/SchemaManager.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -22,6 +23,11 @@ private slots:
     void createsPythonCompatibleSnapshot();
     void restoresVersionOneSnapshot_data();
     void restoresVersionOneSnapshot();
+    void rejectsForeignKeyCorruptionWithoutChangingData();
+    void restoresFailedCopyAtomically();
+    void refusesRestoreInsideTransaction();
+    void restoresCompleteDatabase_data();
+    void restoresCompleteDatabase();
 };
 
 void DatabaseBackupServiceTest::createsReadableConsistentBackup()
@@ -192,6 +198,134 @@ void DatabaseBackupServiceTest::restoresVersionOneSnapshot()
         QVERIFY(image.open(QIODevice::ReadOnly));
         QCOMPARE(image.readAll(), QByteArray("image"));
     }
+}
+
+void DatabaseBackupServiceTest::rejectsForeignKeyCorruptionWithoutChangingData()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    darkeye::SqliteConnection source;
+    QVERIFY(source.open(root.filePath(QStringLiteral("source.db")), false));
+    QSqlQuery query(source.database());
+    QVERIFY(query.exec(QStringLiteral("CREATE TABLE parent(id INTEGER PRIMARY KEY)")));
+    QVERIFY(query.exec(QStringLiteral("CREATE TABLE child(parent_id INTEGER REFERENCES parent(id))")));
+    QVERIFY(query.exec(QStringLiteral("INSERT INTO parent VALUES(1)")));
+    QVERIFY(query.exec(QStringLiteral("INSERT INTO child VALUES(1)")));
+    const QString backupPath = root.filePath(QStringLiteral("corrupt.db"));
+    QVERIFY(darkeye::DatabaseBackupService::createConsistentBackup(source, backupPath));
+    {
+        darkeye::SqliteConnection backup;
+        QVERIFY(backup.open(backupPath, false));
+        QSqlQuery corrupt(backup.database());
+        QVERIFY(corrupt.exec(QStringLiteral("PRAGMA foreign_keys=OFF")));
+        QVERIFY(corrupt.exec(QStringLiteral("UPDATE child SET parent_id=999")));
+    }
+    const auto result = darkeye::DatabaseMaintenanceService::restoreBackup(source.database(), backupPath);
+    QVERIFY2(!result.succeeded, "Restore must reject orphaned foreign keys");
+    QVERIFY(query.exec(QStringLiteral("SELECT parent_id FROM child")));
+    QVERIFY(query.next());
+    QCOMPARE(query.value(0).toInt(), 1);
+    query.finish();
+    QVERIFY(query.exec(QStringLiteral("PRAGMA foreign_key_check")));
+    QVERIFY(!query.next());
+    QVERIFY(!query.exec(QStringLiteral("INSERT INTO child VALUES(999)")));
+}
+
+void DatabaseBackupServiceTest::restoresFailedCopyAtomically()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    darkeye::SqliteConnection source;
+    QVERIFY(source.open(root.filePath(QStringLiteral("source.db")), false));
+    QSqlQuery query(source.database());
+    QVERIFY(query.exec(QStringLiteral("CREATE TABLE first(value TEXT)")));
+    QVERIFY(query.exec(QStringLiteral("CREATE TABLE second(value TEXT NOT NULL)")));
+    QVERIFY(query.exec(QStringLiteral("INSERT INTO first VALUES('backup')")));
+    QVERIFY(query.exec(QStringLiteral("INSERT INTO second VALUES('backup')")));
+    const QString backupPath = root.filePath(QStringLiteral("incompatible.db"));
+    QVERIFY(darkeye::DatabaseBackupService::createConsistentBackup(source, backupPath));
+    {
+        darkeye::SqliteConnection backup;
+        QVERIFY(backup.open(backupPath, false));
+        QSqlQuery change(backup.database());
+        QVERIFY(change.exec(QStringLiteral("ALTER TABLE second ADD COLUMN extra TEXT")));
+    }
+    QVERIFY(query.exec(QStringLiteral("UPDATE first SET value='current'")));
+    const auto result = darkeye::DatabaseMaintenanceService::restoreBackup(source.database(), backupPath);
+    QVERIFY(!result.succeeded);
+    QVERIFY(query.exec(QStringLiteral("SELECT value FROM first")));
+    QVERIFY(query.next());
+    QCOMPARE(query.value(0).toString(), QStringLiteral("current"));
+    query.finish();
+    QVERIFY(query.exec(QStringLiteral("PRAGMA foreign_keys")));
+    QVERIFY(query.next());
+    QCOMPARE(query.value(0).toInt(), 1);
+    query.finish();
+    QVERIFY(source.database().transaction());
+    QVERIFY(source.database().rollback());
+    QVERIFY(query.exec(QStringLiteral("SELECT COUNT(*) FROM pragma_database_list WHERE name='restore_source'")));
+    QVERIFY(query.next());
+    QCOMPARE(query.value(0).toInt(), 0);
+}
+
+void DatabaseBackupServiceTest::refusesRestoreInsideTransaction()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    darkeye::SqliteConnection source;
+    QVERIFY(source.open(root.filePath(QStringLiteral("source.db")), false));
+    QSqlQuery query(source.database());
+    QVERIFY(query.exec(QStringLiteral("CREATE TABLE item(value TEXT)")));
+    QVERIFY(query.exec(QStringLiteral("INSERT INTO item VALUES('backup')")));
+    const QString backupPath = root.filePath(QStringLiteral("backup.db"));
+    QVERIFY(darkeye::DatabaseBackupService::createConsistentBackup(source, backupPath));
+    QVERIFY(source.database().transaction());
+    QVERIFY(query.exec(QStringLiteral("UPDATE item SET value='pending'")));
+    QVERIFY(!darkeye::DatabaseMaintenanceService::restoreBackup(source.database(), backupPath).succeeded);
+    QVERIFY(query.exec(QStringLiteral("SELECT value FROM item")));
+    QVERIFY(query.next());
+    QCOMPARE(query.value(0).toString(), QStringLiteral("pending"));
+    query.finish();
+    QVERIFY(source.database().rollback());
+    QVERIFY(query.exec(QStringLiteral("SELECT COUNT(*) FROM pragma_database_list WHERE name='restore_source'")));
+    QVERIFY(query.next());
+    QCOMPARE(query.value(0).toInt(), 0);
+}
+
+void DatabaseBackupServiceTest::restoresCompleteDatabase_data()
+{
+    QTest::addColumn<bool>("isPublic");
+    QTest::newRow("public") << true;
+    QTest::newRow("private") << false;
+}
+
+void DatabaseBackupServiceTest::restoresCompleteDatabase()
+{
+    QFETCH(bool, isPublic);
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(root.filePath(QStringLiteral("source.db")), false, &error));
+    const auto kind = isPublic ? darkeye::DatabaseKind::Public : darkeye::DatabaseKind::Private;
+    QVERIFY2(darkeye::SchemaManager::initializeEmptyDatabase(connection, kind, &error), qPrintable(error));
+    QSqlQuery query(connection.database());
+    const QString table = isPublic ? QStringLiteral("work") : QStringLiteral("favorite_work");
+    QVERIFY(query.exec(isPublic ? QStringLiteral("INSERT INTO work(serial_number) VALUES('RESTORE-001')")
+                               : QStringLiteral("INSERT INTO favorite_work(work_id,serial_number) VALUES(42,'RESTORE-001')")));
+    const auto backup = darkeye::DatabaseMaintenanceService::createBackup(
+        connection.database(), root.filePath(QStringLiteral("backups")), QStringLiteral("complete"));
+    QVERIFY2(backup.succeeded, qPrintable(backup.message));
+    QVERIFY(query.exec(QStringLiteral("DELETE FROM %1").arg(table)));
+    const auto restored = darkeye::DatabaseMaintenanceService::restoreBackup(connection.database(), backup.outputPath);
+    QVERIFY2(restored.succeeded, qPrintable(restored.message));
+    QVERIFY2(darkeye::SchemaManager::validateCurrentSchema(connection, kind, &error), qPrintable(error));
+    QVERIFY(query.exec(QStringLiteral("SELECT serial_number FROM %1").arg(table)));
+    QVERIFY(query.next());
+    QCOMPARE(query.value(0).toString(), QStringLiteral("RESTORE-001"));
+    QVERIFY(!query.next());
+    QVERIFY(query.exec(isPublic ? QStringLiteral("INSERT INTO work(serial_number) VALUES('RESTORE-002')")
+                               : QStringLiteral("INSERT INTO favorite_work(work_id,serial_number) VALUES(43,'RESTORE-002')")));
 }
 
 QTEST_MAIN(DatabaseBackupServiceTest)

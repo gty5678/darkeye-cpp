@@ -21,6 +21,7 @@ private slots:
     void retainsHistoryAndAvoidsUnchangedRebuilds();
     void snapshotRepairsMissedQueueSignal();
     void publishesCommittedChangesOnly();
+    void persistsWholeTitleMappedTags();
 };
 
 void CrawlerRefreshTest::retainsHistoryAndAvoidsUnchangedRebuilds()
@@ -120,6 +121,35 @@ void CrawlerRefreshTest::publishesCommittedChangesOnly()
     QTRY_COMPARE(failed.count(), 1);
     QVERIFY(!failed.first().at(1).toBool());
     QCOMPARE(invalidChanges.count(), 0);
+}
+
+void CrawlerRefreshTest::persistsWholeTitleMappedTags()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    darkeye::SqliteConnection connection;
+    QString error;
+    const QString path = directory.filePath(QStringLiteral("public.db"));
+    QVERIFY(connection.open(path, false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        connection, darkeye::DatabaseKind::Public, &error));
+    darkeye::CrawlerPersistenceService persistence(path, {}, {}, darkeye::TranslationSettings{});
+    QSignalSpy finished(&persistence, &darkeye::CrawlerPersistenceService::finished);
+    persistence.persist(QStringLiteral("MAPPED-001"),
+        {{QStringLiteral("jp_title"), QStringLiteral("内射")}},
+        {QStringLiteral("jp_title"), QStringLiteral("tag")});
+    QTRY_COMPARE(finished.count(), 1);
+    QVERIFY2(finished.first().at(1).toBool(), qPrintable(finished.first().at(2).toString()));
+    darkeye::WorkRepository works(connection.database());
+    const auto id = works.findIdBySerial(QStringLiteral("MAPPED-001"), &error);
+    QVERIFY(id.has_value());
+    const auto details = works.findDetailsById(*id, &error);
+    QVERIFY(details.has_value());
+    QStringList names;
+    for (const auto &tag : details->tags) names.append(tag.name);
+    QVERIFY(names.contains(QStringLiteral("中出")));
+    QVERIFY(!names.contains(QStringLiteral("中")));
+    QVERIFY(!names.contains(QStringLiteral("出")));
 }
 
 QTEST_MAIN(CrawlerRefreshTest)

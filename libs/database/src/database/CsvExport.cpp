@@ -3,7 +3,7 @@
 #include "database/SqliteConnection.h"
 
 #include <QAbstractItemModel>
-#include <QFile>
+#include <QSaveFile>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QSqlRecord>
@@ -21,14 +21,29 @@ QString csvField(QString value)
     return value;
 }
 
-bool openOutput(QFile &file, QTextStream &stream, QString *errorMessage)
+bool openOutput(QSaveFile &file, QTextStream &stream, QString *errorMessage)
 {
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         if (errorMessage) *errorMessage = file.errorString();
         return false;
     }
     stream.setDevice(&file);
     stream.setEncoding(QStringConverter::Utf8);
+    return true;
+}
+
+bool commitOutput(QSaveFile &file, QTextStream &stream, QString *errorMessage)
+{
+    // QTextStream may buffer the final write. Check it before publishing the file.
+    stream.flush();
+    if (stream.status() != QTextStream::Ok) {
+        if (errorMessage) *errorMessage = QStringLiteral("CSV 写入失败：%1").arg(file.errorString());
+        return false;
+    }
+    if (!file.commit()) {
+        if (errorMessage) *errorMessage = file.errorString();
+        return false;
+    }
     return true;
 }
 
@@ -48,7 +63,7 @@ bool exportModelToCsv(const QAbstractItemModel *model, const QString &csvFilePat
         if (errorMessage) *errorMessage = QStringLiteral("当前没有可导出的表格数据。");
         return false;
     }
-    QFile file(csvFilePath);
+    QSaveFile file(csvFilePath);
     QTextStream stream;
     if (!openOutput(file, stream, errorMessage)) return false;
     QStringList headers;
@@ -61,7 +76,7 @@ bool exportModelToCsv(const QAbstractItemModel *model, const QString &csvFilePat
             fields.append(model->data(model->index(row, column)).toString());
         writeRow(stream, fields);
     }
-    return stream.status() == QTextStream::Ok;
+    return commitOutput(file, stream, errorMessage);
 }
 
 bool exportSqlToCsv(const QString &sql, const QString &csvFilePath,
@@ -74,7 +89,7 @@ bool exportSqlToCsv(const QString &sql, const QString &csvFilePath,
         if (errorMessage) *errorMessage = query.lastError().text();
         return false;
     }
-    QFile file(csvFilePath);
+    QSaveFile file(csvFilePath);
     QTextStream stream;
     if (!openOutput(file, stream, errorMessage)) return false;
     QStringList headers;
@@ -87,7 +102,11 @@ bool exportSqlToCsv(const QString &sql, const QString &csvFilePath,
             fields.append(query.value(column).toString());
         writeRow(stream, fields);
     }
-    return stream.status() == QTextStream::Ok;
+    if (query.lastError().isValid()) {
+        if (errorMessage) *errorMessage = query.lastError().text();
+        return false;
+    }
+    return commitOutput(file, stream, errorMessage);
 }
 
 } // namespace darkeye

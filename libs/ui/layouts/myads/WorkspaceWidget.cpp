@@ -9,8 +9,10 @@
 #include <QJsonDocument>
 #include <QLabel>
 #include <QMimeData>
+#include <QMenu>
 #include <QPainter>
 #include <QSplitter>
+#include <QScopeGuard>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <algorithm>
@@ -28,10 +30,11 @@ public:
         hide();
     }
 
-    void showPreview(const QRect &rectangle, const DockTheme &theme)
+    void showPreview(const QRect &rectangle, const DockTheme &theme, bool insertion = false)
     {
         m_rectangle = rectangle;
         m_theme = theme;
+        m_insertion = insertion;
         setGeometry(parentWidget()->rect());
         show();
         raise();
@@ -42,6 +45,10 @@ protected:
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
+        if (m_insertion) {
+            painter.fillRect(m_rectangle, m_theme.primary);
+            return;
+        }
         QColor fill = m_theme.primary;
         fill.setAlpha(std::clamp(m_theme.previewAlpha, 0, 255));
         painter.setBrush(fill);
@@ -52,6 +59,7 @@ protected:
 private:
     QRect m_rectangle;
     DockTheme m_theme;
+    bool m_insertion = false;
 };
 
 ContentConfig::ContentConfig(QString id) : contentId(std::move(id)) {}
@@ -59,6 +67,7 @@ ContentConfig &ContentConfig::setWidget(QWidget *value) { widget = value; return
 ContentConfig &ContentConfig::setWindowTitle(const QString &value) { title = value; return *this; }
 ContentConfig &ContentConfig::setIcon(const QIcon &value) { icon = value; return *this; }
 ContentConfig &ContentConfig::setCloseable(bool value) { closeable = value; return *this; }
+ContentConfig &ContentConfig::setClosePolicy(ClosePolicy value) { closePolicy = value; return *this; }
 
 WorkspaceWidget::WorkspaceWidget(QWidget *parent, const DockTheme &theme)
     : QWidget(parent), m_theme(theme)
@@ -139,7 +148,8 @@ bool WorkspaceWidget::eventFilter(QObject *watched, QEvent *event)
             if (event->type() == QEvent::Drop) {
                 m_dockDragTarget.clear();
                 const bool moved = moveContent(sourceId, contentId, target->paneId(),
-                                               dropZone(target, global));
+                                               dropZone(target, global),
+                                               target->tabInsertionIndex(global));
                 hideDropPreview();
                 if (!moved) {
                     drop->ignore();
@@ -208,7 +218,7 @@ bool WorkspaceWidget::fillPane(PaneWidget *target, const ContentConfig &content)
         qobject_cast<QLabel *>(widget)->setAlignment(Qt::AlignCenter);
     }
     return target->addContent(id, content.title.isEmpty() ? id : content.title,
-                              widget, content.icon, content.closeable);
+                              widget, content.icon, content.closeable, -1, content.closePolicy);
 }
 
 PaneWidget *WorkspaceWidget::createPane(const QString &id)
@@ -218,7 +228,37 @@ PaneWidget *WorkspaceWidget::createPane(const QString &id)
         return existing;
     }
     auto *result = new PaneWidget(id, this);
+    connectPane(result);
+    m_panes.insert(id, result);
+    return result;
+}
+
+void WorkspaceWidget::connectPane(PaneWidget *result)
+{
     result->applyTheme(m_theme);
+    connect(result, &PaneWidget::tabContextMenuCreated, this,
+            [this, result](QMenu *menu, const QString &contentId) {
+        QMenu *moveMenu = menu->addMenu(tr("移动到其他组"));
+        moveMenu->setObjectName(QStringLiteral("moveTabToGroup"));
+        const QString sourceId = result->paneId();
+        const auto ids = m_tree.paneIds();
+        for (int i = 0; i < ids.size(); ++i) {
+            if (ids[i] == sourceId) continue;
+            PaneWidget *target = pane(ids[i]);
+            if (!target) continue;
+            QString title = target->contentTitle(target->currentContentId());
+            title.replace(QLatin1Char('&'), QStringLiteral("&&"));
+            const QString label = title.isEmpty() ? tr("组 %1").arg(i + 1)
+                : tr("组 %1：%2").arg(i + 1).arg(title);
+            QAction *action = moveMenu->addAction(label);
+            action->setData(ids[i]);
+            connect(action, &QAction::triggered, this,
+                    [this, sourceId, contentId, targetId = ids[i]] {
+                moveContent(sourceId, contentId, targetId, DropZone::Center);
+            });
+        }
+        moveMenu->setEnabled(!moveMenu->actions().isEmpty());
+    });
     connect(result, &PaneWidget::paneEmpty, this,
             [this](PaneWidget *empty) { removeEmptyPane(empty->paneId()); });
     connect(result, &PaneWidget::dragMoved, this, &WorkspaceWidget::handleDragMove);
@@ -226,8 +266,6 @@ PaneWidget *WorkspaceWidget::createPane(const QString &id)
     connect(result, &PaneWidget::dragFinished, this, [this] {
         if (m_preview) m_preview->hide();
     });
-    m_panes.insert(id, result);
-    return result;
 }
 
 QWidget *WorkspaceWidget::buildNode(const std::shared_ptr<LayoutNode> &node)
@@ -260,6 +298,21 @@ QWidget *WorkspaceWidget::buildNode(const std::shared_ptr<LayoutNode> &node)
                 if (validSizes(sizes)) node->sizes = sizes;
             });
     return splitter;
+}
+
+void WorkspaceWidget::connectSplitters(QWidget *widget, const std::shared_ptr<LayoutNode> &node)
+{
+    if (node->kind != LayoutNode::Kind::Split) return;
+    auto *splitter = qobject_cast<QSplitter *>(widget);
+    Q_ASSERT(splitter);
+    connect(splitter, &QSplitter::splitterMoved, this, [splitter, node] {
+        const QList<int> sizes = splitter->sizes();
+        if (sizes.size() == splitter->count() &&
+            std::all_of(sizes.cbegin(), sizes.cend(), [](int size) { return size > 0; }))
+            node->sizes = sizes;
+    });
+    for (int i = 0; i < splitter->count(); ++i)
+        connectSplitters(splitter->widget(i), node->children.at(i));
 }
 
 void WorkspaceWidget::rebuild(bool preserveContents)
@@ -380,6 +433,8 @@ DropZone WorkspaceWidget::hitTest(const QRect &rectangle, const QPoint &position
 
 DropZone WorkspaceWidget::dropZone(PaneWidget *target, const QPoint &global) const
 {
+    // The tab strip takes priority over pane/root edge splitting.
+    if (target->tabInsertionIndex(global) >= 0) return DropZone::Center;
     const QPoint local = mapFromGlobal(global);
     const double x = static_cast<double>(local.x()) / std::max(1, width());
     const double y = static_cast<double>(local.y()) / std::max(1, height());
@@ -422,6 +477,13 @@ QRect WorkspaceWidget::previewRectForZone(const QRect &area, DropZone zone)
 
 void WorkspaceWidget::handleDragMove(PaneWidget *target, const QPoint &global)
 {
+    const int index = target->tabInsertionIndex(global);
+    if (index >= 0) {
+        const QRect marker = target->tabInsertionRect(index);
+        m_preview->showPreview(QRect(target->mapTo(this, marker.topLeft()), marker.size()),
+                               m_theme, true);
+        return;
+    }
     const DropZone zone = dropZone(target, global);
     showDropPreview(target, zone);
 }
@@ -442,19 +504,24 @@ void WorkspaceWidget::hideDropPreview()
 void WorkspaceWidget::handleDrop(PaneWidget *target, const QPoint &global,
                                  const QString &sourcePaneId, const QString &contentId)
 {
-    moveContent(sourcePaneId, contentId, target->paneId(), dropZone(target, global));
+    moveContent(sourcePaneId, contentId, target->paneId(), dropZone(target, global),
+                target->tabInsertionIndex(global));
     hideDropPreview();
 }
 
 bool WorkspaceWidget::moveContent(const QString &sourcePaneId, const QString &contentId,
-                                  const QString &targetPaneId, DropZone zone)
+                                  const QString &targetPaneId, DropZone zone, int insertionIndex)
 {
     PaneWidget *source = pane(sourcePaneId);
     PaneWidget *target = pane(targetPaneId);
-    if (!source || !target || (source == target && zone == DropZone::Center)) return false;
+    if (!source || !target ||
+        (source == target && zone == DropZone::Center && insertionIndex < 0)) return false;
+    if (zone != DropZone::Center) insertionIndex = -1;
+    if (insertionIndex >= 0) insertionIndex = qMin(insertionIndex, target->contentCount());
     const QJsonObject snapshot = m_tree.toJson();
     PaneContent content = source->takeContent(contentId);
     if (!content.widget) return false;
+    if (source == target && insertionIndex > content.index) --insertionIndex;
     QString destinationId = targetPaneId;
     try {
         if (zone != DropZone::Center) {
@@ -474,7 +541,7 @@ bool WorkspaceWidget::moveContent(const QString &sourcePaneId, const QString &co
             target = pane(destinationId);
         }
         if (!target || !target->addContent(content.contentId, content.title, content.widget,
-                                           content.icon, content.closeable))
+                                           content.icon, content.closeable, insertionIndex, content.closePolicy))
             throw std::runtime_error("drop failed");
         if (source && source->contentCount() == 0 && m_tree.paneIds().size() > 1) {
             (void)m_tree.removePane(sourcePaneId);
@@ -553,7 +620,6 @@ bool WorkspaceWidget::loadLayout(const QString &path, const ContentFactory &fact
         if (error) *error = QStringLiteral("不支持的工作区布局版本");
         return false;
     }
-    bool workspaceReplaced = false;
     try {
         const QJsonObject layout = documentData.contains(QStringLiteral("layout"))
             ? documentData.value(QStringLiteral("layout")).toObject() : documentData;
@@ -589,28 +655,93 @@ bool WorkspaceWidget::loadLayout(const QString &path, const ContentFactory &fact
             if (!paneIds.contains(it.key()) || !it.value().isObject())
                 throw std::invalid_argument("pane_metadata references an unknown pane");
 
-        m_tree = std::move(candidate);
-        workspaceReplaced = true;
-        rebuild(false);
+        // Build in a hidden workspace. Factories may return existing editor
+        // widgets, so finish every factory call before transferring any page.
+        WorkspaceWidget staged(nullptr, m_theme);
+        staged.m_tree = std::move(candidate);
+        staged.rebuild(false);
         for (auto it = metadata.begin(); it != metadata.end(); ++it)
-            pane(it.key())->setIconOnly(it.value().toObject().value(QStringLiteral("icon_only")).toBool());
+            staged.pane(it.key())->setIconOnly(it.value().toObject().value(QStringLiteral("icon_only")).toBool());
+        struct PreparedContent {
+            QString paneId;
+            ContentConfig config;
+            QPointer<QWidget> widget;
+        };
+        QList<PreparedContent> prepared;
+        QSet<QWidget *> widgets;
         if (factory) {
             for (auto it = contents.begin(); it != contents.end(); ++it) {
                 for (const auto &value : it.value().toArray()) {
                     std::optional<ContentConfig> config = factory(value.toObject());
-                    if (config && !fillPane(pane(it.key()), *config))
-                        throw std::runtime_error("content factory result could not be inserted");
+                    if (!config) continue;
+                    if (config->widget) {
+                        if (widgets.contains(config->widget))
+                            throw std::runtime_error("content factory returned the same widget twice");
+                        widgets.insert(config->widget);
+                        // Own newly created pages during preparation so a later
+                        // factory failure does not leak their resources.
+                        if (!config->widget->parentWidget()) config->widget->setParent(&staged);
+                    }
+                    prepared.append({it.key(), *config, config->widget});
                 }
             }
         }
+        for (const auto &item : prepared)
+            if (item.config.widget && !item.widget)
+                throw std::runtime_error("content factory page was destroyed during preparation");
+
+        QList<std::pair<QPointer<PaneWidget>, PaneContent>> transferred;
+        bool committed = false;
+        const auto rollback = qScopeGuard([&] {
+            if (committed) return;
+            for (auto it = transferred.rbegin(); it != transferred.rend(); ++it)
+                if (it->first) it->first->restoreContent(it->second);
+        });
+        for (const auto &item : prepared) {
+            for (PaneWidget *source : m_panes) {
+                for (const QString &id : source->contentIds()) {
+                    if (item.widget && source->contentWidget(id) == item.widget) {
+                        transferred.append({source, source->takeContent(id)});
+                        break;
+                    }
+                }
+            }
+            if (!staged.fillPane(staged.pane(item.paneId), item.config))
+                throw std::runtime_error("content factory result could not be inserted");
+        }
         for (auto it = metadata.begin(); it != metadata.end(); ++it)
-            pane(it.key())->setCurrentContentId(
+            staged.pane(it.key())->setCurrentContentId(
                 it.value().toObject().value(QStringLiteral("current_content_id")).toString());
+
+        // Rebind callbacks to the surviving workspace before adopting the root.
+        for (PaneWidget *item : staged.m_panes) {
+            disconnect(item, nullptr, &staged, nullptr);
+            connectPane(item);
+        }
+        connectSplitters(staged.m_rootWidget, staged.m_tree.root());
+        QWidget *oldRoot = m_rootWidget;
+        this->layout()->removeWidget(oldRoot);
+        oldRoot->hide();
+        m_rootWidget = staged.m_rootWidget;
+        m_rootWidget->setParent(this);
+        m_tree = std::move(staged.m_tree);
+        m_panes = std::move(staged.m_panes);
+        m_contentCounter = std::max(m_contentCounter, staged.m_contentCounter);
+        staged.m_rootWidget = nullptr;
+        this->layout()->addWidget(m_rootWidget);
+        m_rootWidget->show();
+        oldRoot->deleteLater();
+        committed = true;
+        setActivePane(pane(staged.m_activePaneId) ? pane(staged.m_activePaneId) : rootPane());
+        hideDropPreview();
+        m_preview->raise();
         emit layoutChanged();
         return true;
     } catch (const std::exception &exception) {
-        if (workspaceReplaced) resetToSingleEmptyPane();
         if (error) *error = QString::fromUtf8(exception.what());
+        return false;
+    } catch (...) {
+        if (error) *error = QStringLiteral("恢复工作区内容失败");
         return false;
     }
 }

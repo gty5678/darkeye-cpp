@@ -71,6 +71,13 @@ set_tests_properties(darkeye_ui_boundary_tests PROPERTIES
 )
 darkeye_add_qt_test(darkeye_myads_tests unit/MyAdsTest.cpp)
 darkeye_configure_packaging(darkeye_myads_tests)
+add_test(NAME darkeye_myads_drag_tests
+    COMMAND $<TARGET_FILE:darkeye_myads_tests>
+        cancelledTabDragReturnsToOriginalPosition -platform offscreen)
+set_tests_properties(darkeye_myads_drag_tests PROPERTIES
+    TIMEOUT 30
+    ENVIRONMENT "QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}")
 set_tests_properties(darkeye_myads_tests PROPERTIES
     ENVIRONMENT
         "QT_QPA_PLATFORM=windows;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
@@ -109,6 +116,7 @@ darkeye_add_qt_test(darkeye_schema_snapshot_tests integration/SchemaSnapshotTest
 darkeye_add_qt_test(darkeye_database_fixture_tests compatibility/DatabaseFixtureTest.cpp)
 darkeye_add_qt_test(darkeye_serial_number_tests compatibility/SerialNumberCompatibilityTest.cpp)
 darkeye_add_qt_test(darkeye_database_backup_tests integration/DatabaseBackupServiceTest.cpp)
+darkeye_add_qt_test(darkeye_database_operations_tests integration/DatabaseOperationsTest.cpp)
 
 qt_add_executable(darkeye_webdav_credential_tests integration/WebDavCredentialStoreTest.cpp)
 target_link_libraries(darkeye_webdav_credential_tests PRIVATE darkeye::database Qt6::Test)

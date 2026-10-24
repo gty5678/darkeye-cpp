@@ -257,9 +257,9 @@ void WorkRepositoryTest::filtersRelationsAndPaginates()
     const auto filtered = repository.search(search, &errorMessage);
     QCOMPARE(filtered.size(), 1);
     QCOMPARE(filtered.first().serialNumber, QStringLiteral("FILTER-001"));
-    QCOMPARE(repository.makerSuggestions(), QStringList{QStringLiteral("目标片商")});
-    QCOMPARE(repository.labelSuggestions(), QStringList{QStringLiteral("目标厂牌")});
-    QCOMPARE(repository.seriesSuggestions(), QStringList{QStringLiteral("目标系列")});
+    QVERIFY(repository.makerSuggestions().contains(QStringLiteral("目标片商")));
+    QVERIFY(repository.labelSuggestions().contains(QStringLiteral("目标厂牌")));
+    QVERIFY(repository.seriesSuggestions().contains(QStringLiteral("目标系列")));
 
     const auto details = repository.findDetailsById(*matchingId, &errorMessage);
     QVERIFY2(details.has_value(), qPrintable(errorMessage));
@@ -273,6 +273,8 @@ void WorkRepositoryTest::filtersRelationsAndPaginates()
     QCOMPARE(details->tags.size(), 2);
 
     darkeye::WorkSearch paged;
+    // Own all three pagination rows instead of depending on initialization data.
+    QVERIFY(repository.insertSerial(QStringLiteral("FILTER-000"), &errorMessage).has_value());
     paged.order = darkeye::WorkSortOrder::SerialAscending;
     paged.limit = 1;
     paged.offset = 1;

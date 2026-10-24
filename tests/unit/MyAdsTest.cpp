@@ -2,6 +2,8 @@
 #include "ui/layouts/myads/WorkspaceWidget.h"
 
 #include <QFile>
+#include <QCloseEvent>
+#include <QDrag>
 #include <QDragEnterEvent>
 #include <QDragLeaveEvent>
 #include <QDragMoveEvent>
@@ -12,13 +14,35 @@
 #include <QJsonDocument>
 #include <QLabel>
 #include <QMimeData>
+#include <QMenu>
+#include <QMouseEvent>
 #include <QPointer>
+#include <QScopeGuard>
+#include <QSplitter>
 #include <QTabBar>
 #include <QTemporaryDir>
+#include <QTimer>
+#include <QToolButton>
 #include <QtTest>
 #include <stdexcept>
 
 using namespace darkeye::myads;
+
+class CloseAwarePage final : public QWidget
+{
+public:
+    bool allowClose = false;
+    int requests = 0;
+    std::function<void()> onRequest;
+
+protected:
+    void closeEvent(QCloseEvent *event) override
+    {
+        ++requests;
+        if (onRequest) onRequest();
+        event->setAccepted(allowClose);
+    }
+};
 
 class MyAdsTest final : public QObject
 {
@@ -29,13 +53,27 @@ private slots:
     void rejectsInvalidTreesAndRatios();
     void savesAtomically();
     void paneTransfersCompleteContent();
+    void cancelledTabDragReturnsToOriginalPosition_data();
+    void cancelledTabDragReturnsToOriginalPosition();
+    void tabMenuClosesOnlyEligibleTabs();
+    void tabMenuMovesLastTabToAnotherGroup();
+    void pageCanVetoCloseButtonAndAllowRetry();
+    void closedPagesAreDeletedAfterTheCurrentEvent();
+    void retainedPagesSurviveClosingTheirPane();
+    void bulkCloseStopsOnVeto_data();
+    void bulkCloseStopsOnVeto();
+    void closeRequestRejectsReentryAndRevalidatesOwnership();
     void workspacePreservesContentWhileSplitting();
     void workspaceBatchesProgrammaticSplits();
     void workspaceMovesTabsAcrossPanes();
+    void dropsTabsAtInsertionLine_data();
+    void dropsTabsAtInsertionLine();
     void workspaceSavesAndRestoresContent();
     void unknownSchemaDoesNotDestroyWorkspace();
     void invalidLayoutDoesNotDestroyWorkspace();
-    void factoryFailureResetsPartialWorkspace();
+    void factoryFailurePreservesWorkspace_data();
+    void factoryFailurePreservesWorkspace();
+    void restoredWorkspaceReusesPagesAndKeepsCallbacks();
     void hitTestingMatchesPythonZones();
     void previewGeometryMatchesPythonOverlay();
     void activePaneFollowsUserInteraction();
@@ -125,6 +163,258 @@ void MyAdsTest::paneTransfersCompleteContent()
     QVERIFY(destination.restoreContent(content));
     QCOMPARE(destination.contentWidget(QStringLiteral("movie")), label);
     QVERIFY(!destination.isContentCloseable(QStringLiteral("movie")));
+}
+
+void MyAdsTest::cancelledTabDragReturnsToOriginalPosition_data()
+{
+    QTest::addColumn<bool>("reorderFirst");
+    QTest::newRow("offset-only") << false;
+    QTest::newRow("reordered-before-leaving") << true;
+}
+
+void MyAdsTest::cancelledTabDragReturnsToOriginalPosition()
+{
+    if (QGuiApplication::platformName() != QStringLiteral("offscreen"))
+        QSKIP("Run by darkeye_myads_drag_tests with the offscreen drag backend.");
+    QFETCH(bool, reorderFirst);
+    PaneWidget pane(QStringLiteral("source"));
+    auto *first = new QLabel(QStringLiteral("first page"));
+    QVERIFY(pane.addContent("first", "First tab", first));
+    QVERIFY(pane.addContent("second", "Second tab", new QLabel));
+    QVERIFY(pane.addContent("third", "Third tab", new QLabel));
+    QVERIFY(pane.setCurrentContentId("first"));
+    pane.resize(600, 300);
+    pane.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&pane));
+    auto *bar = pane.findChild<QTabBar *>();
+    QVERIFY(bar);
+    const QStringList originalOrder = pane.contentIds();
+    QWidget *closeButton = bar->tabButton(0, QTabBar::RightSide);
+    QVERIFY(closeButton);
+    const QRect originalButtonGeometry = closeButton->geometry();
+    const QPoint press = bar->tabRect(0).center();
+    QTest::mousePress(bar, Qt::LeftButton, Qt::NoModifier, press);
+    const auto releaseOnExit = qScopeGuard([bar] {
+        QTest::mouseRelease(bar, Qt::LeftButton, Qt::NoModifier, bar->tabRect(0).center());
+    });
+    const auto move = [bar](const QPoint &position) {
+        QMouseEvent event(QEvent::MouseMove, position, bar->mapToGlobal(position),
+                          Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(bar, &event);
+    };
+    move(reorderFirst ? bar->tabRect(2).center() : press + QPoint(20, 0));
+    if (reorderFirst) QVERIFY(pane.contentIds() != originalOrder);
+
+    // The native drag loop consumes release/Escape; do not send a release to
+    // the tab bar afterwards, since that would conceal the stale drag state.
+    QTimer cancelTimer;
+    connect(&cancelTimer, &QTimer::timeout, &pane, [] { QDrag::cancel(); });
+    cancelTimer.start(10);
+    QSignalSpy finished(&pane, &PaneWidget::dragFinished);
+    move(QPoint(press.x(), bar->height() + 40));
+    cancelTimer.stop();
+    QCOMPARE(pane.contentIds(), originalOrder);
+    QCOMPARE(pane.currentContentId(), QStringLiteral("first"));
+    QCOMPARE(pane.contentWidget("first"), first);
+    QCOMPARE(finished.count(), 1);
+    QTRY_COMPARE(closeButton->geometry(), originalButtonGeometry);
+    // A later ordinary click must still work after cancellation.
+    QTest::mouseRelease(bar, Qt::LeftButton, Qt::NoModifier, bar->tabRect(0).center());
+    QTest::mouseClick(bar, Qt::LeftButton, Qt::NoModifier, bar->tabRect(1).center());
+    QCOMPARE(pane.currentContentId(), QStringLiteral("second"));
+}
+
+void MyAdsTest::tabMenuClosesOnlyEligibleTabs()
+{
+    PaneWidget pane(QStringLiteral("test"));
+    QVERIFY(!pane.createTabContextMenu(QStringLiteral("missing")));
+    QVERIFY(pane.addContent(QStringLiteral("left"), QStringLiteral("Left"), new QLabel));
+    QVERIFY(pane.addContent(QStringLiteral("anchor"), QStringLiteral("Anchor"), new QLabel));
+    QVERIFY(pane.addContent(QStringLiteral("protected"), QStringLiteral("Protected"),
+                            new QLabel, {}, false));
+    QVERIFY(pane.addContent(QStringLiteral("right"), QStringLiteral("Right"), new QLabel));
+    QVERIFY(pane.setCurrentContentId(QStringLiteral("left")));
+    QSignalSpy emptied(&pane, &PaneWidget::paneEmpty);
+    std::unique_ptr<QMenu> menu(pane.createTabContextMenu(QStringLiteral("anchor")));
+    auto *closeRight = menu->findChild<QAction *>(QStringLiteral("closeTabsToRight"));
+    QVERIFY(closeRight && closeRight->isEnabled());
+    closeRight->trigger();
+    QCOMPARE(pane.contentIds(), QStringList({QStringLiteral("left"), QStringLiteral("anchor"),
+                                           QStringLiteral("protected")}));
+    QCOMPARE(pane.currentContentId(), QStringLiteral("left"));
+    menu.reset(pane.createTabContextMenu(QStringLiteral("anchor")));
+    QVERIFY(!menu->findChild<QAction *>(QStringLiteral("closeTabsToRight"))->isEnabled());
+    menu->findChild<QAction *>(QStringLiteral("closeOtherTabs"))->trigger();
+    QCOMPARE(pane.contentIds(), QStringList({QStringLiteral("anchor"), QStringLiteral("protected")}));
+    QCOMPARE(emptied.count(), 0);
+    menu.reset(pane.createTabContextMenu(QStringLiteral("anchor")));
+    QVERIFY(!menu->findChild<QAction *>(QStringLiteral("closeOtherTabs"))->isEnabled());
+}
+
+void MyAdsTest::tabMenuMovesLastTabToAnotherGroup()
+{
+    WorkspaceWidget workspace;
+    PaneWidget *source = workspace.rootPane();
+    auto *payload = new QLabel(QStringLiteral("kept"));
+    QVERIFY(workspace.fillPane(source, ContentConfig(QStringLiteral("payload"))
+        .setWidget(payload).setWindowTitle(QStringLiteral("Payload")).setCloseable(false)));
+    std::unique_ptr<QMenu> menu(source->createTabContextMenu(QStringLiteral("payload")));
+    auto *moveMenu = menu->findChild<QMenu *>(QStringLiteral("moveTabToGroup"));
+    QVERIFY(moveMenu && !moveMenu->isEnabled());
+    PaneWidget *target = workspace.split(source, Placement::Right);
+    QVERIFY(workspace.fillPane(target, ContentConfig(QStringLiteral("other"))
+        .setWidget(new QLabel).setWindowTitle(QStringLiteral("Other"))));
+    const QString targetId = target->paneId();
+    QSignalSpy moved(&workspace, &WorkspaceWidget::contentMoved);
+    menu.reset(source->createTabContextMenu(QStringLiteral("payload")));
+    moveMenu = menu->findChild<QMenu *>(QStringLiteral("moveTabToGroup"));
+    QVERIFY(moveMenu && moveMenu->isEnabled());
+    QCOMPARE(moveMenu->actions().size(), 1);
+    QCOMPARE(moveMenu->actions().first()->data().toString(), targetId);
+    moveMenu->actions().first()->trigger();
+    QCOMPARE(workspace.panes().size(), 1);
+    QCOMPARE(workspace.activePane(), target);
+    QCOMPARE(target->currentContentId(), QStringLiteral("payload"));
+    QCOMPARE(target->contentWidget(QStringLiteral("payload")), payload);
+    QVERIFY(!target->isContentCloseable(QStringLiteral("payload")));
+    QCOMPARE(moved.count(), 1);
+}
+
+void MyAdsTest::pageCanVetoCloseButtonAndAllowRetry()
+{
+    WorkspaceWidget workspace;
+    PaneWidget *pane = workspace.rootPane();
+    auto *page = new CloseAwarePage;
+    QVERIFY(pane->addContent(QStringLiteral("edit"), QStringLiteral("Edit"), page));
+    QSignalSpy emptied(pane, &PaneWidget::paneEmpty);
+    auto *tabs = pane->findChild<QTabBar *>();
+    auto *button = qobject_cast<QToolButton *>(tabs->tabButton(0, QTabBar::RightSide));
+    QVERIFY(button);
+    button->click();
+    QCOMPARE(page->requests, 1);
+    QCOMPARE(pane->contentWidget(QStringLiteral("edit")), page);
+    QCOMPARE(pane->currentContentId(), QStringLiteral("edit"));
+    QCOMPARE(emptied.count(), 0);
+    page->allowClose = true;
+    button->click();
+    QCOMPARE(page->requests, 2);
+    QCOMPARE(pane->contentCount(), 0);
+    QCOMPARE(emptied.count(), 1);
+
+    auto *protectedPage = new CloseAwarePage;
+    protectedPage->allowClose = true;
+    QVERIFY(pane->addContent(QStringLiteral("protected"), QStringLiteral("Protected"),
+                             protectedPage, {}, false));
+    QVERIFY(!pane->removeContent(QStringLiteral("protected")));
+    QCOMPARE(protectedPage->requests, 0);
+    QVERIFY(!pane->removeContent(QStringLiteral("missing")));
+}
+
+void MyAdsTest::closedPagesAreDeletedAfterTheCurrentEvent()
+{
+    PaneWidget pane("test");
+    QPointer<CloseAwarePage> page = new CloseAwarePage;
+    page->setAttribute(Qt::WA_DeleteOnClose);
+    QVERIFY(pane.addContent("edit", "Edit", page));
+    QVERIFY(!pane.removeContent("edit"));
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(page);
+    page->allowClose = true;
+    QVERIFY(pane.removeContent("edit"));
+    QVERIFY(page); // No synchronous destruction in the button's event handler.
+    QCOMPARE(pane.contentCount(), 0);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(page.isNull());
+}
+
+void MyAdsTest::retainedPagesSurviveClosingTheirPane()
+{
+    WorkspaceWidget workspace;
+    PaneWidget *left = workspace.rootPane();
+    PaneWidget *right = workspace.split(left, Placement::Right);
+    QVERIFY(left->addContent("anchor", "Anchor", new QLabel));
+    QPointer<PaneWidget> oldRight(right);
+    auto retained = std::make_unique<QLabel>(QStringLiteral("reusable"));
+    ContentConfig config("retained");
+    config.setWidget(retained.get()).setClosePolicy(ClosePolicy::KeepAlive);
+    QVERIFY(workspace.fillPane(left, config));
+    QVERIFY(workspace.moveContent(left->paneId(), "retained", right->paneId(), DropZone::Center));
+    QCOMPARE(right->contentClosePolicy("retained"), ClosePolicy::KeepAlive);
+    QVERIFY(right->removeContent("retained"));
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(oldRight.isNull());
+    QVERIFY(!retained->parentWidget());
+    QVERIFY(retained->isHidden());
+    QVERIFY(workspace.fillPane(left, config));
+    QCOMPARE(left->contentWidget("retained"), retained.get());
+    QVERIFY(left->removeContent("retained"));
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(!retained->parentWidget());
+}
+
+void MyAdsTest::bulkCloseStopsOnVeto_data()
+{
+    QTest::addColumn<QString>("actionName");
+    QTest::newRow("other") << QStringLiteral("closeOtherTabs");
+    QTest::newRow("right") << QStringLiteral("closeTabsToRight");
+}
+
+void MyAdsTest::bulkCloseStopsOnVeto()
+{
+    QFETCH(QString, actionName);
+    PaneWidget pane(QStringLiteral("test"));
+    QVERIFY(pane.addContent(QStringLiteral("anchor"), QStringLiteral("Anchor"), new QLabel));
+    auto *saved = new CloseAwarePage;
+    saved->allowClose = true;
+    auto *cancelled = new CloseAwarePage;
+    auto *later = new CloseAwarePage;
+    later->allowClose = true;
+    QVERIFY(pane.addContent(QStringLiteral("saved"), QStringLiteral("Saved"), saved));
+    QVERIFY(pane.addContent(QStringLiteral("cancelled"), QStringLiteral("Cancelled"), cancelled));
+    QVERIFY(pane.addContent(QStringLiteral("later"), QStringLiteral("Later"), later));
+    QVERIFY(pane.setCurrentContentId(QStringLiteral("cancelled")));
+    std::unique_ptr<QMenu> menu(pane.createTabContextMenu(QStringLiteral("anchor")));
+    menu->findChild<QAction *>(actionName)->trigger();
+    QCOMPARE(saved->requests, 1);
+    QCOMPARE(cancelled->requests, 1);
+    QCOMPARE(later->requests, 0);
+    QCOMPARE(pane.contentIds(), QStringList({QStringLiteral("anchor"),
+        QStringLiteral("cancelled"), QStringLiteral("later")}));
+    QCOMPARE(pane.currentContentId(), QStringLiteral("cancelled"));
+    cancelled->allowClose = true;
+    menu.reset(pane.createTabContextMenu(QStringLiteral("anchor")));
+    menu->findChild<QAction *>(actionName)->trigger();
+    QCOMPARE(pane.contentIds(), QStringList({QStringLiteral("anchor")}));
+}
+
+void MyAdsTest::closeRequestRejectsReentryAndRevalidatesOwnership()
+{
+    WorkspaceWidget workspace;
+    PaneWidget *source = workspace.rootPane();
+    PaneWidget *target = workspace.split(source, Placement::Right);
+    // Keep the source alive even after its edit tab is moved.
+    QVERIFY(source->addContent(QStringLiteral("anchor"), QStringLiteral("Anchor"), new QLabel));
+    auto *page = new CloseAwarePage;
+    page->allowClose = true;
+    QVERIFY(source->addContent(QStringLiteral("edit"), QStringLiteral("Edit"), page));
+    page->onRequest = [&] {
+        QVERIFY(!source->removeContent(QStringLiteral("edit")));
+        QVERIFY(workspace.moveContent(source->paneId(), QStringLiteral("edit"),
+                                      target->paneId(), DropZone::Center));
+    };
+    QVERIFY(!source->removeContent(QStringLiteral("edit")));
+    QCOMPARE(page->requests, 1);
+    QCOMPARE(target->contentWidget(QStringLiteral("edit")), page);
+    // Moving and rebuilding retain the page's close behavior without asking again.
+    PaneWidget *bottom = workspace.split(target, Placement::Bottom);
+    QVERIFY(bottom);
+    QCOMPARE(page->requests, 1);
+    page->onRequest = {};
+    page->allowClose = false;
+    QVERIFY(!target->removeContent(QStringLiteral("edit")));
+    QCOMPARE(page->requests, 2);
+    page->allowClose = true;
+    QVERIFY(target->removeContent(QStringLiteral("edit")));
 }
 
 void MyAdsTest::workspacePreservesContentWhileSplitting()
@@ -304,13 +594,24 @@ void MyAdsTest::invalidLayoutDoesNotDestroyWorkspace()
     QVERIFY(workspace.findPaneByContentId(QStringLiteral("keep")));
 }
 
-void MyAdsTest::factoryFailureResetsPartialWorkspace()
+void MyAdsTest::factoryFailurePreservesWorkspace_data()
 {
+    QTest::addColumn<int>("failureKind");
+    QTest::newRow("exception") << 0;
+    QTest::newRow("non-standard-exception") << 1;
+    QTest::newRow("duplicate-widget") << 2;
+}
+
+void MyAdsTest::factoryFailurePreservesWorkspace()
+{
+    QFETCH(int, failureKind);
     QTemporaryDir directory;
     WorkspaceWidget source;
     ContentConfig content(QStringLiteral("saved"));
     content.setWidget(new QLabel(QStringLiteral("saved")));
     QVERIFY(source.fillPane(source.rootPane(), content));
+    QVERIFY(source.fillPane(source.rootPane(), ContentConfig("second").setWidget(new QLabel)));
+    QVERIFY(source.fillPane(source.rootPane(), ContentConfig("third").setWidget(new QLabel)));
     const QString path = directory.filePath(QStringLiteral("factory.json"));
     QString error;
     QVERIFY(source.saveLayout(path, [](const PaneWidget *, const QString &id) {
@@ -318,12 +619,100 @@ void MyAdsTest::factoryFailureResetsPartialWorkspace()
     }, {}, &error));
 
     WorkspaceWidget restored;
+    auto *left = restored.rootPane();
+    auto *right = restored.split(left, Placement::Right, 30);
+    QPointer<QWidget> original = new QLabel("keep");
+    QVERIFY(restored.fillPane(left, ContentConfig("keep").setWidget(original)));
+    QVERIFY(restored.fillPane(left, ContentConfig("other").setWidget(new QLabel)));
+    QVERIFY(left->setCurrentContentId("keep"));
+    right->setIconOnly(true);
+    restored.setActivePane(right);
+    const QJsonObject originalTree = restored.layoutTree().toJson();
+    const QStringList originalOrder = left->contentIds();
+    QSignalSpy changes(&restored, &WorkspaceWidget::layoutChanged);
+    QPointer<QWidget> preparedPage;
+    int calls = 0;
+    bool originalUntouched = true;
     QVERIFY(!restored.loadLayout(path,
-        [](const QJsonObject &) -> std::optional<ContentConfig> {
+        [&](const QJsonObject &) -> std::optional<ContentConfig> {
+            ++calls;
+            originalUntouched = originalUntouched && restored.rootPane() == left &&
+                left->contentIds() == originalOrder && left->contentWidget("keep") == original;
+            if (calls == 1) {
+                preparedPage = new QLabel("temporary");
+                return ContentConfig("new").setWidget(preparedPage);
+            }
+            if (calls == 2) return ContentConfig("reused").setWidget(original);
+            if (failureKind == 1) throw 42;
+            if (failureKind == 2) return ContentConfig("duplicate").setWidget(original);
             throw std::runtime_error("factory failed");
         }, &error));
-    QCOMPARE(restored.layoutTree().paneIds(), QList<QString>{QStringLiteral("pane_1")});
-    QCOMPARE(restored.rootPane()->contentCount(), 0);
+    QCOMPARE(calls, 3);
+    QVERIFY(originalUntouched);
+    QVERIFY(!error.isEmpty());
+    if (failureKind == 0) QCOMPARE(error, QStringLiteral("factory failed"));
+    QCOMPARE(restored.layoutTree().toJson(), originalTree);
+    QCOMPARE(restored.rootPane(), left);
+    QCOMPARE(left->contentIds(), originalOrder);
+    QCOMPARE(left->currentContentId(), QStringLiteral("keep"));
+    QCOMPARE(left->contentWidget("keep"), original.data());
+    QCOMPARE(restored.activePane(), right);
+    QVERIFY(right->iconOnly());
+    QCOMPARE(changes.count(), 0);
+    QVERIFY(preparedPage.isNull());
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(original);
+    QCOMPARE(left->contentWidget("keep"), original.data());
+}
+
+void MyAdsTest::restoredWorkspaceReusesPagesAndKeepsCallbacks()
+{
+    QTemporaryDir directory;
+    WorkspaceWidget workspace;
+    auto *left = workspace.rootPane();
+    auto *right = workspace.split(left, Placement::Right);
+    QPointer<QWidget> page = new QLabel("reused");
+    QVERIFY(workspace.fillPane(left, ContentConfig("keep").setWidget(page)
+        .setClosePolicy(ClosePolicy::KeepAlive)));
+    QVERIFY(workspace.fillPane(right, ContentConfig("other").setWidget(new QLabel)));
+    const QString path = directory.filePath("reuse.json");
+    QString error;
+    QVERIFY(workspace.saveLayout(path, [](const PaneWidget *, const QString &id) {
+        return QJsonObject{{"content_id", id}};
+    }, {}, &error));
+    QPointer<PaneWidget> oldPane(left);
+    QVERIFY2(workspace.loadLayout(path, [&](const QJsonObject &descriptor)
+        -> std::optional<ContentConfig> {
+        const QString id = descriptor.value("content_id").toString();
+        return ContentConfig(id).setWidget(id == "keep" ? page.data() : new QLabel)
+            .setClosePolicy(ClosePolicy::KeepAlive);
+    }, &error), qPrintable(error));
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(oldPane.isNull());
+    QVERIFY(page);
+    left = workspace.findPaneByContentId("keep");
+    right = workspace.findPaneByContentId("other");
+    QVERIFY(left && right);
+    QCOMPARE(left->contentWidget("keep"), page.data());
+    QCOMPARE(left->contentClosePolicy("keep"), ClosePolicy::KeepAlive);
+    auto *splitter = workspace.findChild<QSplitter *>();
+    QVERIFY(splitter);
+    workspace.resize(800, 400);
+    workspace.show();
+    QCoreApplication::processEvents();
+    splitter->setSizes({200, 600});
+    QVERIFY(QMetaObject::invokeMethod(splitter, "splitterMoved", Qt::DirectConnection,
+        Q_ARG(int, 200), Q_ARG(int, 1)));
+    QCOMPARE(workspace.layoutTree().root()->sizes, splitter->sizes());
+    // The adopted panes must dispatch their menus to the surviving workspace.
+    QSignalSpy moved(&workspace, &WorkspaceWidget::contentMoved);
+    std::unique_ptr<QMenu> menu(left->createTabContextMenu("keep"));
+    auto *moveMenu = menu->findChild<QMenu *>(QStringLiteral("moveTabToGroup"));
+    QVERIFY(moveMenu && moveMenu->actions().size() == 1);
+    moveMenu->actions().first()->trigger();
+    QCOMPARE(moved.count(), 1);
+    QCOMPARE(workspace.findPaneByContentId("keep"), right);
+    QCOMPARE(right->contentWidget("keep"), page.data());
 }
 
 void MyAdsTest::hitTestingMatchesPythonZones()
@@ -366,6 +755,95 @@ void MyAdsTest::activePaneFollowsUserInteraction()
     PaneWidget *bottom = workspace.split(workspace.activePane(), Placement::Bottom);
     QVERIFY(bottom);
     QCOMPARE(workspace.activePane(), bottom);
+}
+
+void MyAdsTest::dropsTabsAtInsertionLine_data()
+{
+    QTest::addColumn<int>("gap");
+    QTest::addColumn<bool>("rtl");
+    QTest::addColumn<int>("targetCount");
+    QTest::addColumn<bool>("blank");
+    for (bool rtl : {false, true})
+        for (int gap = 0; gap <= 3; ++gap)
+            QTest::newRow(qPrintable(QStringLiteral("%1-gap-%2")
+                .arg(rtl ? "rtl" : "ltr").arg(gap))) << gap << rtl << 3 << false;
+    QTest::newRow("blank-strip") << 3 << false << 3 << true;
+    QTest::newRow("empty-strip") << 0 << false << 0 << true;
+}
+
+void MyAdsTest::dropsTabsAtInsertionLine()
+{
+    QFETCH(int, gap);
+    QFETCH(bool, rtl);
+    QFETCH(int, targetCount);
+    QFETCH(bool, blank);
+    WorkspaceWidget workspace;
+    workspace.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    workspace.resize(1000, 500);
+    PaneWidget *source = workspace.rootPane();
+    const QString sourceId = source->paneId();
+    auto *page = new CloseAwarePage;
+    QVERIFY(workspace.fillPane(source, ContentConfig("moving").setWidget(page)
+        .setCloseable(false).setClosePolicy(ClosePolicy::KeepAlive)));
+    PaneWidget *target = workspace.split(source, Placement::Right);
+    const QStringList original = QStringList{"a", "b", "c"}.mid(0, targetCount);
+    for (const QString &id : original)
+        QVERIFY(workspace.fillPane(target, ContentConfig(id).setWidget(new QLabel(id))));
+    workspace.show();
+    QCoreApplication::processEvents();
+    auto *bar = target->findChild<QTabBar *>("MyAdsTabBar");
+    QVERIFY(bar);
+    // Use the first/second half of a real tab, not an implementation-derived
+    // marker coordinate, to verify before/after placement.
+    const int tabIndex = qMin(gap, 2);
+    const QRect tab = bar->tabRect(tabIndex);
+    const bool after = gap == 3;
+    const int offset = (after != rtl) ? tab.width() * 3 / 4 : tab.width() / 4;
+    const QPoint local = blank ? QPoint(bar->width() - 8, bar->height() / 2)
+                               : QPoint(tab.left() + offset, tab.center().y());
+    const QPoint global = bar->mapToGlobal(local);
+    QCOMPARE(target->tabInsertionIndex(global), gap);
+
+    QWidget *preview = nullptr;
+    for (QWidget *child : workspace.findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly))
+        if (child->testAttribute(Qt::WA_TransparentForMouseEvents)) preview = child;
+    QVERIFY(preview);
+    QMimeData mime;
+    mime.setData(MyAdsTabMimeType, QJsonDocument(QJsonObject{
+        {"pane_id", sourceId}, {"content_id", "moving"}}).toJson());
+    QDragEnterEvent enter(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(bar, &enter);
+    QVERIFY(enter.isAccepted());
+    QDragMoveEvent move(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(bar, &move);
+    QVERIFY(move.isAccepted());
+    QVERIFY(preview->isVisible());
+    const QRect marker = target->tabInsertionRect(gap);
+    QCOMPARE(marker.width(), 3);
+    // The painted preview must be the insertion line, not a pane split.
+    const QPoint markerCenter = preview->mapFromGlobal(target->mapToGlobal(marker.center()));
+    const QImage previewImage = preview->grab().toImage();
+    QCOMPARE(previewImage.pixelColor(markerCenter * previewImage.devicePixelRatio()),
+             workspace.theme().primary);
+    QDragLeaveEvent leave;
+    QApplication::sendEvent(bar, &leave);
+    QVERIFY(!preview->isVisible());
+    QDragEnterEvent reenter(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(bar, &reenter);
+    QDropEvent drop(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(bar, &drop);
+    QVERIFY(drop.isAccepted());
+    QVERIFY(!preview->isVisible());
+    QStringList expected = original;
+    expected.insert(gap, "moving");
+    QCOMPARE(target->contentIds(), expected);
+    QCOMPARE(target->currentContentId(), QString("moving"));
+    QCOMPARE(target->contentWidget("moving"), page);
+    QCOMPARE(target->contentClosePolicy("moving"), ClosePolicy::KeepAlive);
+    QVERIFY(!target->isContentCloseable("moving"));
+    QCOMPARE(page->requests, 0);
+    QCOMPARE(workspace.panes().size(), 1);
+    QCOMPARE(workspace.activePane(), target);
 }
 
 void MyAdsTest::docksThroughGraphicsView_data()

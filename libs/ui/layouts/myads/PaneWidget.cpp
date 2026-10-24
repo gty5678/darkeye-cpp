@@ -1,6 +1,7 @@
 #include "ui/layouts/myads/PaneWidget.h"
 
 #include <QApplication>
+#include <QCloseEvent>
 #include <QDrag>
 #include <QDragEnterEvent>
 #include <QDragLeaveEvent>
@@ -8,9 +9,11 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMimeData>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
+#include <QPointer>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QTabBar>
@@ -86,6 +89,16 @@ protected:
             if (tabData(i).toString() == contentId) { currentIndex = i; break; }
         if (currentIndex < 0) return;
 
+        const int originalIndex = m_pressedIndex;
+        // QDrag consumes the real release. Finish QTabBar's internal reorder
+        // first, otherwise its moving-tab overlay and offsets remain active
+        // when a dock drag is cancelled or rejected.
+        const QPoint releasePosition = tabRect(currentIndex).center();
+        QMouseEvent release(QEvent::MouseButtonRelease, releasePosition,
+                            mapToGlobal(releasePosition), Qt::LeftButton,
+                            Qt::NoButton, event->modifiers());
+        mouseReleaseEvent(&release);
+
         QJsonObject payload{{QStringLiteral("pane_id"), m_pane->paneId()},
                             {QStringLiteral("content_id"), contentId}};
         auto *mime = new QMimeData;
@@ -94,9 +107,18 @@ protected:
         drag->setMimeData(mime);
         drag->setPixmap(grab(tabRect(currentIndex)));
         drag->setHotSpot(event->position().toPoint() - tabRect(currentIndex).topLeft());
-        m_pressedIndex = -1;
-        m_pressedContentId.clear();
-        drag->exec(Qt::MoveAction);
+        const QPointer<DraggableTabBar> guard(this);
+        const Qt::DropAction action = drag->exec(Qt::MoveAction);
+        if (!guard) return;
+        if (action == Qt::IgnoreAction) {
+            for (int i = 0; i < count(); ++i) {
+                if (tabData(i).toString() == contentId) {
+                    moveTab(i, qBound(0, originalIndex, count() - 1));
+                    break;
+                }
+            }
+        }
+        emit m_pane->dragFinished();
     }
 
 private:
@@ -127,6 +149,15 @@ PaneWidget::PaneWidget(const QString &paneId, QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
     m_tabBar = new DraggableTabBar(this);
+    m_tabBar->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_tabBar, &QWidget::customContextMenuRequested, this, [this](const QPoint &position) {
+        const int index = m_tabBar->tabAt(position);
+        if (index < 0) return;
+        QMenu *menu = createTabContextMenu(m_tabBar->tabData(index).toString());
+        if (!menu) return;
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+        menu->popup(m_tabBar->mapToGlobal(position));
+    });
     m_stack = new QStackedWidget(this);
     layout->addWidget(m_tabBar);
     layout->addWidget(m_stack, 1);
@@ -145,6 +176,67 @@ PaneWidget::PaneWidget(const QString &paneId, QWidget *parent)
 }
 
 QString PaneWidget::paneId() const { return m_paneId; }
+
+int PaneWidget::tabInsertionIndex(const QPoint &globalPosition) const
+{
+    const QPoint local = m_tabBar->mapFromGlobal(globalPosition);
+    if (!m_tabBar->rect().contains(local)) return -1;
+    // Scroll arrows are controls, not insertion targets. Close buttons remain
+    // part of their tab's drop area.
+    auto *button = qobject_cast<QToolButton *>(m_tabBar->childAt(local));
+    if (button && button->objectName() != QStringLiteral("MyAdsCloseButton")) return -1;
+    const bool rtl = m_tabBar->layoutDirection() == Qt::RightToLeft;
+    for (int i = 0; i < m_tabBar->count(); ++i) {
+        const int center = m_tabBar->tabRect(i).center().x();
+        if (rtl ? local.x() >= center : local.x() <= center) return i;
+    }
+    return m_tabBar->count();
+}
+
+QRect PaneWidget::tabInsertionRect(int index) const
+{
+    if (index < 0 || index > m_tabBar->count()) return {};
+    const bool rtl = m_tabBar->layoutDirection() == Qt::RightToLeft;
+    int x = rtl ? m_tabBar->width() - 1 : 0;
+    if (index < m_tabBar->count()) {
+        const QRect tab = m_tabBar->tabRect(index);
+        x = rtl ? tab.right() + 1 : tab.left();
+    } else if (index > 0) {
+        const QRect tab = m_tabBar->tabRect(index - 1);
+        x = rtl ? tab.left() : tab.right() + 1;
+    }
+    x = qBound(1, x, qMax(1, m_tabBar->width() - 2));
+    return QRect(m_tabBar->mapTo(this, QPoint(x - 1, 2)),
+                 QSize(3, qMax(1, m_tabBar->height() - 4)));
+}
+
+QMenu *PaneWidget::createTabContextMenu(const QString &contentId)
+{
+    const int index = indexOf(contentId);
+    if (index < 0) return nullptr;
+    auto *menu = new QMenu(this);
+    menu->setObjectName(QStringLiteral("MyAdsTabContextMenu"));
+    const QStringList ids = contentIds();
+    const auto addCloseAction = [this, menu](const QString &text, const QString &name,
+                                            const QStringList &candidates) {
+        QStringList closeableIds;
+        for (const QString &id : candidates)
+            if (isContentCloseable(id)) closeableIds.append(id);
+        QAction *action = menu->addAction(text);
+        action->setObjectName(name);
+        action->setEnabled(!closeableIds.isEmpty());
+        connect(action, &QAction::triggered, this, [this, closeableIds] {
+            for (const QString &id : closeableIds)
+                if (contentWidget(id) && isContentCloseable(id) && !removeContent(id)) break;
+        });
+    };
+    QStringList others = ids;
+    others.removeAll(contentId);
+    addCloseAction(tr("关闭其他"), QStringLiteral("closeOtherTabs"), others);
+    addCloseAction(tr("关闭右侧"), QStringLiteral("closeTabsToRight"), ids.mid(index + 1));
+    emit tabContextMenuCreated(menu, contentId);
+    return menu;
+}
 
 void PaneWidget::applyTheme(const DockTheme &theme)
 {
@@ -207,7 +299,7 @@ void PaneWidget::updateCloseButton(int index)
 }
 
 bool PaneWidget::addContent(const QString &contentId, const QString &title, QWidget *widget,
-                            const QIcon &icon, bool closeable, int index)
+                            const QIcon &icon, bool closeable, int index, ClosePolicy closePolicy)
 {
     if (contentId.trimmed().isEmpty() || !widget || indexOf(contentId) >= 0) return false;
     const int target = index < 0 || index > m_tabBar->count() ? m_tabBar->count() : index;
@@ -219,6 +311,7 @@ bool PaneWidget::addContent(const QString &contentId, const QString &title, QWid
     m_tabBar->setTabToolTip(inserted, title);
     m_titles.insert(contentId, title);
     m_closeable.insert(contentId, closeable);
+    m_closePolicies.insert(contentId, closePolicy);
     updateCloseButton(inserted);
     m_tabBar->setCurrentIndex(inserted);
     m_stack->setCurrentIndex(inserted);
@@ -235,6 +328,7 @@ PaneContent PaneWidget::takeContent(const QString &contentId)
     content.widget = m_stack->widget(index);
     content.icon = m_tabBar->tabIcon(index);
     content.closeable = m_closeable.value(contentId, true);
+    content.closePolicy = contentClosePolicy(contentId);
     content.index = index;
     content.currentContentId = currentContentId();
     const QSignalBlocker blocker(m_tabBar);
@@ -242,6 +336,7 @@ PaneContent PaneWidget::takeContent(const QString &contentId)
     m_stack->removeWidget(content.widget);
     m_titles.remove(contentId);
     m_closeable.remove(contentId);
+    m_closePolicies.remove(contentId);
     m_stack->setCurrentIndex(m_tabBar->currentIndex());
     return content;
 }
@@ -249,19 +344,42 @@ PaneContent PaneWidget::takeContent(const QString &contentId)
 bool PaneWidget::restoreContent(const PaneContent &content)
 {
     if (!addContent(content.contentId, content.title, content.widget, content.icon,
-                    content.closeable, content.index)) return false;
+                    content.closeable, content.index, content.closePolicy)) return false;
     if (!content.currentContentId.isEmpty()) setCurrentContentId(content.currentContentId);
     return true;
 }
 
 bool PaneWidget::removeContent(const QString &contentId)
 {
+    QWidget *page = contentWidget(contentId);
+    if (!page || !isContentCloseable(contentId) || m_pendingCloseRequests.contains(contentId))
+        return false;
+
+    // Dispatch the event without QWidget::close(): the docking layer owns tab
+    // removal, visibility and page lifetime (including WA_DeleteOnClose pages).
+    // A modal save prompt can process events, so guard against re-entry and
+    // revalidate ownership before touching the tab again.
+    const QPointer<PaneWidget> paneGuard(this);
+    const QPointer<QWidget> pageGuard(page);
+    m_pendingCloseRequests.insert(contentId);
+    QCloseEvent request;
+    QApplication::sendEvent(page, &request);
+    if (!paneGuard) return false;
+    m_pendingCloseRequests.remove(contentId);
+    if (!request.isAccepted() || !pageGuard || contentWidget(contentId) != pageGuard.data() ||
+        !isContentCloseable(contentId)) return false;
+
     PaneContent content = takeContent(contentId);
     if (!content.widget) return false;
-    // Keep the detached page alive, matching the Python PaneWidget behavior.
-    // Destroying a populated WorkPage here synchronously tears down all of its
-    // cards and cover pixmaps on the GUI thread, which makes closing its tab
-    // noticeably stall the UI.
+    content.widget->hide();
+    if (content.closePolicy == ClosePolicy::DeleteLater) {
+        // Release heavy pages after the current UI event has completed.
+        content.widget->deleteLater();
+    } else {
+        // Retained pages belong to the caller and survive an empty pane being
+        // removed. The caller must reuse or destroy the detached widget.
+        content.widget->setParent(nullptr);
+    }
     if (m_tabBar->count() == 0) emit paneEmpty(this);
     return true;
 }
@@ -304,6 +422,11 @@ QIcon PaneWidget::contentIcon(const QString &id) const
 bool PaneWidget::isContentCloseable(const QString &id) const
 {
     return m_closeable.value(id, true);
+}
+
+ClosePolicy PaneWidget::contentClosePolicy(const QString &id) const
+{
+    return m_closePolicies.value(id, ClosePolicy::DeleteLater);
 }
 
 void PaneWidget::dragEnterEvent(QDragEnterEvent *event)

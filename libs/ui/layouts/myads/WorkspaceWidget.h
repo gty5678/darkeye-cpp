@@ -27,12 +27,14 @@ public:
     ContentConfig &setWindowTitle(const QString &title);
     ContentConfig &setIcon(const QIcon &icon);
     ContentConfig &setCloseable(bool closeable);
+    ContentConfig &setClosePolicy(ClosePolicy policy);
 
     QString contentId;
     QWidget *widget = nullptr;
     QString title;
     QIcon icon;
     bool closeable = true;
+    ClosePolicy closePolicy = ClosePolicy::DeleteLater;
 };
 
 class WorkspaceWidget final : public QWidget
@@ -60,7 +62,7 @@ public:
     void endLayoutUpdate();
     PaneWidget *split(PaneWidget *pane, Placement placement, int percent = 50);
     bool moveContent(const QString &sourcePaneId, const QString &contentId,
-                     const QString &targetPaneId, DropZone zone);
+                     const QString &targetPaneId, DropZone zone, int insertionIndex = -1);
     void resetToSingleEmptyPane();
 
     // Compatibility API used by the first C++ migration.
@@ -99,6 +101,8 @@ private:
     void rebuild(bool preserveContents = true);
     QWidget *buildNode(const std::shared_ptr<LayoutNode> &node);
     PaneWidget *createPane(const QString &paneId);
+    void connectPane(PaneWidget *pane);
+    void connectSplitters(QWidget *widget, const std::shared_ptr<LayoutNode> &node);
     QString nextPaneId() const;
     QString nextContentId();
     void handleDragMove(PaneWidget *target, const QPoint &globalPosition);

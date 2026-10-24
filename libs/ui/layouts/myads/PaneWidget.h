@@ -5,16 +5,21 @@
 #include <QIcon>
 #include <QHash>
 #include <QPoint>
+#include <QSet>
 #include <QWidget>
 
 class QDragEnterEvent;
 class QDragLeaveEvent;
 class QDragMoveEvent;
 class QDropEvent;
+class QMenu;
 class QStackedWidget;
 class QTabBar;
 
 namespace darkeye::myads {
+
+// KeepAlive detaches the closed page; its caller must reuse or destroy it.
+enum class ClosePolicy { DeleteLater, KeepAlive };
 
 struct PaneContent
 {
@@ -23,6 +28,7 @@ struct PaneContent
     QWidget *widget = nullptr;
     QIcon icon;
     bool closeable = true;
+    ClosePolicy closePolicy = ClosePolicy::DeleteLater;
     int index = -1;
     QString currentContentId;
 };
@@ -38,9 +44,12 @@ public:
     void setIconOnly(bool iconOnly);
     [[nodiscard]] bool iconOnly() const noexcept;
     bool addContent(const QString &contentId, const QString &title, QWidget *widget,
-                    const QIcon &icon = {}, bool closeable = true, int index = -1);
+                    const QIcon &icon = {}, bool closeable = true, int index = -1,
+                    ClosePolicy closePolicy = ClosePolicy::DeleteLater);
     [[nodiscard]] PaneContent takeContent(const QString &contentId);
     bool restoreContent(const PaneContent &content);
+    // Sends QCloseEvent to the page before removing it. ignore() vetoes the
+    // request. Non-closeable tabs cannot be removed; use takeContent to move.
     bool removeContent(const QString &contentId);
     [[nodiscard]] QStringList contentIds() const;
     [[nodiscard]] int contentCount() const;
@@ -50,6 +59,12 @@ public:
     [[nodiscard]] QWidget *contentWidget(const QString &contentId) const;
     [[nodiscard]] QIcon contentIcon(const QString &contentId) const;
     [[nodiscard]] bool isContentCloseable(const QString &contentId) const;
+    [[nodiscard]] ClosePolicy contentClosePolicy(const QString &contentId) const;
+    // The caller owns the returned menu; unknown content returns nullptr.
+    [[nodiscard]] QMenu *createTabContextMenu(const QString &contentId);
+    // Returns a gap in [0, contentCount()], or -1 outside the tab strip.
+    [[nodiscard]] int tabInsertionIndex(const QPoint &globalPosition) const;
+    [[nodiscard]] QRect tabInsertionRect(int index) const;
 
 signals:
     void paneEmpty(darkeye::myads::PaneWidget *pane);
@@ -57,6 +72,7 @@ signals:
     void tabDropped(darkeye::myads::PaneWidget *target, const QPoint &globalPosition,
                     const QString &sourcePaneId, const QString &contentId);
     void dragFinished();
+    void tabContextMenuCreated(QMenu *menu, const QString &contentId);
 
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
@@ -74,6 +90,8 @@ private:
     bool m_iconOnly = false;
     QHash<QString, QString> m_titles;
     QHash<QString, bool> m_closeable;
+    QHash<QString, ClosePolicy> m_closePolicies;
+    QSet<QString> m_pendingCloseRequests;
     DockTheme m_theme;
 };
 

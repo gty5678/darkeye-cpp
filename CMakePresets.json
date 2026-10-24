@@ -115,6 +115,7 @@
       "binaryDir": "${sourceDir}/build/windows-msvc-release-tests",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "VCPKG_MANIFEST_MODE": "ON",
         "Qt6_DIR": "$env{Qt6_DIR}",
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
         "VCPKG_TARGET_TRIPLET": "x64-windows",

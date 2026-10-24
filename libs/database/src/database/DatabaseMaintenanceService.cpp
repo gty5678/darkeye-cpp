@@ -112,28 +112,47 @@ DatabaseMaintenanceResult DatabaseMaintenanceService::restoreBackup(QSqlDatabase
     if (!QFileInfo(backupPath).isFile())
         return failure(QStringLiteral("备份文件不存在：%1").arg(backupPath));
 
+    QSqlQuery pragma(database);
+    if (!pragma.exec(QStringLiteral("PRAGMA foreign_keys")) || !pragma.next())
+        return failure(QStringLiteral("无法读取外键设置。"));
+    const bool foreignKeysEnabled = pragma.value(0).toBool();
+    pragma.finish();
+    const auto restoreForeignKeys = [&] {
+        pragma.exec(foreignKeysEnabled ? QStringLiteral("PRAGMA foreign_keys=ON")
+                                      : QStringLiteral("PRAGMA foreign_keys=OFF"));
+    };
+    if (!pragma.exec(QStringLiteral("PRAGMA foreign_keys=OFF")))
+        return failure(QStringLiteral("无法暂停外键约束。"));
+    // Begin before ATTACH: a caller-owned transaction must remain untouched,
+    // and must not acquire an attachment that cannot be detached until it ends.
+    if (!database.transaction())
+    {
+        restoreForeignKeys();
+        return failure(QStringLiteral("无法开始恢复事务：%1").arg(database.lastError().text()));
+    }
     QSqlQuery attach(database);
     attach.prepare(QStringLiteral("ATTACH DATABASE ? AS restore_source"));
     attach.addBindValue(backupPath);
-    if (!attach.exec()) return failure(QStringLiteral("无法打开备份：%1").arg(attach.lastError().text()));
-
+    if (!attach.exec())
+    {
+        const QString error = attach.lastError().text();
+        database.rollback();
+        restoreForeignKeys();
+        return failure(QStringLiteral("无法打开备份：%1").arg(error));
+    }
     const auto detach = [&database] {
         QSqlQuery query(database);
         query.exec(QStringLiteral("DETACH DATABASE restore_source"));
     };
+    const auto fail = [&](const QString &message) {
+        database.rollback();
+        detach();
+        restoreForeignKeys();
+        return failure(message);
+    };
     const QStringList tables = userTables(database, QStringLiteral("restore_source"));
     if (tables.isEmpty())
-    {
-        detach();
-        return failure(QStringLiteral("备份中没有可恢复的数据表。"));
-    }
-
-    QSqlQuery pragma(database);
-    if (!pragma.exec(QStringLiteral("PRAGMA foreign_keys=OFF")) || !database.transaction())
-    {
-        detach();
-        return failure(QStringLiteral("无法开始恢复事务：%1").arg(database.lastError().text()));
-    }
+        return fail(QStringLiteral("备份中没有可恢复的数据表。"));
     for (const QString &table : tables)
     {
         const QString identifier = quotedIdentifier(table);
@@ -141,26 +160,24 @@ DatabaseMaintenanceResult DatabaseMaintenanceService::restoreBackup(QSqlDatabase
         if (!query.exec(QStringLiteral("DELETE FROM %1").arg(identifier))
             || !query.exec(QStringLiteral("INSERT INTO %1 SELECT * FROM restore_source.%1")
                                .arg(identifier)))
+            return fail(QStringLiteral("恢复失败：%1").arg(query.lastError().text()));
+    }
+    // Re-enabling foreign_keys does not validate rows inserted while it was off.
+    // Validate the restored data before committing so corruption rolls back.
+    {
+        QSqlQuery check(database);
+        if (!check.exec(QStringLiteral("PRAGMA main.foreign_key_check")))
+            return fail(QStringLiteral("恢复外键检查失败：%1").arg(check.lastError().text()));
+        if (check.next())
         {
-            const QString errorMessage = query.lastError().text();
-            database.rollback();
-            QSqlQuery restorePragma(database);
-            restorePragma.exec(QStringLiteral("PRAGMA foreign_keys=ON"));
-            detach();
-            return failure(QStringLiteral("恢复失败：%1").arg(errorMessage));
+            check.finish();
+            return fail(QStringLiteral("备份包含无效的外键关联，已取消恢复。"));
         }
     }
     if (!database.commit())
-    {
-        const QString errorMessage = database.lastError().text();
-        QSqlQuery restorePragma(database);
-        restorePragma.exec(QStringLiteral("PRAGMA foreign_keys=ON"));
-        detach();
-        return failure(QStringLiteral("恢复提交失败：%1").arg(errorMessage));
-    }
-    QSqlQuery restorePragma(database);
-    restorePragma.exec(QStringLiteral("PRAGMA foreign_keys=ON"));
+        return fail(QStringLiteral("恢复提交失败：%1").arg(database.lastError().text()));
     detach();
+    restoreForeignKeys();
     QSqlQuery checkpoint(database);
     checkpoint.exec(QStringLiteral("PRAGMA wal_checkpoint(FULL)"));
     return {.succeeded = true, .message = QStringLiteral("数据库恢复完成。")};
@@ -356,6 +373,8 @@ DatabaseMaintenanceResult DatabaseMaintenanceService::rebuildPrivateLinks(
     QSqlDatabase publicDatabase, const QString &privateDatabasePath)
 {
     if (!publicDatabase.isOpen()) return failure(QStringLiteral("公共数据库尚未打开。"));
+    if (!QFileInfo(privateDatabasePath).isFile())
+        return failure(QStringLiteral("私有数据库不存在：%1").arg(privateDatabasePath));
     QSqlQuery attach(publicDatabase);
     attach.prepare(QStringLiteral("ATTACH DATABASE ? AS private_db"));
     attach.addBindValue(privateDatabasePath);

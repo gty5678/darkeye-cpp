@@ -13,6 +13,8 @@ class PrivateRepositoryTest final : public QObject
 private slots:
     void managesFavoritesIdempotently();
     void writesAndAggregatesPersonalRecords();
+    void aggregatesLeapDayAndYearBoundaries();
+    void preservesQuotedUnicodeAndRejectsInvalidRatings();
 };
 
 void PrivateRepositoryTest::managesFavoritesIdempotently()
@@ -96,6 +98,70 @@ void PrivateRepositoryTest::writesAndAggregatesPersonalRecords()
              1);
     QCOMPARE(repository.masturbationToolSuggestions(&errorMessage),
              QStringList({QStringLiteral("tool"), QString()}));
+}
+
+void PrivateRepositoryTest::aggregatesLeapDayAndYearBoundaries()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(root.filePath(QStringLiteral("private.db")), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(connection, darkeye::DatabaseKind::Private, &error));
+    darkeye::PrivateRepository repository(connection.database());
+    const QStringList dates = {QStringLiteral("2023-12-31 23:59:59"),
+                               QStringLiteral("2024-01-01 00:00:00"),
+                               QStringLiteral("2024-02-29 12:00:00"),
+                               QStringLiteral("2024-02-29 13:00:00"),
+                               QStringLiteral("2024-12-31 23:59:59"),
+                               QStringLiteral("2025-01-01 00:00:00")};
+    for (const auto &date : dates)
+    {
+        QVERIFY(repository.addMasturbationRecord(0, {}, date, {}, 1, {}, &error));
+        QVERIFY(repository.addLoveMakingRecord(date, 5, {}, &error));
+        QVERIFY(repository.addSexualArousalRecord(date, {}, &error));
+    }
+    for (const auto kind : {darkeye::PersonalRecordKind::Masturbation,
+                            darkeye::PersonalRecordKind::LoveMaking,
+                            darkeye::PersonalRecordKind::SexualArousal})
+    {
+        const auto counts = repository.dailyCounts(2024, kind, &error);
+        QCOMPARE(counts.size(), 3);
+        QCOMPARE(counts.value(QDate(2024, 1, 1)), 1);
+        QCOMPARE(counts.value(QDate(2024, 2, 29)), 2);
+        QCOMPARE(counts.value(QDate(2024, 12, 31)), 1);
+        QVERIFY(repository.dailyCounts(2022, kind, &error).isEmpty());
+    }
+    QVERIFY(repository.masturbationWorkIds(&error).isEmpty());
+}
+
+void PrivateRepositoryTest::preservesQuotedUnicodeAndRejectsInvalidRatings()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(root.filePath(QStringLiteral("private.db")), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(connection, darkeye::DatabaseKind::Private, &error));
+    darkeye::PrivateRepository repository(connection.database());
+    const QString comment = QStringLiteral("中文・日本語 O'Brien\n'; DROP TABLE masturbation; --");
+    QVERIFY(repository.addMasturbationRecord(42, QStringLiteral("ABC-42"),
+        QStringLiteral("2024-02-29 12:00"), QStringLiteral("O'Brien"), 5, comment, &error));
+    for (const int rating : {-1, 0, 6})
+    {
+        QVERIFY(!repository.addMasturbationRecord(0, {}, QStringLiteral("2024-02-29"), {}, rating, {}, &error));
+        QVERIFY(!error.isEmpty());
+        QVERIFY(!repository.addLoveMakingRecord(QStringLiteral("2024-02-29"), rating, {}, &error));
+    }
+    QSqlQuery query(connection.database());
+    QVERIFY(query.exec(QStringLiteral("SELECT comment, rating FROM masturbation")));
+    QVERIFY(query.next());
+    QCOMPARE(query.value(0).toString(), comment);
+    QCOMPARE(query.value(1).toInt(), 5);
+    QVERIFY(!query.next());
+    QVERIFY(query.exec(QStringLiteral("SELECT COUNT(*) FROM love_making")));
+    QVERIFY(query.next());
+    QCOMPARE(query.value(0).toInt(), 0);
 }
 
 QTEST_MAIN(PrivateRepositoryTest)

@@ -59,7 +59,10 @@ QStringList tagNamesFromText(const QString &text, const QString &filePath, QStri
         if (!matches)
             continue;
 
-        const QVariantList values = it.value().toList();
+        // QString can convert to a list of characters; a mapped tag name is
+        // one value, while a JSON array explicitly represents multiple tags.
+        const QVariantList values = it.value().metaType().id() == QMetaType::QString
+            ? QVariantList{it.value()} : it.value().toList();
         if (values.isEmpty())
         {
             const QString name = it.value().toString().trimmed();

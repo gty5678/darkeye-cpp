@@ -225,6 +225,11 @@ void PublicRepositoryTest::managesAndRedirectsReferenceRecordsAtomically()
                  connection, darkeye::DatabaseKind::Public, &errorMessage),
              qPrintable(errorMessage));
 
+    // These CRUD cases own their reference rows; initialization also imports built-in data.
+    QSqlQuery clearDefaults(connection.database());
+    QVERIFY(clearDefaults.exec(QStringLiteral("DELETE FROM prefix_maker_relation")));
+    QVERIFY(clearDefaults.exec(QStringLiteral("DELETE FROM maker")));
+
     darkeye::ReferenceRepository references(connection.database());
     darkeye::ReferenceRecord source{darkeye::ReferenceKind::Maker, 0,
                                     QStringLiteral("旧片商"),      QStringLiteral("旧メーカー"),
@@ -310,6 +315,11 @@ void PublicRepositoryTest::managesTagTypesAliasesAndRedirectsAtomically()
     QVERIFY2(darkeye::SchemaManager::initializeEmptyDatabase(
                  connection, darkeye::DatabaseKind::Public, &errorMessage),
              qPrintable(errorMessage));
+
+    // These CRUD cases own their reference rows; initialization also imports built-in data.
+    QSqlQuery clearDefaults(connection.database());
+    QVERIFY(clearDefaults.exec(QStringLiteral("DELETE FROM tag")));
+    QVERIFY(clearDefaults.exec(QStringLiteral("DELETE FROM tag_type")));
 
     darkeye::ReferenceRepository references(connection.database());
     const auto storyType = references.createTagType(QStringLiteral("剧情"), 2, &errorMessage);
@@ -541,6 +551,10 @@ void PublicRepositoryTest::batchesWorkDeletionRestorationAndPermanentRemoval()
              qPrintable(errorMessage));
     QCOMPARE(works.listByDeletedState(true).size(), 2);
     QCOMPARE(works.listByDeletedState(true, QStringLiteral("削除")).size(), 1);
+    QCOMPARE(works.listByDeletedState(true, QStringLiteral("STATE-001")).first().id, *firstId);
+    QVERIFY(works.listByDeletedState(true, QStringLiteral("%"), &errorMessage).isEmpty());
+    QVERIFY(works.listByDeletedState(true, QStringLiteral("_"), &errorMessage).isEmpty());
+    QVERIFY(works.listByDeletedState(true, QStringLiteral("' OR 1=1 --"), &errorMessage).isEmpty());
     QVERIFY(!works.setDeletedMany({*firstId, 999999}, false, &errorMessage));
     QCOMPARE(works.listByDeletedState(true).size(), 2);
 
