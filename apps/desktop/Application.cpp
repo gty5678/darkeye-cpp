@@ -7,6 +7,8 @@
 #include "http/LocalApiServer.h"
 #include "MainWindow.h"
 #include "graph_view/ForceViewRhiWidget.h"
+#include "dvd_scene/DvdSceneWidget.h"
+#include "dvd_scene/DvdModelAsset.h"
 #include "services/UpdateService.h"
 #include "services/LlamaRuntime.h"
 #include "ui/dialogs/TermsDialog.h"
@@ -20,9 +22,6 @@
 #include <QFileInfo>
 #include <QProcess>
 #include <QPixmap>
-#include <QQmlContext>
-#include <QQmlError>
-#include <QQuickWidget>
 #include <QSettings>
 #include <QStackedWidget>
 #include <QSplashScreen>
@@ -156,7 +155,7 @@ int Application::run()
     QTimer::singleShot(0, &m_application, [this] { startBackgroundServices(); });
     // Let the initial work page paint first, then build the real shelf page
     // while the application is otherwise idle. The first shelf click can reuse
-    // this exact QQuickWidget and scene instead of paying createPage/lazyLoad.
+    // this exact QRhi widget and scene instead of paying createPage/lazyLoad.
     QTimer::singleShot(250, m_mainWindow.get(),
                        [this] { m_mainWindow->preloadShelfPage(); });
     return m_application.exec();
@@ -164,7 +163,7 @@ int Application::run()
 
 void Application::prepareGraphicsPrewarm()
 {
-    // Python renders small Qt Quick 3D and ForceView scenes during startup.
+    // Render small native DVD and ForceView scenes during startup.
     // Keep both QRhi users in the top-level widget tree long enough to submit
     // real frames so the first visible shelf/graph page does not initialize the
     // graphics stack on the user's click.
@@ -182,23 +181,13 @@ void Application::prepareGraphicsPrewarm()
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    m_quickPrewarmView = new QQuickWidget(m_graphicsPrewarmWindow.get());
-    m_quickPrewarmView->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    m_quickPrewarmView->setFixedHeight(48);
-    auto *prewarmContext = m_quickPrewarmView->rootContext();
-    prewarmContext->setContextProperty(
-        QStringLiteral("prewarmDvdUrl"),
-        QUrl(QStringLiteral("qrc:/qml/dvd/Dvd.qml")));
-    prewarmContext->setContextProperty(QStringLiteral("meshesPath"),
-                                       QStringLiteral("qrc:/assets/meshes/"));
-    prewarmContext->setContextProperty(QStringLiteral("hdrPath"),
-                                       QStringLiteral("qrc:/assets/hdr/"));
-    m_quickPrewarmView->setSource(QUrl(QStringLiteral("qrc:/qml/graphics_prewarm_scene.qml")));
-    if (m_quickPrewarmView->status() == QQuickWidget::Error) {
-        for (const QQmlError &error : m_quickPrewarmView->errors())
-            qWarning() << "Qt Quick 3D prewarm error:" << error.toString();
-    }
-    layout->addWidget(m_quickPrewarmView);
+    auto *dvdPrewarm = new dvd_scene::DvdSceneWidget(m_graphicsPrewarmWindow.get());
+    dvdPrewarm->setFixedHeight(48);
+    render3d::GltfLoader loader;
+    const auto model=dvd_scene::loadDvdModel(loader,QStringLiteral(":/assets/dvd/dvd.glb"));
+    if(model && dvdPrewarm->setModel(model.asset))
+        dvdPrewarm->setItems({{QStringLiteral("prewarm"),{},QStringLiteral("DVD"),0,false}});
+    layout->addWidget(dvdPrewarm);
 
     m_graphPrewarmView = new ForceViewRhiWidget(m_graphicsPrewarmWindow.get());
     layout->addWidget(m_graphPrewarmView);

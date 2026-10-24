@@ -3,21 +3,22 @@
 #include "domain/Work.h"
 
 #include <QSqlDatabase>
-#include <QHash>
-#include <QElapsedTimer>
-#include <QSet>
-#include <QThreadPool>
 #include <QVariantList>
 #include <QWidget>
 
-class QQuickWidget;
 class QResizeEvent;
+class QLabel;
+class QMenu;
+class QAction;
 class QTimer;
+class QScrollArea;
+class QToolButton;
 
 namespace darkeye
 {
 
 class FanartStripWidget;
+namespace dvd_scene { class DvdSceneWidget; }
 namespace graph {
 class GraphManager;
 }
@@ -113,21 +114,17 @@ signals:
     void expandedWorkFavoritedChanged();
 
 protected:
+    bool eventFilter(QObject *object, QEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
 
 private:
-    void updateScene();
-    void refreshVisibleWindow(bool force = false);
-    void advanceInitialPopulation();
-    void finishInitialPopulation();
-    [[nodiscard]] int targetWindowSize() const;
-    [[nodiscard]] qreal visibleShelfWidth() const;
-    [[nodiscard]] qreal initialCameraX() const;
     void updateInitialCamera();
-    [[nodiscard]] QString textureForWork(const WorkSummary &work);
-    void cacheTexture(qint64 workId, const QString &texture);
-    void queueThumbnail(qint64 workId, const QString &sourcePath, const QString &thumbnailPath);
-    void advanceCamera();
+    [[nodiscard]] qreal initialCameraX() const;
+    void updateSelection();
+    void updateActions();
+    void updateCoverInfo();
+    void layoutOverlays();
+    [[nodiscard]] int selectedIndex() const;
     [[nodiscard]] qint64 workIdAt(int virtualIndex) const;
     void clearExpandedMeta();
     void clearFanartOverlay();
@@ -145,31 +142,29 @@ private:
     QList<WorkSummary> m_works;
     qreal m_cameraX = 0.0;
     qreal m_cameraTargetX = 0.0;
-    qreal m_cameraVelocityX = 0.0;
     bool m_useInitialCamera = true;
-    QElapsedTimer m_cameraElapsed;
-    int m_visibleStart = 0;
-    int m_loadedStart = -1;
-    int m_renderWindowSize = 0;
-    QHash<qint64, QString> m_textureCache;
-    QList<qint64> m_textureCacheOrder;
-    QSet<qint64> m_thumbnailInFlight;
-    QThreadPool m_thumbnailPool;
-    QTimer *m_thumbnailRefreshTimer = nullptr;
-    QTimer *m_cameraTimer = nullptr;
-    QTimer *m_initialPopulateTimer = nullptr;
+    bool m_settingWorks = false;
+    QString m_pendingOpen;
     QTimer *m_relationGraphTimer = nullptr;
-    bool m_thumbnailRefreshPending = false;
-    // Each route-driven open invalidates delayed expand callbacks from an
-    // earlier work.  This matters when the shelf is already open and another
-    // page immediately requests a different work.
-    quint64 m_openWorkRequest = 0;
+    dvd_scene::DvdSceneWidget *m_scene = nullptr;
+    QMenu *m_contextMenu = nullptr;
+    QAction *m_favoriteAction = nullptr;
+    QAction *m_openAction = nullptr;
+    QAction *m_playAction = nullptr;
+    QPointF m_rightPress;
+    bool m_rightDragged = false;
+    QLabel *m_sceneError = nullptr;
+    QScrollArea *m_coverInfo = nullptr;
+    QWidget *m_coverContent = nullptr;
+    QWidget *m_coverActions = nullptr;
+    QToolButton *m_coverFavorite = nullptr;
+    QByteArray m_coverInfoSignature;
+    int m_coverTextWidth = 320;
     QString m_title, m_story, m_code, m_releaseDate, m_director, m_studio, m_label, m_series;
     QVariantList m_actresses, m_actors, m_tags;
     qint64 m_makerId = -1, m_labelId = -1, m_seriesId = -1;
     bool m_favorited = false;
     bool m_hasLocalVideo = false;
-    QQuickWidget *m_quickWidget = nullptr;
     graph_view::GraphViewWidget *m_relationGraph = nullptr;
     FanartStripWidget *m_fanartStrip = nullptr;
     QWidget *m_relationGraphContainer = nullptr;

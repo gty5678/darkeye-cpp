@@ -10,7 +10,6 @@
 
 class QWidget;
 class ForceViewRhiWidget;
-class QQuickWidget;
 class QSplashScreen;
 
 namespace darkeye {
@@ -46,7 +45,6 @@ private:
     std::unique_ptr<QSplashScreen> m_splash;
     std::unique_ptr<MainWindow> m_mainWindow;
     std::unique_ptr<QWidget> m_graphicsPrewarmWindow;
-    QQuickWidget *m_quickPrewarmView = nullptr;
     ForceViewRhiWidget *m_graphPrewarmView = nullptr;
     bool m_graphPrewarmFrameSubmitted = false;
     std::unique_ptr<LocalApiServer> m_localApiServer;

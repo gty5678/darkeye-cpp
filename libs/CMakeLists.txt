@@ -4,6 +4,8 @@ add_subdirectory(database)
 add_subdirectory(services)
 add_subdirectory(graph)
 add_subdirectory(graph_view)
+add_subdirectory(render3d)
+add_subdirectory(dvd_scene)
 add_subdirectory(darkeye_ui)
 add_subdirectory(ui)
 

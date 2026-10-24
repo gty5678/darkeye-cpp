@@ -4,11 +4,10 @@
 #include "domain/Work.h"
 #include <QSqlDatabase>
 
-class QQuickWidget;
-
 namespace darkeye {
 
 class ThemeService;
+class ShopSceneWidget;
 
 class HomePage final : public LazyWidget
 {
@@ -32,7 +31,7 @@ private:
     QSqlDatabase m_database;
     QString m_coverDirectory;
     QList<WorkSummary> m_works;
-    QQuickWidget *m_view = nullptr;
+    ShopSceneWidget *m_view = nullptr;
 };
 
 } // namespace darkeye

@@ -43,11 +43,12 @@ Node {
 
     Repeater3D {
         id: coverRepeater
-        model: shelf.coverTextureSources
+        // Keep models/materials alive when only the selected covers change.
+        model: shelf.coverTextureSources.length
         delegate: Node {
             id: cover
+            objectName: "HomeCover" + index
             required property int index
-            required property var modelData
             x: -0.394006 + (index % 6) * 0.16
             y: 1.115 - Math.floor(index / 6) * 0.25
             z: -0.043
@@ -59,7 +60,13 @@ Node {
                 materials: [
                     PrincipledMaterial {
                         baseColorMap: Texture {
-                            source: cover.modelData
+                            sourceItem: Image {
+                                objectName: "HomeCoverImage" + cover.index
+                                source: shelf.coverTextureSources[cover.index]
+                                asynchronous: true
+                                sourceSize: Qt.size(768, 768)
+                                visible: false
+                            }
                             tilingModeHorizontal: Texture.Repeat
                             tilingModeVertical: Texture.Repeat
                         }

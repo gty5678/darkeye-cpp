@@ -73,6 +73,7 @@
         "VCPKG_TARGET_TRIPLET": "x64-windows",
         "DARKEYE_BUILD_TESTS": "OFF",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/release-data",
+        "DARKEYE_BUILD_RENDER3D_DEMO": "ON",
         "DARKEYE_INSTALL_DATA": "ON",
         "CMAKE_INSTALL_BINDIR": "."
       }

@@ -7,6 +7,7 @@
 #include "darkeye_ui/components/ToastNotification.h"
 #include "graph/GraphManager.h"
 #include "graph_view/GraphViewWidget.h"
+#include "graph_view/ForceViewRhiWidget.h"
 #include "settings/Settings.h"
 #include "ui/components/FanartStripWidget.h"
 #include "utils/MediaUtils.h"
@@ -19,19 +20,27 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QImageReader>
-#include <QJsonDocument>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMetaObject>
-#include <QPointer>
-#include <QQuickItem>
-#include <QQuickWidget>
-#include <QQmlContext>
-#include <QRunnable>
 #include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QContextMenuEvent>
+#include <QMouseEvent>
+#include <QScrollArea>
+#include <QToolButton>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include "darkeye_ui/layouts/FlowLayout.h"
+#include <QTextLayout>
+#include <QFontMetricsF>
+#include <QScrollBar>
+#include <QStyle>
+#include <QLabel>
+#include "dvd_scene/DvdSceneWidget.h"
+#include "dvd_scene/DvdModelAsset.h"
 #include <QtMath>
 
 #include <cmath>
@@ -42,46 +51,41 @@ namespace darkeye
 namespace
 {
 
-constexpr int dvdWindowSize = 60;
-constexpr int initialDvdBatchSize = 18;
-constexpr int dvdBatchSize = 18;
-constexpr int minimumDvdWindowSize = 42;
-constexpr int fallbackDvdWindowSize = 48;
-constexpr int dvdWindowOverscan = 8;
-constexpr int dvdTextureMaxEdge = 2048;
-constexpr qint64 dvdTextureSizeFallbackThreshold = 320 * 1024;
 constexpr qreal dvdSpacing = 0.0145;
 constexpr qreal shelfCameraDistance = 0.25;
 constexpr qreal shelfVerticalFieldOfView = 60.0;
-// Closed DVD boxes extend equally either side of their shelf position.
 constexpr qreal dvdHalfWidth = 0.0067071;
-
-QString fileUrl(const QString &path)
-{
-    return QUrl::fromLocalFile(QDir::cleanPath(path)).toString(QUrl::FullyEncoded);
-}
-
-void trimThumbnailCache()
-{
-    constexpr int cacheLimit = 900;
-    constexpr qint64 cacheBytesLimit = 900LL * 1024 * 1024;
-    QDir directory(QDir(QDir::tempPath()).filePath(QStringLiteral("darkeye/dvd_3d_tex")));
-    const QFileInfoList files = directory.entryInfoList({QStringLiteral("*.jpg")}, QDir::Files,
-                                                        QDir::Time);
-    qint64 totalBytes = 0;
-    for (const QFileInfo &file : files) totalBytes += file.size();
-    for (int index = files.size() - 1;
-         index >= 0 && (index >= cacheLimit || totalBytes > cacheBytesLimit); --index)
-    {
-        const QFileInfo &file = files.at(index);
-        if (QFile::remove(file.absoluteFilePath())) totalBytes -= file.size();
-    }
-}
 
 QColor readableTextColor(const QString &background)
 {
     const QColor color(background);
     return color.isValid() && color.lightness() < 135 ? QColor(Qt::white) : QColor(Qt::black);
+}
+
+QString coverExcerpt(const QString &text,QFont font,int width,int lines)
+{
+    QString normalized=text;
+    normalized.replace('\n',QChar::LineSeparator);
+    QTextLayout layout(normalized,font);
+    QTextOption option; option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    layout.setTextOption(option);
+    layout.beginLayout();
+    int lastStart=0,end=0;
+    QString result;
+    for(int i=0;i<lines;++i) {
+        auto line=layout.createLine();
+        if(!line.isValid()) break;
+        line.setLineWidth(std::max(1,width));
+        lastStart=line.textStart(); end=lastStart+line.textLength();
+        if(i<lines-1) {
+            auto part=normalized.mid(lastStart,line.textLength());
+            while(part.endsWith(QChar::LineSeparator) || part.endsWith(' ')) part.chop(1);
+            result+=part+QLatin1Char('\n');
+        }
+    }
+    layout.endLayout();
+    if(end>=normalized.size()) return text;
+    return result+QFontMetricsF(font).elidedText(normalized.mid(lastStart).simplified(),Qt::ElideRight,width);
 }
 
 } // namespace
@@ -91,33 +95,97 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
                            const QString &fanartDirectory, QWidget *parent)
     : QWidget(parent), m_database(std::move(database)), m_privateDatabase(std::move(privateDatabase)),
       m_graphManager(graphManager), m_coverDirectory(coverDirectory),
-      m_fanartDirectory(fanartDirectory), m_quickWidget(new QQuickWidget(this))
+      m_fanartDirectory(fanartDirectory), m_scene(new dvd_scene::DvdSceneWidget(this))
 {
     Resources::ensureInitialized();
     setObjectName(QStringLiteral("DvdShelfView"));
-    // Two decoders prevent a large cover collection from briefly consuming
-    // several gigabytes while its thumbnails are prepared.
-    m_thumbnailPool.setMaxThreadCount(2);
-    // Cache eviction does not affect the scene's correctness. Running the
-    // directory scan outside the GUI thread keeps it off the preload path.
-    QThreadPool::globalInstance()->start([] { trimThumbnailCache(); });
-    m_thumbnailRefreshTimer = new QTimer(this);
-    m_thumbnailRefreshTimer->setSingleShot(true);
-    m_thumbnailRefreshTimer->setInterval(50);
-    connect(m_thumbnailRefreshTimer, &QTimer::timeout, this, [this] {
-        m_thumbnailRefreshPending = false;
-        refreshVisibleWindow(true);
-    });
-    m_cameraTimer = new QTimer(this);
-    m_cameraTimer->setInterval(16);
-    connect(m_cameraTimer, &QTimer::timeout, this, &DvdShelfView::advanceCamera);
-    m_initialPopulateTimer = new QTimer(this);
-    m_initialPopulateTimer->setInterval(16);
-    connect(m_initialPopulateTimer, &QTimer::timeout,
-            this, &DvdShelfView::advanceInitialPopulation);
-    auto *layout = new QVBoxLayout(this);
+    auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->addWidget(m_quickWidget);
+    layout->addWidget(m_scene, 1);
+    m_scene->setObjectName(QStringLiteral("ShelfDvdScene"));
+    m_scene->setMinimumHeight(400);
+    m_scene->renderWidget()->setSampleCount(4);
+    m_scene->renderWidget()->installEventFilter(this);
+    m_scene->setCoverBudget(128ULL*1024*1024);
+    m_contextMenu = new QMenu(this);
+    m_contextMenu->setObjectName(QStringLiteral("ShelfContextMenu"));
+    const auto action = [this](const QString &text, const QString &name, auto handler) {
+        auto *item = m_contextMenu->addAction(text);
+        item->setObjectName(name);
+        connect(item, &QAction::triggered, this, handler);
+        return item;
+    };
+    m_openAction = action(QStringLiteral("开盒"), QStringLiteral("ShelfToggleOpen"), [this] { m_scene->toggleOpen(); });
+    m_playAction = action(QStringLiteral("播放本地视频"), QStringLiteral("ShelfPlay"), [this] { on_cd_clicked(selectedIndex()); });
+    m_favoriteAction = action(QStringLiteral("收藏"), QStringLiteral("ShelfFavorite"), [this] { on_heart_clicked(selectedIndex()); });
+    action(QStringLiteral("复制番号"), QStringLiteral("ShelfCopyCode"), [this] { copy_to_clipboard(m_code); });
+    action(QStringLiteral("编辑"), QStringLiteral("ShelfEdit"), [this] { on_edit_clicked(selectedIndex()); });
+    action(QStringLiteral("删除"), QStringLiteral("ShelfDelete"), [this] { on_delete_clicked(selectedIndex()); });
+    action(QStringLiteral("放回书架（Esc）"), QStringLiteral("ShelfReturn"), [this] { m_scene->returnToShelf(); });
+    m_coverInfo=new QScrollArea(this);
+    m_coverInfo->setObjectName(QStringLiteral("ShelfCoverInfo"));
+    m_coverInfo->setWidgetResizable(false);
+    m_coverInfo->setFrameShape(QFrame::NoFrame);
+    m_coverInfo->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_coverInfo->setStyleSheet(QStringLiteral(
+        "QScrollArea#ShelfCoverInfo { background:transparent;border:0; }"
+        "QScrollArea#ShelfCoverInfo > QWidget { background:transparent; }"
+        "QScrollArea#ShelfCoverInfo > QWidget > QWidget { background:transparent; }"
+        "QScrollBar:vertical { background:transparent;width:8px;margin:8px 0; }"
+        "QScrollBar::handle:vertical { background:#78808c;border-radius:4px;min-height:24px; }"
+        "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical { height:0; }"
+        "QScrollBar::add-page:vertical,QScrollBar::sub-page:vertical { background:transparent; }"));
+    m_coverInfo->viewport()->setAutoFillBackground(false);
+    m_coverInfo->hide();
+    m_coverActions=new QWidget(this);
+    m_coverActions->setObjectName("ShelfCoverActions");
+    m_coverActions->setAutoFillBackground(false);
+    m_coverActions->setStyleSheet("QWidget#ShelfCoverActions { background:transparent;border:0; }");
+    auto *tools=new QVBoxLayout(m_coverActions);
+    tools->setContentsMargins(0,0,0,0); tools->setSpacing(8);
+    const auto tool=[&](const QString &name,const QString &icon,const QString &tip,auto handler) {
+        auto *button=new QToolButton(m_coverActions); button->setObjectName(name);
+        button->setFixedSize(40,40); button->setIcon(QIcon(icon)); button->setIconSize(QSize(26,26));
+        button->setToolTip(tip); button->setCursor(Qt::PointingHandCursor);
+        button->setStyleSheet("QToolButton { background:transparent;border:0;border-radius:6px; } QToolButton:hover { background:rgba(255,255,255,100); }");
+        connect(button,&QToolButton::clicked,this,handler); tools->addWidget(button); return button;
+    };
+    m_coverFavorite=tool("ShelfCoverFavorite",":/qml/dvd/icons/love-off.svg",QStringLiteral("收藏"),[this]{on_heart_clicked(selectedIndex());});
+    tool("ShelfCoverEdit",":/qml/dvd/icons/square-pen.svg",QStringLiteral("编辑"),[this]{on_edit_clicked(selectedIndex());});
+    tool("ShelfCoverDelete",":/qml/dvd/icons/trash-2.svg",QStringLiteral("删除"),[this]{on_delete_clicked(selectedIndex());});
+    m_coverActions->setFixedSize(40,136); m_coverActions->hide();
+    connect(this,&DvdShelfView::expandedWorkMetaChanged,this,&DvdShelfView::updateCoverInfo);
+    connect(this,&DvdShelfView::expandedWorkMetaChanged,this,&DvdShelfView::layoutOverlays);
+    connect(m_scene,&dvd_scene::DvdSceneWidget::presentationChanged,this,&DvdShelfView::layoutOverlays);
+    m_sceneError = new QLabel(this);
+    m_sceneError->setObjectName(QStringLiteral("ShelfSceneError"));
+    m_sceneError->setWordWrap(true);
+    m_sceneError->hide();
+    connect(m_scene, &dvd_scene::DvdSceneWidget::sceneError, this, [this](const QString &error) {
+        m_sceneError->setText(error); m_sceneError->adjustSize(); m_sceneError->show(); m_sceneError->raise();
+    });
+    connect(m_scene,&dvd_scene::DvdSceneWidget::coverWarning,this,[](const QString &message) {
+        qWarning().noquote()<<"Shelf cover:"<<message;
+    });
+    connect(this, &DvdShelfView::expandedWorkMetaChanged, this, &DvdShelfView::updateActions);
+    connect(this, &DvdShelfView::expandedWorkFavoritedChanged, this, &DvdShelfView::updateActions);
+    connect(m_scene, &dvd_scene::DvdSceneWidget::selectionChanged, this, [this] { updateSelection(); });
+    connect(m_scene, &dvd_scene::DvdSceneWidget::stateChanged, this, [this] {
+        if(m_scene->state()==dvd_scene::DvdInteractionController::State::Focused
+            && m_pendingOpen==m_scene->selectedId()) {
+            m_pendingOpen.clear();
+            if(!m_scene->isExpanded()) m_scene->toggleOpen();
+        }
+        updateSelection();
+    });
+    connect(m_scene, &dvd_scene::DvdSceneWidget::expandedChanged, this, [this] { updateSelection(); });
+    connect(m_scene, &dvd_scene::DvdSceneWidget::cameraPositionChanged, this, [this] {
+        m_cameraX=m_scene->cameraX(); m_cameraTargetX=m_scene->cameraTargetX();
+        emit cameraXChanged(); emit cameraTargetXChanged();
+    });
+    connect(m_scene, &dvd_scene::DvdSceneWidget::discClicked, this, [this](const QString &id) {
+        if(id==m_scene->selectedId()) on_cd_clicked(selectedIndex());
+    });
     if (m_graphManager != nullptr)
     {
         m_relationGraphContainer = new QWidget(this);
@@ -125,6 +193,7 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
         auto *graphLayout = new QVBoxLayout(m_relationGraphContainer);
         graphLayout->setContentsMargins(0, 0, 0, 0);
         m_relationGraph = new graph_view::GraphViewWidget(*m_graphManager, m_relationGraphContainer);
+        m_relationGraph->view()->setBackgroundColor(Qt::white);
         graphLayout->addWidget(m_relationGraph);
         connect(m_relationGraph, &graph_view::GraphViewWidget::nodeLeftClicked, this,
                 [this](const QString &nodeId) {
@@ -146,6 +215,18 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     m_fanartStrip = new FanartStripWidget(m_fanartDirectory, m_coverDirectory, {}, m_fanartContainer);
     m_fanartStrip->setCanAdd(false);
     m_fanartStrip->setPreviewMode(true);
+    m_fanartContainer->setStyleSheet(QStringLiteral(
+        "QWidget { background:transparent; }"
+        "QLabel { background:transparent;color:#354052; }"
+        "QScrollBar:horizontal { background:transparent;height:6px;margin:0; }"
+        "QScrollBar::handle:horizontal { background:rgba(53,64,82,110);min-width:24px;border-radius:3px; }"
+        "QScrollBar::add-line:horizontal,QScrollBar::sub-line:horizontal { width:0; }"
+        "QScrollBar::add-page:horizontal,QScrollBar::sub-page:horizontal { background:transparent; }"));
+    for(auto *scroll:m_fanartStrip->findChildren<QScrollArea *>()) {
+        scroll->setAutoFillBackground(false);
+        scroll->viewport()->setAutoFillBackground(false);
+        if(scroll->widget()) scroll->widget()->setAutoFillBackground(false);
+    }
     fanartLayout->addWidget(m_fanartStrip);
     m_fanartContainer->hide();
     connect(m_fanartStrip, &FanartStripWidget::fanartChanged,
@@ -157,370 +238,275 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
         if (m_overlayWorkId > 0 && m_relationGraphContainer != nullptr)
             showRelationGraph(m_overlayWorkId);
     });
-    m_quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    m_quickWidget->setMinimumHeight(600);
-    m_quickWidget->setClearColor(Qt::transparent);
-    auto *context = m_quickWidget->rootContext();
-    context->setContextProperty(QStringLiteral("dvdBridge"), this);
-    // dvd_scene.qml uses this unguarded for every Loader3D delegate.  Keep
-    // the Python setup contract, otherwise filtering recreates delegates
-    // whose scale binding throws and leaves the shelf visually empty.
-    context->setContextProperty(QStringLiteral("modelScale"), 1.0);
-    context->setContextProperty(QStringLiteral("dvdQmlUrl"),
-                                QUrl(QStringLiteral("qrc:/qml/dvd/Dvd.qml")));
-    context->setContextProperty(QStringLiteral("dvdCount"), 0);
-    context->setContextProperty(QStringLiteral("dvdTextureSources"), QVariantList{});
-    context->setContextProperty(QStringLiteral("dvdVisibleStart"), 0);
-    context->setContextProperty(QStringLiteral("dvdShelfLength"), 0.0);
-    context->setContextProperty(QStringLiteral("dvdSpacing"), dvdSpacing);
-    context->setContextProperty(QStringLiteral("cameraDistance"), shelfCameraDistance);
-    context->setContextProperty(QStringLiteral("selectedDvdDistance"), 0.2);
-    context->setContextProperty(QStringLiteral("showWireframe"), false);
-    context->setContextProperty(QStringLiteral("meshesPath"), QStringLiteral("qrc:/assets/meshes/"));
-    context->setContextProperty(QStringLiteral("hdrPath"), QStringLiteral("qrc:/assets/hdr/"));
-    m_quickWidget->setSource(
-        QUrl(QStringLiteral("qrc:/qml/dvd/dvd_scene.qml")));
-    if (QQuickItem *root = m_quickWidget->rootObject())
-    {
-        // Follow the actual viewport size, including the first layout after
-        // works were loaded while the page was still hidden.
-        connect(root, &QQuickItem::widthChanged, this, &DvdShelfView::updateInitialCamera);
-        connect(root, &QQuickItem::heightChanged, this, &DvdShelfView::updateInitialCamera);
+    render3d::GltfLoader loader;
+    const auto model=dvd_scene::loadDvdModel(loader,QStringLiteral(":/assets/dvd/dvd.glb"));
+    auto shelfModel=model?std::make_shared<render3d::ModelAsset>(*model.asset):nullptr;
+    if(shelfModel) {
+        // Paper remains matte; the separate plastic shell supplies reflections.
+        // The exported pic roughness (0.08) otherwise washes bright artwork out.
+        for(auto &node:shelfModel->nodes) for(auto &primitive:node.primitives) {
+            if(!primitive.material) continue;
+            const auto name=primitive.material->name;
+            if(name!="trans" && name!="cover" && name!="disc-cover" && !(node.name=="disc" && (name=="transparent" || name=="rainbow"))) continue;
+            auto paper=std::make_shared<render3d::Material>(*primitive.material);
+            paper->roughness=0.9f;
+            if(name=="trans") {
+                paper->baseColor={1,1,1,1};
+                paper->metallic=0; paper->transmission=0; paper->thickness=0;
+                paper->alphaMode=render3d::Material::AlphaMode::Opaque;
+                paper->transmissionTexture.reset();
+            }
+            if(node.name=="disc") {
+                paper->metallic=0;
+                paper->transmission=0;
+                if(name=="transparent") {
+                    paper->baseColor={1,1,1,0.8f};
+                    paper->alphaMode=render3d::Material::AlphaMode::Blend;
+                } else if(name=="rainbow") {
+                    paper->baseColor={0.604f,0.604f,0.604f,1};
+                    paper->metallic=0.15f; paper->roughness=0.85f;
+                }
+            }
+            primitive.material=std::move(paper);
+        }
     }
+    if(!shelfModel || !m_scene->setModel(shelfModel)) {
+        m_sceneError->setText(QStringLiteral("DVD 模型载入失败：%1").arg(model.error));
+        m_sceneError->show();
+    }
+    QString environmentError;
+    static const auto environment=render3d::EnvironmentMap::loadHdr(QStringLiteral(":/assets/hdr/lebombo_1k.hdr"),&environmentError);
+    m_scene->renderWidget()->setEnvironment(environment);
+    render3d::LightingSettings lighting;
+    lighting.environmentBackground=lighting.imageBasedLighting=bool(environment);
+    lighting.ambientOcclusion=lighting.shadows=lighting.toneMapping=true;
+    // The legacy QML probeOrientation was (0,155,0). Rotate both the sky and
+    // IBL together, and leave headroom for bright paper/plastic highlights.
+    lighting.environmentRotation=155;
+    lighting.exposure=0.85f;
+    lighting.environmentIntensity=0.8f;
+    lighting.keyLightDirection={-0.5f,0.8f,1.0f};
+    lighting.keyLightIntensity=1.8f;
+    lighting.keyLightCameraRelative=true;
+    m_scene->renderWidget()->setLighting(lighting);
+    if(!environment) qWarning().noquote()<<environmentError;
 }
 
 void DvdShelfView::setWorks(const QList<WorkSummary> &works)
 {
-    // A filtering reload invalidates any delayed route-open callback whose
-    // delegate belonged to the previous virtualized window.
-    ++m_openWorkRequest;
-    // Match Python's set_work_ids: clear interaction and discard the old
-    // delegates before replacing their virtual indices and textures.
-    if (QObject *root = m_quickWidget->rootObject())
-    {
-        root->setProperty("hoveredDelegateIndex", -1);
-        root->setProperty("pressedDelegateIndex", -1);
-        root->setProperty("pressedObjectHit", QVariant());
-        root->setProperty("fullyExpandedDelegateIndex", -1);
-        root->setProperty("expandedDelegateIndex", -1);
-        root->setProperty("selectedDelegateIndex", -1);
-        root->setProperty("_pendingCollapseSelectedIndex", -1);
-        root->setProperty("_pendingCollapseCloseSpeedMultiplier", 1.0);
-        root->setProperty("_frozenSelectedDelegateIndex", -1);
-        root->setProperty("_frozenSelectedVirtualIndex", -1);
-    }
-    m_suppressRelationGraphUntilDeselected = false;
-    auto *context = m_quickWidget->rootContext();
-    context->setContextProperty(QStringLiteral("dvdCount"), 0);
-    context->setContextProperty(QStringLiteral("dvdTextureSources"), QVariantList{});
-    m_works = works;
-    m_useInitialCamera = true;
-    m_cameraX = initialCameraX();
-    m_cameraTargetX = m_cameraX;
-    m_cameraVelocityX = 0;
-    m_cameraElapsed.invalidate();
-    m_cameraTimer->stop();
-    // The QML camera binds to these properties, so resetting only the C++
-    // values leaves it looking at the old position after a scrolled reload.
-    emit cameraXChanged();
-    emit cameraTargetXChanged();
-    m_initialPopulateTimer->stop();
-    m_visibleStart = 0;
-    m_loadedStart = -1;
-    m_renderWindowSize = qMin(initialDvdBatchSize, targetWindowSize());
-    m_textureCache.clear();
-    m_textureCacheOrder.clear();
-    m_thumbnailInFlight.clear();
-    m_thumbnailRefreshPending = false;
+    m_settingWorks=true;
+    m_pendingOpen.clear();
+    m_scene->setItems({});
+    m_works=works;
+    m_useInitialCamera=true;
+    m_suppressRelationGraphUntilDeselected=false;
     clearExpandedMeta();
     hideOverlays();
-    refreshVisibleWindow();
-    if (m_renderWindowSize < targetWindowSize())
-        m_initialPopulateTimer->start();
-}
-
-void DvdShelfView::updateScene()
-{
-    refreshVisibleWindow();
-}
-
-void DvdShelfView::refreshVisibleWindow(bool force)
-{
-    constexpr int maxShiftPerUpdate = 10;
-    const int count = m_works.size();
-    const int windowSize = qBound(0, m_renderWindowSize, dvdWindowSize);
-    int desiredStart = qBound(0, qRound(m_cameraX / dvdSpacing) - windowSize / 2,
-                              qMax(0, count - windowSize));
-    // Initial batches must retain the first DVD even when the viewport is
-    // wider than the first batch. Subsequent batches fill the screen to its right.
-    if (m_useInitialCamera) desiredStart = 0;
-    // Keep the Python shelf's window policy: once the camera moves beyond the
-    // centered margin, follow it immediately, but constrain a single update
-    // to ten covers so a large programmatic jump never rebuilds every delegate.
-    if (!force && m_loadedStart >= 0)
-    {
-        const int shift = desiredStart - m_loadedStart;
-        if (shift == 0) return;
-        desiredStart = m_loadedStart + qBound(-maxShiftPerUpdate, shift, maxShiftPerUpdate);
+    QList<dvd_scene::DvdItemViewModel> items;
+    items.reserve(works.size());
+    for(int i=0;i<works.size();++i) {
+        const auto &work=works[i];
+        QString cover=work.imageUrl.trimmed();
+        const QUrl url(cover);
+        if(url.isLocalFile()) cover=url.toLocalFile();
+        else if(cover.startsWith("qrc:/")) cover=QStringLiteral(":")+cover.mid(4);
+        else if(!cover.isEmpty() && !QFileInfo(cover).isAbsolute()) cover=QDir(m_coverDirectory).filePath(cover);
+        if(!cover.isEmpty() && !QFileInfo::exists(cover)) {
+            qWarning().noquote()<<"Shelf cover file missing for work"<<work.id<<":"<<cover;
+            cover.clear();
+        }
+        if(cover.isEmpty()) cover=QStringLiteral(":/assets/maps/0.png");
+        const auto title=!work.chineseTitle.isEmpty()?work.chineseTitle:work.serialNumber;
+        items.append({QString::number(work.id),cover,title,i,false});
     }
-    m_visibleStart = desiredStart;
-    m_loadedStart = desiredStart;
-    const QList<WorkSummary> visible = m_works.mid(m_visibleStart, windowSize);
-    QVariantList textures;
-    textures.reserve(visible.size());
-    for (const WorkSummary &work : visible)
-    {
-        textures.append(textureForWork(work));
-    }
-    auto *context = m_quickWidget->rootContext();
-    context->setContextProperty(QStringLiteral("dvdVisibleStart"), m_visibleStart);
-    context->setContextProperty(QStringLiteral("dvdCount"), visible.size());
-    context->setContextProperty(QStringLiteral("dvdTextureSources"), textures);
-    context->setContextProperty(QStringLiteral("dvdShelfLength"),
-                                qMax(0, count - 1) * dvdSpacing);
-}
-
-void DvdShelfView::advanceInitialPopulation()
-{
-    const int targetSize = targetWindowSize();
-    if (m_renderWindowSize >= targetSize)
-    {
-        m_initialPopulateTimer->stop();
-        return;
-    }
-    m_renderWindowSize = qMin(targetSize, m_renderWindowSize + dvdBatchSize);
-    refreshVisibleWindow(true);
-    if (m_renderWindowSize >= targetSize)
-        m_initialPopulateTimer->stop();
-}
-
-void DvdShelfView::finishInitialPopulation()
-{
-    if (m_initialPopulateTimer != nullptr)
-        m_initialPopulateTimer->stop();
-    m_renderWindowSize = targetWindowSize();
-}
-
-qreal DvdShelfView::visibleShelfWidth() const
-{
-    const qreal aspectRatio = qreal(m_quickWidget->width()) / qMax(1, m_quickWidget->height());
-    return 2.0 * shelfCameraDistance
-        * qTan(qDegreesToRadians(shelfVerticalFieldOfView * 0.5)) * aspectRatio;
+    m_scene->setItems(std::move(items));
+    updateInitialCamera();
+    m_settingWorks=false;
+    updateSelection();
 }
 
 qreal DvdShelfView::initialCameraX() const
 {
-    if (m_works.isEmpty()) return 0;
-    const qreal shelfCenter = (m_works.size() - 1) * dvdSpacing * 0.5;
-    return qMin(shelfCenter, qMax(qreal(0), visibleShelfWidth() * 0.5 - dvdHalfWidth));
+    if(m_works.isEmpty()) return 0;
+    const qreal visibleWidth=2.0*shelfCameraDistance*qTan(qDegreesToRadians(shelfVerticalFieldOfView*0.5))
+        *qreal(m_scene->width())/qMax(1,m_scene->height());
+    return qMin((m_works.size()-1)*dvdSpacing*0.5,qMax(qreal(0),visibleWidth*0.5-dvdHalfWidth));
 }
 
 void DvdShelfView::updateInitialCamera()
 {
-    if (!m_useInitialCamera) return;
-    m_cameraX = initialCameraX();
-    m_cameraTargetX = m_cameraX;
-    emit cameraXChanged();
-    emit cameraTargetXChanged();
+    if(m_useInitialCamera) m_scene->setCameraX(float(initialCameraX()),true);
+    m_cameraX=m_scene->cameraX(); m_cameraTargetX=m_scene->cameraTargetX();
+    emit cameraXChanged(); emit cameraTargetXChanged();
 }
 
-int DvdShelfView::targetWindowSize() const
+void DvdShelfView::set_camera_x(qreal x)
 {
-    if (m_works.isEmpty()) return 0;
-    if (m_quickWidget->width() < 320 || m_quickWidget->height() < 320)
-        return qMin(fallbackDvdWindowSize, m_works.size());
-    const qreal visibleWidth = visibleShelfWidth();
-    const int visibleCovers = qCeil(visibleWidth / dvdSpacing) + dvdWindowOverscan;
-    return qMin(m_works.size(), qBound(minimumDvdWindowSize, visibleCovers, dvdWindowSize));
+    m_useInitialCamera=false;
+    m_scene->setCameraX(float(x));
 }
-
-QString DvdShelfView::textureForWork(const WorkSummary &work)
+void DvdShelfView::scroll_camera_by(qreal delta,qreal) { set_camera_x(m_scene->cameraTargetX()+delta); }
+qint64 DvdShelfView::workIdAt(int index) const { return index>=0 && index<m_works.size()?m_works[index].id:0; }
+int DvdShelfView::selectedIndex() const
 {
-    const QString placeholder = QStringLiteral("qrc:/assets/maps/0.png");
-    if (const auto cached = m_textureCache.constFind(work.id); cached != m_textureCache.cend()) {
-        m_textureCacheOrder.removeAll(work.id);
-        m_textureCacheOrder.append(work.id);
-        return *cached;
+    const auto id=currentWorkId();
+    for(int i=0;i<m_works.size();++i) if(m_works[i].id==id) return i;
+    return -1;
+}
+void DvdShelfView::selection_changed(int selected,int expanded)
+{
+    if(selected<0 && expanded<0) m_scene->returnToShelf();
+}
+void DvdShelfView::updateSelection()
+{
+    if(m_settingWorks) return;
+    const int index=selectedIndex();
+    const bool returning=m_scene->state()==dvd_scene::DvdInteractionController::State::Returning;
+    if(index<0) { m_pendingOpen.clear(); m_suppressRelationGraphUntilDeselected=false; clearExpandedMeta(); hideOverlays(); return; }
+    refresh_expanded_work_meta(index);
+    if(returning || m_scene->isExpanded()) {
+        m_relationGraphTimer->stop();
+        if(m_relationGraphContainer) m_relationGraphContainer->hide();
+    } else if(!m_suppressRelationGraphUntilDeselected) {
+        m_overlayWorkId=workIdAt(index); m_relationGraphTimer->start();
     }
-    QString source = work.imageUrl;
-    if (!source.isEmpty() && !QFileInfo(source).isAbsolute())
-        source = QDir(m_coverDirectory).filePath(source);
-    const QFileInfo info(source);
-    if (source.isEmpty() || !info.exists())
-    {
-        cacheTexture(work.id, placeholder);
-        return placeholder;
-    }
-    // Compressed byte size is a poor predictor of the decoded/GPU cost: a
-    // highly compressed cover can be several thousand pixels tall while
-    // still being a small JPEG.  Reading the image header is cheap and keeps
-    // every texture uploaded by the shelf within a predictable bound.
-    QImageReader sourceReader(source);
-    const QSize sourceSize = sourceReader.size();
-    const bool needsThumbnail = sourceSize.isValid()
-        ? qMax(sourceSize.width(), sourceSize.height()) > dvdTextureMaxEdge
-        : info.size() > dvdTextureSizeFallbackThreshold;
-    if (!needsThumbnail)
-    {
-        const QString url = fileUrl(source);
-        cacheTexture(work.id, url);
-        return url;
-    }
-    const QString cacheDirectory = QDir(QDir::tempPath()).filePath(QStringLiteral("darkeye/dvd_3d_tex"));
-    QDir().mkpath(cacheDirectory);
-    const QString thumb = QDir(cacheDirectory).filePath(
-        QStringLiteral("v2_%1_%2_%3_%4.jpg")
-            .arg(dvdTextureMaxEdge)
-            .arg(work.id)
-            .arg(info.lastModified().toMSecsSinceEpoch())
-            .arg(info.size()));
-    if (QFileInfo::exists(thumb))
-    {
-        const QString url = fileUrl(thumb);
-        cacheTexture(work.id, url);
-        return url;
-    }
-    queueThumbnail(work.id, source, thumb);
-    return placeholder;
+    updateActions(); layoutOverlays();
 }
-
-void DvdShelfView::cacheTexture(qint64 workId, const QString &texture)
+void DvdShelfView::updateActions()
 {
-    constexpr int cacheLimit = 320;
-    m_textureCache.insert(workId, texture);
-    m_textureCacheOrder.removeAll(workId);
-    m_textureCacheOrder.append(workId);
-    while (m_textureCacheOrder.size() > cacheLimit)
-        m_textureCache.remove(m_textureCacheOrder.takeFirst());
+    m_favoriteAction->setText(m_favorited?QStringLiteral("取消收藏"):QStringLiteral("收藏"));
+    m_openAction->setText(m_scene->isExpanded()?QStringLiteral("合盒"):QStringLiteral("开盒"));
+    m_openAction->setEnabled(m_scene->state()==dvd_scene::DvdInteractionController::State::Focused);
+    m_playAction->setEnabled(m_hasLocalVideo);
+    m_coverFavorite->setIcon(QIcon(m_favorited?":/qml/dvd/icons/love-on.svg":":/qml/dvd/icons/love-off.svg"));
+    m_coverFavorite->setToolTip(m_favoriteAction->text());
 }
-
-void DvdShelfView::queueThumbnail(qint64 workId, const QString &sourcePath, const QString &thumbnailPath)
+void DvdShelfView::updateCoverInfo()
 {
-    if (m_thumbnailInFlight.contains(workId)) return;
-    m_thumbnailInFlight.insert(workId);
-    QPointer<DvdShelfView> view(this);
-    m_thumbnailPool.start(QRunnable::create([view, workId, sourcePath, thumbnailPath] {
-        QImageReader reader(sourcePath);
-        reader.setAutoTransform(true);
-        QSize size = reader.size();
-        if (size.isValid() && qMax(size.width(), size.height()) > dvdTextureMaxEdge)
-            reader.setScaledSize(size.scaled(dvdTextureMaxEdge, dvdTextureMaxEdge,
-                                             Qt::KeepAspectRatio));
-        const QImage image = reader.read();
-        const bool saved = !image.isNull() && image.save(thumbnailPath, "JPEG", 88);
-        QMetaObject::invokeMethod(qApp, [view, workId, sourcePath, thumbnailPath, saved] {
-            if (!view) return;
-            view->m_thumbnailInFlight.remove(workId);
-            view->cacheTexture(workId, fileUrl(saved ? thumbnailPath : sourcePath));
-            // Updating dvdTextureSources forces Qt Quick 3D to synchronize and
-            // potentially upload a texture.  Never do that while the camera is
-            // moving: collecting completed thumbnails is cheap; applying them
-            // after it settles keeps panning independent of disk/image work.
-            view->m_thumbnailRefreshPending = true;
-            if (!view->m_cameraTimer->isActive()
-                && !view->m_thumbnailRefreshTimer->isActive())
-                view->m_thumbnailRefreshTimer->start();
-        }, Qt::QueuedConnection);
-    }));
+    QVariantList signature{m_title,m_story,m_code,m_releaseDate,m_director,m_studio,m_label,m_series,
+        m_makerId,m_labelId,m_seriesId,m_coverTextWidth,m_actresses,m_actors,m_tags};
+    const auto key=QJsonDocument(QJsonArray::fromVariantList(signature)).toJson(QJsonDocument::Compact);
+    if(key==m_coverInfoSignature) return;
+    m_coverInfoSignature=key;
+    delete m_coverInfo->takeWidget();
+    m_coverContent=new QWidget;
+    m_coverContent->setObjectName("ShelfCoverContent");
+    m_coverContent->setStyleSheet(QStringLiteral(
+        "QWidget#ShelfCoverContent, QWidget#ShelfCoverContent QWidget { background:transparent; }"
+        "QLabel { color:#263140; background:transparent; border:0; font-size:14px; }"));
+    auto *column=new QVBoxLayout(m_coverContent);
+    column->setContentsMargins(12,12,12,12); column->setSpacing(8);
+    column->setAlignment(Qt::AlignTop);
+    auto titleFont=m_coverInfo->font(); titleFont.setPixelSize(18); titleFont.setBold(true);
+    auto bodyFont=m_coverInfo->font(); bodyFont.setPixelSize(14); bodyFont.setBold(false);
+    const auto label=[&](const QString &text,const QString &name,const QString &color=QStringLiteral("#263140")) {
+        auto *widget=new QLabel(text,m_coverContent);
+        widget->setObjectName(name); widget->setTextFormat(Qt::PlainText);
+        widget->setFont(bodyFont);
+        widget->setWordWrap(true); widget->setStyleSheet(QStringLiteral("color:%1;").arg(color));
+        column->addWidget(widget); return widget;
+    };
+    auto *title=label(coverExcerpt(m_title,titleFont,m_coverTextWidth,2),"ShelfCoverTitle","#202938");
+    title->setFont(titleFont); title->setStyleSheet("color:#202938;font-size:18px;font-weight:bold;");
+    if(!m_story.isEmpty()) label(coverExcerpt(m_story,bodyFont,m_coverTextWidth,6),"ShelfCoverStory");
+    const auto button=[&](const QString &text,const QString &name,auto handler,const QString &background=QString()) {
+        auto *widget=new QToolButton(m_coverContent); widget->setText(text); widget->setObjectName(name);
+        widget->setCursor(Qt::PointingHandCursor); widget->setFont(bodyFont);
+        widget->setToolTip(text);
+        const QString &fill=background;
+        widget->setStyleSheet(fill.isEmpty()
+            ? QStringLiteral("QToolButton { color:#263140;background:transparent;border:0;padding:0;font-size:14px; } QToolButton:hover { text-decoration:underline; }")
+            : QStringLiteral("QToolButton { color:%1;background:%2;border:0;border-radius:4px;padding:2px 5px;font-size:14px; } QToolButton:hover { border:1px solid #a0a8b8; }")
+                .arg(readableTextColor(fill).name(),fill));
+        const QFontMetricsF metrics(bodyFont);
+        const int padding=fill.isEmpty()?0:4;
+        widget->setFixedHeight(qCeil(metrics.height())+padding);
+        widget->setFixedWidth(std::min(m_coverTextWidth,qCeil(metrics.horizontalAdvance(text))+(fill.isEmpty()?0:10)));
+        connect(widget,&QToolButton::clicked,this,handler); return widget;
+    };
+    const auto row=[&](const QString &prefix,QToolButton *value) {
+        auto *line=new QHBoxLayout; line->setSpacing(4); line->setContentsMargins(0,0,0,0);
+        auto *caption=new QLabel(prefix,m_coverContent); caption->setStyleSheet("color:#687080;");
+        caption->setFont(bodyFont);
+        value->setFixedWidth(std::min(value->width(),std::max(24,m_coverTextWidth-caption->sizeHint().width()-4)));
+        line->addWidget(caption); line->addWidget(value); line->addStretch(); column->addLayout(line);
+    };
+    if(!m_code.isEmpty()) row(QStringLiteral("番号: "),button(m_code,"ShelfCode",[this]{copy_to_clipboard(m_code);}));
+    if(!m_releaseDate.isEmpty()) label(QStringLiteral("发布日期: ")+m_releaseDate,"ShelfReleaseDate","#687080");
+    const auto people=[&](const QVariantList &list,const QString &kind,const QString &caption,const QString &idKey,const QString &nameKey) {
+        if(list.isEmpty()) return;
+        auto *section=new QWidget(m_coverContent); auto *stack=new QVBoxLayout(section);
+        stack->setContentsMargins(0,0,0,0); stack->setSpacing(4);
+        auto *heading=new QLabel(caption,section); heading->setStyleSheet("color:#687080;"); stack->addWidget(heading);
+        auto *chips=new QWidget(section); auto *flow=new FlowLayout(chips,0,4);
+        for(const auto &entry:list) {
+            const auto person=entry.toMap(); const auto id=person.value(idKey).toLongLong();
+            const auto background=kind=="tag"?person.value("color").toString():QStringLiteral("#ffffff");
+            flow->addWidget(button(person.value(nameKey).toString(),kind+QString::number(id),[this,kind,id] {
+                if(kind=="actress") on_actress_clicked(id);
+                else if(kind=="actor") on_actor_clicked(id);
+                else on_tag_clicked(id);
+            },QColor(background).isValid()?background:QStringLiteral("#cccccc")));
+        }
+        stack->addWidget(chips); column->addWidget(section);
+    };
+    people(m_actresses,"actress",QStringLiteral("女优"),"actress_id","actress_name");
+    people(m_actors,"actor",QStringLiteral("男优"),"actor_id","actor_name");
+    if(!m_director.isEmpty()) row(QStringLiteral("导演: "),button(m_director,"ShelfDirector",[this]{on_director_clicked();}));
+    if(!m_studio.isEmpty()) row(QStringLiteral("片商: "),button(m_studio,"ShelfMaker",[this]{on_studio_clicked();}));
+    if(!m_label.isEmpty()) row(QStringLiteral("厂牌: "),button(m_label,"ShelfLabel",[this]{on_label_clicked();}));
+    if(!m_series.isEmpty()) row(QStringLiteral("系列: "),button(m_series,"ShelfSeries",[this]{on_series_clicked();}));
+    people(m_tags,"tag",QStringLiteral("作品标签"),"tag_id","tag_name");
+    m_coverInfo->setWidget(m_coverContent);
 }
-
-qint64 DvdShelfView::workIdAt(int virtualIndex) const
+void DvdShelfView::layoutOverlays()
 {
-    return virtualIndex >= 0 && virtualIndex < m_works.size() ? m_works.at(virtualIndex).id : 0;
-}
-
-void DvdShelfView::set_camera_x(qreal cameraX)
-{
-    m_useInitialCamera = false;
-    constexpr qreal spacing = 0.0145;
-    constexpr qreal settleEpsilon = spacing * 0.02;
-    constexpr qreal settleVelocity = spacing * 0.1;
-    m_cameraTargetX = qBound<qreal>(0, cameraX, qMax(0, m_works.size() - 1) * spacing);
-    emit cameraTargetXChanged();
-    if (qAbs(m_cameraX - m_cameraTargetX) <= settleEpsilon
-        && qAbs(m_cameraVelocityX) <= settleVelocity)
-    {
-        m_cameraVelocityX = 0;
-        m_cameraX = m_cameraTargetX;
-        emit cameraXChanged();
+    const auto front=m_scene->selectedFrontRect();
+    if(const auto anchor=m_scene->selectedInfoAnchor())
+        set_force_view_overlay(anchor->x(),anchor->y());
+    if(m_settingWorks || !m_scene->isFullyExpanded() || !front || front->width()<80
+        || front->height()<80 || (m_code.isEmpty() && m_title.isEmpty())) {
+        if(m_coverInfo) m_coverInfo->hide();
+        if(m_coverActions) m_coverActions->hide();
+        if(m_fanartContainer) m_fanartContainer->hide();
         return;
     }
-    if (!m_cameraTimer->isActive())
-    {
-        m_cameraElapsed.restart();
-        m_cameraTimer->start();
+    const auto offset=m_scene->renderWidget()->mapTo(this,QPoint());
+    const QRectF cover=front->translated(offset);
+    // Match the legacy overlay width and natural content height. Reserving a
+    // scrollbar before it is needed forces extra text/chip rows.
+    const int width=qRound(std::min(cover.width()-16,std::clamp(m_scene->height()*0.55,240.0,600.0)));
+    const int maxHeight=m_scene->height()-24;
+    const int fullTextWidth=std::max(40,width-24);
+    const auto measureHeight=[&](int available) {
+        const auto *contentLayout=m_coverContent->layout();
+        return contentLayout->hasHeightForWidth()
+            ?contentLayout->totalHeightForWidth(available):contentLayout->sizeHint().height();
+    };
+    const bool needsScroll=measureHeight(width)>maxHeight;
+    m_coverInfo->setVerticalScrollBarPolicy(needsScroll?Qt::ScrollBarAsNeeded:Qt::ScrollBarAlwaysOff);
+    const int scrollWidth=needsScroll?8:0;
+    const int textWidth=std::max(40,fullTextWidth-scrollWidth);
+    if(m_coverTextWidth!=textWidth) {
+        m_coverTextWidth=textWidth;
+        updateCoverInfo();
     }
-}
-
-void DvdShelfView::scroll_camera_by(qreal delta, qreal) { set_camera_x(m_cameraTargetX + delta); }
-
-void DvdShelfView::advanceCamera()
-{
-    constexpr qreal spacing = 0.0145;
-    constexpr qreal smoothTime = 0.11;
-    constexpr qreal maxSpeed = spacing * 96;
-    constexpr qreal settleEpsilon = spacing * 0.02;
-    constexpr qreal settleVelocity = spacing * 0.1;
-    const qreal deltaTime = qBound<qreal>(0.001, m_cameraElapsed.restart() / 1000.0, 0.05);
-    const qreal omega = 2.0 / smoothTime;
-    const qreal x = omega * deltaTime;
-    const qreal exponential = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x);
-    qreal change = m_cameraX - m_cameraTargetX;
-    const qreal originalTarget = m_cameraTargetX;
-    const qreal maxChange = maxSpeed * smoothTime;
-    change = qBound(-maxChange, change, maxChange);
-    const qreal target = m_cameraX - change;
-    const qreal temporary = (m_cameraVelocityX + omega * change) * deltaTime;
-    m_cameraVelocityX = (m_cameraVelocityX - omega * temporary) * exponential;
-    qreal nextX = target + (change + temporary) * exponential;
-    if ((originalTarget - m_cameraX > 0) == (nextX > originalTarget))
-    {
-        nextX = originalTarget;
-        m_cameraVelocityX = 0;
+    const int naturalHeight=measureHeight(width-scrollWidth);
+    // QScrollArea's automatic sizing can add a scrollbar-width reflow even
+    // when the measured content fits. Use the same explicit width and height.
+    m_coverContent->resize(width-scrollWidth,naturalHeight);
+    const int height=std::min(maxHeight,naturalHeight);
+    auto center=m_scene->selectedInfoAnchor().value_or(front->center())+QPointF(offset);
+    center.setX(std::clamp(center.x(),cover.left()+width*0.5,cover.right()-width*0.5));
+    m_coverInfo->setGeometry(qRound(center.x()-width*0.5),qRound(center.y()-height*0.5),width,height);
+    m_coverInfo->show(); m_coverInfo->raise();
+    if(const auto spine=m_scene->selectedSpineCenter()) {
+        m_coverActions->move(qRound(spine->x()+offset.x()-20),qRound(spine->y()+offset.y()-68));
+        m_coverActions->show(); m_coverActions->raise();
     }
-    if (qAbs(m_cameraTargetX - nextX) <= settleEpsilon
-        && qAbs(m_cameraVelocityX) <= settleVelocity)
-    {
-        m_cameraX = m_cameraTargetX;
-        m_cameraVelocityX = 0;
-        m_cameraTimer->stop();
-    }
-    else
-    {
-        m_cameraX = nextX;
-    }
-    emit cameraXChanged();
-    // Texture/window replacement remains independent from the 60 FPS camera
-    // animation, so an animation tick cannot rebuild the 3D scene by itself.
-    refreshVisibleWindow(false);
-    if (!m_cameraTimer->isActive() && m_thumbnailRefreshPending
-        && !m_thumbnailRefreshTimer->isActive())
-        m_thumbnailRefreshTimer->start();
-}
-
-void DvdShelfView::selection_changed(int selectedDelegateIndex, int expandedDelegateIndex)
-{
-    const int localIndex = expandedDelegateIndex >= 0 ? expandedDelegateIndex : selectedDelegateIndex;
-    if (localIndex < 0)
-    {
-        m_suppressRelationGraphUntilDeselected = false;
-        clearExpandedMeta();
-        hideOverlays();
-        return;
-    }
-    const qint64 workId = workIdAt(m_visibleStart + localIndex);
-    if (expandedDelegateIndex >= 0)
-    {
-        m_suppressRelationGraphUntilDeselected = false;
-        if (m_relationGraphTimer != nullptr) m_relationGraphTimer->stop();
-        if (m_relationGraphContainer != nullptr) m_relationGraphContainer->hide();
-    }
-    else if (workId > 0 && !m_suppressRelationGraphUntilDeselected)
-    {
-        m_overlayWorkId = workId;
-        if (m_relationGraphTimer != nullptr) m_relationGraphTimer->start();
-    }
-    refresh_expanded_work_meta(m_visibleStart + localIndex);
+    if(const auto disc=m_scene->selectedDiscCenter())
+        set_fanart_strip_layout(disc->x()+offset.x()-width*0.5,
+            disc->y()+offset.y()+m_scene->height()*0.41-124,width);
 }
 
 void DvdShelfView::refresh_expanded_work_meta(int virtualIndex)
@@ -553,6 +539,17 @@ void DvdShelfView::refresh_expanded_work_meta(int virtualIndex)
     m_labelId = value.work.labelId.value_or(-1);
     m_seriesId = value.work.seriesId.value_or(-1);
     m_hasLocalVideo = !value.work.videoUrl.trimmed().isEmpty();
+    // Metadata refresh also follows video imports/removals without rebuilding
+    // the shelf or losing the opened case and camera position.
+    const auto sceneItems=m_scene->items();
+    for(auto item:sceneItems) {
+        if(item.stableId!=QString::number(workId)) continue;
+        if(item.hasLocalVideo!=m_hasLocalVideo) {
+            item.hasLocalVideo=m_hasLocalVideo;
+            m_scene->updateItem(item);
+        }
+        break;
+    }
     m_actresses.clear(); m_actors.clear(); m_tags.clear();
     for (const auto &person : value.actresses)
         m_actresses.append(QVariantMap{{"actress_id", person.id}, {"actress_name", person.name}});
@@ -745,81 +742,32 @@ void DvdShelfView::clearFanartOverlay()
     if (m_fanartContainer != nullptr) m_fanartContainer->hide();
 }
 
-qint64 DvdShelfView::currentWorkId() const
-{
-    QObject *root = m_quickWidget->rootObject();
-    if (root == nullptr) return 0;
-    const int index = root->property("selectedDelegateIndex").toInt();
-    return index < 0 ? 0 : workIdAt(m_visibleStart + index);
-}
+qint64 DvdShelfView::currentWorkId() const { return m_scene->selectedId().toLongLong(); }
 
 bool DvdShelfView::openWork(qint64 workId)
 {
-    const auto iterator = std::find_if(m_works.cbegin(), m_works.cend(),
-                                       [workId](const WorkSummary &work) { return work.id == workId; });
-    if (iterator == m_works.cend()) return false;
-    constexpr qreal spacing = 0.0145;
-    const int virtualIndex = static_cast<int>(std::distance(m_works.cbegin(), iterator));
-    const quint64 request = ++m_openWorkRequest;
-    m_suppressRelationGraphUntilDeselected = true;
-    if (m_relationGraphTimer != nullptr) m_relationGraphTimer->stop();
+    int index=-1;
+    for(int i=0;i<m_works.size();++i) if(m_works[i].id==workId) { index=i; break; }
+    if(index<0) return false;
+    m_useInitialCamera=false;
+    m_suppressRelationGraphUntilDeselected=true;
     hideOverlays();
-    m_cameraTimer->stop();
-    m_cameraVelocityX = 0;
-    m_useInitialCamera = false;
-    m_cameraX = virtualIndex * spacing;
-    m_cameraTargetX = m_cameraX;
-    emit cameraXChanged();
-    emit cameraTargetXChanged();
-    finishInitialPopulation();
-    m_loadedStart = -1;
-    refreshVisibleWindow(true);
-    const int delegateIndex = virtualIndex - m_visibleStart;
-    QObject *root = m_quickWidget->rootObject();
-    if (root == nullptr || delegateIndex < 0 || delegateIndex >= 60) return false;
-    // The selected delegate freezes its content while it animates.  A route
-    // jump can land on the same local delegate index after the visible window
-    // moves (for example, both work 40 and 41 are index 30).  Clear the old
-    // selection first and wait one event-loop turn before selecting the new
-    // delegate, otherwise QML never emits selectedChanged and keeps showing
-    // the old frozen DVD.
-    root->setProperty("hoveredDelegateIndex", -1);
-    root->setProperty("pressedDelegateIndex", -1);
-    root->setProperty("fullyExpandedDelegateIndex", -1);
-    root->setProperty("expandedDelegateIndex", -1);
-    root->setProperty("selectedDelegateIndex", -1);
-    root->setProperty("_pendingCollapseSelectedIndex", -1);
-    root->setProperty("_pendingCollapseCloseSpeedMultiplier", 1.0);
-    root->setProperty("_frozenSelectedDelegateIndex", -1);
-    root->setProperty("_frozenSelectedVirtualIndex", -1);
-    // Do not make the route transition depend solely on QML change signals:
-    // when the shelf is already open, a delegate can be recycled at the same
-    // local index and QML may not emit every intermediate state change.
-    refresh_expanded_work_meta(virtualIndex);
-    QTimer::singleShot(0, this, [this, delegateIndex, virtualIndex, request] {
-        QObject *root = m_quickWidget->rootObject();
-        if (request != m_openWorkRequest || root == nullptr) return;
-        root->setProperty("selectedDelegateIndex", delegateIndex);
-        QTimer::singleShot(550, this, [this, delegateIndex, virtualIndex, request] {
-            QObject *root = m_quickWidget->rootObject();
-            if (request == m_openWorkRequest && root != nullptr
-                && root->property("selectedDelegateIndex").toInt() == delegateIndex)
-            {
-                root->setProperty("expandedDelegateIndex", delegateIndex);
-                // Keep C++ state authoritative for a route-driven switch.  QML
-                // refreshes this as well, but this makes the page correct even if
-                // an unchanged QML property suppresses its notifier.
-                refresh_expanded_work_meta(virtualIndex);
-            }
-        });
-    });
+    m_scene->setCameraX(float(index*dvdSpacing),true);
+    m_pendingOpen=QString::number(workId);
+    if(!m_scene->focusItem(m_pendingOpen)) { m_pendingOpen.clear(); return false; }
+    if(m_scene->state()==dvd_scene::DvdInteractionController::State::Focused) {
+        m_pendingOpen.clear();
+        if(!m_scene->isExpanded()) m_scene->toggleOpen();
+    }
+    updateSelection();
     return true;
 }
 
 void DvdShelfView::showRelationGraph(qint64 workId)
 {
     if (m_relationGraph == nullptr || m_relationGraphContainer == nullptr || workId <= 0 ||
-        m_suppressRelationGraphUntilDeselected)
+        m_suppressRelationGraphUntilDeselected || m_scene->isExpanded()
+        || m_scene->state()!=dvd_scene::DvdInteractionController::State::Focused)
         return;
     if (!m_graphManager->isInitialized()) m_graphManager->scheduleInitialize();
     m_relationGraph->setEgoGraph(QStringLiteral("w%1").arg(workId), 3);
@@ -848,32 +796,22 @@ void DvdShelfView::set_force_view_overlay(qreal centerX, qreal centerY)
 
 void DvdShelfView::updateRelationGraphGeometry(qreal centerX, qreal centerY)
 {
-    if (m_relationGraphContainer == nullptr || m_quickWidget == nullptr ||
+    if (m_relationGraphContainer == nullptr || m_scene == nullptr ||
         !std::isfinite(centerX) || !std::isfinite(centerY) ||
         centerX < -90000.0 || centerY < -90000.0)
         return;
 
-    // Keep the relation graph aligned with the Python shelf: the anchor comes
-    // from the QML info panel, while its size and left offset are based on the
-    // actual QQuickWidget viewport rather than the surrounding page.
-    constexpr qreal heightRatio = 0.88;
-    constexpr qreal widthRatio = 0.61;
-    constexpr qreal shiftLeftRatio = 0.42;
-    constexpr int leftMargin = 0;
-    const int viewWidth = m_quickWidget->width();
-    const int viewHeight = m_quickWidget->height();
-    if (viewWidth < 1 || viewHeight < 1) return;
-
-    const int graphHeight = qMin(qMax(40, qRound(viewHeight * heightRatio)),
-                                 qMax(40, viewHeight - 4));
-    const int graphWidth = qMin(qMax(40, qRound(viewHeight * widthRatio)),
-                                qMax(40, viewWidth - leftMargin));
-    const int left = qBound(leftMargin,
-                            qRound(centerX - graphWidth * 0.5 - viewHeight * shiftLeftRatio),
-                            qMax(leftMargin, viewWidth - graphWidth));
-    const int top = qBound(0, qRound(centerY - graphHeight * 0.5),
-                           qMax(0, viewHeight - graphHeight));
-    m_relationGraphContainer->setGeometry(left, top, graphWidth, graphHeight);
+    // Match the original shelf: anchor under spine, then shift left by 42%
+    // of the viewport height. The transparent graph may overlap the 3D view.
+    const int viewWidth=m_scene->renderWidget()->width();
+    const int viewHeight=m_scene->renderWidget()->height();
+    if(viewWidth<1 || viewHeight<1) return;
+    const int graphWidth=std::min(std::max(40,qRound(viewHeight*0.61)),viewWidth);
+    const int graphHeight=std::min(std::max(40,qRound(viewHeight*0.88)),std::max(40,viewHeight-4));
+    const int left=std::clamp(qRound(centerX-graphWidth*0.5-viewHeight*0.42),0,std::max(0,viewWidth-graphWidth));
+    const int top=std::clamp(qRound(centerY-graphHeight*0.5),0,std::max(0,viewHeight-graphHeight));
+    const auto offset=m_scene->renderWidget()->mapTo(this,QPoint());
+    m_relationGraphContainer->setGeometry(left+offset.x(), top+offset.y(), graphWidth, graphHeight);
     m_relationGraphContainer->raise();
 }
 
@@ -916,12 +854,37 @@ void DvdShelfView::persistFanartPreview()
 void DvdShelfView::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
-    if (!m_works.isEmpty() && targetWindowSize() > m_renderWindowSize)
-        m_initialPopulateTimer->start();
-    if (m_relationGraphContainer != nullptr && m_relationGraphContainer->isVisible())
-        updateRelationGraphGeometry(m_relationGraphCenterX, m_relationGraphCenterY);
-    if (m_fanartContainer != nullptr && m_fanartContainer->isVisible())
-        updateFanartGeometry(m_fanartLeft, m_fanartTop, m_fanartWidth);
+    updateInitialCamera();
+    layoutOverlays();
+}
+
+bool DvdShelfView::eventFilter(QObject *object,QEvent *event)
+{
+    if(object==m_scene->renderWidget()) {
+        if(event->type()==QEvent::MouseButtonPress) {
+            const auto *mouse=static_cast<QMouseEvent *>(event);
+            if(mouse->button()==Qt::RightButton) { m_rightPress=mouse->position(); m_rightDragged=false; }
+        }
+        if(event->type()==QEvent::MouseMove) {
+            const auto *mouse=static_cast<QMouseEvent *>(event);
+            if(mouse->buttons().testFlag(Qt::RightButton)
+                && (mouse->position()-m_rightPress).manhattanLength()>QApplication::startDragDistance()) m_rightDragged=true;
+        }
+        if(event->type()==QEvent::ContextMenu) {
+            const auto *context=static_cast<QContextMenuEvent *>(event);
+            if(currentWorkId()>0 && (context->reason()==QContextMenuEvent::Keyboard || !m_rightDragged)) {
+                refresh_expanded_favorite_state(selectedIndex());
+                m_contextMenu->exec(context->globalPos());
+            }
+            return true;
+        }
+        if(event->type()==QEvent::Wheel || event->type()==QEvent::MouseButtonPress
+            || event->type()==QEvent::KeyPress) m_useInitialCamera=false;
+        if(event->type()==QEvent::Resize) {
+            QTimer::singleShot(0,this,[this] { updateInitialCamera(); layoutOverlays(); });
+        }
+    }
+    return QWidget::eventFilter(object,event);
 }
 
 } // namespace darkeye

@@ -6,12 +6,19 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# With the Chinese-only MSVC language pack, cl can emit UTF-8 while CMake's
+# compiler probe decodes it as CP936. Repair that specific mojibake prefix;
+# otherwise Ninja records zero header dependencies and mixes stale ABI layouts.
+if(MSVC AND CMAKE_CL_SHOWINCLUDES_PREFIX MATCHES "^娉")
+    set(CMAKE_CL_SHOWINCLUDES_PREFIX "注意: 包含文件: ")
+endif()
+
 function(darkeye_apply_compiler_options target)
     target_compile_features(${target} PUBLIC cxx_std_20)
 
     # Executables and tests read editable configuration beside the binary.
     get_target_property(target_type ${target} TYPE)
-    if(target_type STREQUAL "EXECUTABLE")
+    if(target_type STREQUAL "EXECUTABLE" AND EXISTS "${PROJECT_SOURCE_DIR}/config")
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND "${CMAKE_COMMAND}" -E copy_directory
                 "${PROJECT_SOURCE_DIR}/config"
