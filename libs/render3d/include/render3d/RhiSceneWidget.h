@@ -22,6 +22,7 @@ struct RenderStatistics {
     quint64 resourceGenerations = 0;
     quint64 pipelineGenerations = 0;
     quint64 geometryUploads = 0;
+    quint64 materialBindingBuilds = 0;
     // Only this renderer's buffers; excludes Qt render targets/driver overhead.
     quint64 bufferBytes = 0;
     quint64 textureBytes = 0; // source texels + renderer-owned linear targets

@@ -145,7 +145,6 @@ private:
     bool m_useInitialCamera = true;
     bool m_settingWorks = false;
     QString m_pendingOpen;
-    QTimer *m_relationGraphTimer = nullptr;
     dvd_scene::DvdSceneWidget *m_scene = nullptr;
     QMenu *m_contextMenu = nullptr;
     QAction *m_favoriteAction = nullptr;
@@ -170,6 +169,7 @@ private:
     QWidget *m_relationGraphContainer = nullptr;
     QWidget *m_fanartContainer = nullptr;
     qint64 m_overlayWorkId = 0;
+    qint64 m_relationGraphWorkId = 0;
     qreal m_relationGraphCenterX = -1;
     qreal m_relationGraphCenterY = -1;
     qreal m_fanartLeft = -1;

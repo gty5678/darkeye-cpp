@@ -347,8 +347,16 @@ bool Renderer::prepare(QRhi *rhi, QRhiRenderTarget *target,
     for(auto it=m_textures.begin();it!=m_textures.end();) {
         const auto desired=desiredSizes.find(it->first);
         if(desired==desiredSizes.end() || desired->second!=it->second.texture->pixelSize()) {
-            m_bindings.clear(); m_opaqueBindings.clear(); m_reverseBindings.clear();
-            m_auxBindings.clear();
+            // Scrolling changes only a few covers at a time. Preserve bindings
+            // for every texture that is still resident, and release references
+            // to the evicted GPU texture before destroying it.
+            const auto referencesTexture=[source=it->first](const auto &entry) {
+                return std::find(entry.first.begin(),entry.first.end(),source)!=entry.first.end();
+            };
+            std::erase_if(m_bindings,referencesTexture);
+            std::erase_if(m_opaqueBindings,referencesTexture);
+            std::erase_if(m_reverseBindings,referencesTexture);
+            std::erase_if(m_auxBindings,referencesTexture);
             it=m_textures.erase(it);
         } else ++it;
     }
@@ -478,6 +486,7 @@ bool Renderer::prepare(QRhi *rhi, QRhiRenderTarget *target,
             if (m_bindings.contains(key))
                 continue;
             auto bindings = std::unique_ptr<QRhiShaderResourceBindings>(rhi->newShaderResourceBindings());
+            ++stats.materialBindingBuilds;
             const auto &base = m_textures.at(key[0]);
             const auto &mr = m_textures.at(key[1]);
             std::vector<QRhiShaderResourceBinding> entries{

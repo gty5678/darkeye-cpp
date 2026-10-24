@@ -231,13 +231,6 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     m_fanartContainer->hide();
     connect(m_fanartStrip, &FanartStripWidget::fanartChanged,
             this, &DvdShelfView::persistFanartPreview);
-    m_relationGraphTimer = new QTimer(this);
-    m_relationGraphTimer->setSingleShot(true);
-    m_relationGraphTimer->setInterval(500);
-    connect(m_relationGraphTimer, &QTimer::timeout, this, [this] {
-        if (m_overlayWorkId > 0 && m_relationGraphContainer != nullptr)
-            showRelationGraph(m_overlayWorkId);
-    });
     render3d::GltfLoader loader;
     const auto model=dvd_scene::loadDvdModel(loader,QStringLiteral(":/assets/dvd/dvd.glb"));
     auto shelfModel=model?std::make_shared<render3d::ModelAsset>(*model.asset):nullptr;
@@ -365,10 +358,19 @@ void DvdShelfView::updateSelection()
     if(index<0) { m_pendingOpen.clear(); m_suppressRelationGraphUntilDeselected=false; clearExpandedMeta(); hideOverlays(); return; }
     refresh_expanded_work_meta(index);
     if(returning || m_scene->isExpanded()) {
-        m_relationGraphTimer->stop();
         if(m_relationGraphContainer) m_relationGraphContainer->hide();
-    } else if(!m_suppressRelationGraphUntilDeselected) {
-        m_overlayWorkId=workIdAt(index); m_relationGraphTimer->start();
+    } else if(!m_suppressRelationGraphUntilDeselected && m_relationGraph) {
+        const auto workId=workIdAt(index);
+        if(m_relationGraphWorkId!=workId) {
+            m_relationGraphContainer->hide();
+            m_relationGraphWorkId=workId;
+            if (!m_graphManager->isInitialized()) m_graphManager->scheduleInitialize();
+            // Start the snapshot, force layout and font build during pull-out.
+            // The same hidden widget is revealed when the focus animation ends.
+            m_relationGraph->setEgoGraph(QStringLiteral("w%1").arg(workId),3,true);
+        }
+        if(m_scene->state()==dvd_scene::DvdInteractionController::State::Focused)
+            showRelationGraph(workId);
     }
     updateActions(); layoutOverlays();
 }
@@ -769,19 +771,17 @@ void DvdShelfView::showRelationGraph(qint64 workId)
         m_suppressRelationGraphUntilDeselected || m_scene->isExpanded()
         || m_scene->state()!=dvd_scene::DvdInteractionController::State::Focused)
         return;
-    if (!m_graphManager->isInitialized()) m_graphManager->scheduleInitialize();
-    m_relationGraph->setEgoGraph(QStringLiteral("w%1").arg(workId), 3);
-    m_relationGraphContainer->show();
     if (m_relationGraphCenterX >= 0 && m_relationGraphCenterY >= 0)
         updateRelationGraphGeometry(m_relationGraphCenterX, m_relationGraphCenterY);
+    m_relationGraphContainer->show();
     m_relationGraphContainer->raise();
 }
 
 void DvdShelfView::hideOverlays()
 {
     m_overlayWorkId = 0;
+    m_relationGraphWorkId = 0;
     m_relationGraphCenterX = m_relationGraphCenterY = -1;
-    if (m_relationGraphTimer != nullptr) m_relationGraphTimer->stop();
     if (m_relationGraphContainer != nullptr) m_relationGraphContainer->hide();
     clearFanartOverlay();
 }

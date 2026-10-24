@@ -24,6 +24,8 @@
 #include <QScrollBar>
 #include <QToolButton>
 #include "graph/GraphManager.h"
+#include "graph_view/GraphViewWidget.h"
+#include "graph_view/ForceViewRhiWidget.h"
 #include <QTextCursor>
 #include <QSqlQuery>
 #include "dvd_scene/DvdSceneWidget.h"
@@ -456,11 +458,18 @@ void ShelfPageTest::nativeRenderingAndActions()
     }
     if(!artifacts.isEmpty())
         QVERIFY(page.grab().save(QDir(artifacts).filePath("shelf-native-spines.png")));
-    QVERIFY(scene->focusItem(QString::number(*id)));
-    QTRY_COMPARE(scene->state(),darkeye::dvd_scene::DvdInteractionController::State::Focused);
     auto *relation=view->findChild<QWidget *>("ShelfRelationGraphOverlay");
     QVERIFY(relation);
-    QTRY_VERIFY(relation->isVisible());
+    auto *relationGraph=relation->findChild<darkeye::graph_view::GraphViewWidget *>();
+    QVERIFY(relationGraph);
+    QVERIFY(scene->focusItem(QString::number(*id)));
+    QCOMPARE(scene->state(),darkeye::dvd_scene::DvdInteractionController::State::Focusing);
+    QVERIFY(relation->isHidden());
+    // Preparation must finish its CPU snapshot before the animation ends,
+    // even though the QRhi widget itself has never been shown.
+    QVERIFY(relationGraph->view()->getNodeIds().contains(QStringLiteral("w%1").arg(*id)));
+    QTRY_COMPARE(scene->state(),darkeye::dvd_scene::DvdInteractionController::State::Focused);
+    QVERIFY(relation->isVisible());
     QTest::qWait(100);
     const auto box=scene->selectedCaseRect();
     QVERIFY(box);

@@ -63,8 +63,15 @@ struct DvdSceneWidget::Impl {
         layout->setContentsMargins(0,0,0,0);
         layout->addWidget(canvas);
         timer.setInterval(16);
+        timer.setSingleShot(true);
         timer.setTimerType(Qt::PreciseTimer);
         QObject::connect(&timer,&QTimer::timeout,owner,[this] { tick(); });
+        QObject::connect(canvas,&QRhiWidget::frameSubmitted,owner,[this] {
+            // Advance after the previous submission instead of competing with
+            // it on an independent 16ms clock. Keep the timer as a fallback
+            // for interaction states that do not produce a new frame.
+            if(needsAnimationTick()) timer.start(0);
+        });
         QObject::connect(canvas,&RhiSceneWidget::renderingError,owner,&DvdSceneWidget::sceneError);
         QObject::connect(&covers,&CoverTextureCache::textureReady,owner,[this](const QString &key) {
             const auto texture=covers.find(key);
@@ -89,13 +96,21 @@ struct DvdSceneWidget::Impl {
         const float halfFov=camera.verticalFov*3.14159265f/360.0f;
         interaction.setFocusDistance(std::max(0.2f,0.15f/(std::tan(halfFov)*aspect)));
     }
-    void updateTimer()
+    bool needsAnimationTick() const
     {
         const bool moving=std::abs(camera.target.x()-cameraTargetX)>1e-5f;
-        const bool active=owner->isVisible() && !owner->window()->isMinimized()
+        return owner->isVisible() && !owner->window()->isMinimized()
             && (interaction.active() || moving);
-        if(active && !timer.isActive()) { lastTick=now(); timer.start(); }
+    }
+    void updateTimer()
+    {
+        const bool active=needsAnimationTick();
+        if(active && !timer.isActive()) {
+            if(lastTick<=0) lastTick=now();
+            timer.start(16);
+        }
         else if(!active) timer.stop();
+        if(!active) lastTick=0;
     }
 
     void notify()
@@ -125,6 +140,14 @@ struct DvdSceneWidget::Impl {
     void refreshVisible()
     {
         if(!factory) return;
+        const auto viewport=canvas->size();
+        const float dpr=float(canvas->devicePixelRatioF());
+        const auto viewProjection=camera.projectionMatrix(float(std::max(1,viewport.width()))
+            /std::max(1,viewport.height()))*camera.viewMatrix();
+        const int focusedPixels=std::clamp(int(std::ceil(viewport.height()*dpr*2/1024))*1024,2048,4096);
+        const float height=viewport.height()*dpr*0.19f
+            /(2*std::max(0.08f,camera.distance)*std::tan(camera.verticalFov*3.14159265f/360));
+        const int shelfPixels=std::clamp(int(std::ceil(height*1.6f/256))*256,512,2048);
         const auto [start,count]=shelf.visibleRange(camera.target.x());
         QSet<QString> desired;
         for(int i=start;i<start+count;++i) desired.insert(shelf.items()[i].stableId);
@@ -145,13 +168,12 @@ struct DvdSceneWidget::Impl {
             auto it=cases.find(id);
             // The cover contains front, spine and back. A focused case needs
             // enough texels for the physical viewport, including high-DPI screens.
-            const int focusedPixels=std::clamp(int(std::ceil(canvas->height()*canvas->devicePixelRatioF()*2/1024))*1024,2048,4096);
-            const auto center=camera.project({index*DvdShelfController::spacing,0.095f,0},canvas->size());
-            const bool onScreen=center && center->x()>=-64 && center->x()<=canvas->width()+64
-                && center->y()>=-canvas->height() && center->y()<=canvas->height()*2;
-            const float height=canvas->height()*float(canvas->devicePixelRatioF())*0.19f
-                /(2*std::max(0.08f,camera.distance)*std::tan(camera.verticalFov*3.14159265f/360));
-            const int shelfPixels=std::clamp(int(std::ceil(height*1.6f/256))*256,512,2048);
+            const auto clip=viewProjection*QVector4D(index*DvdShelfController::spacing,0.095f,0,1);
+            const auto ndc=clip.w()>0?clip.toVector3DAffine():QVector3D();
+            const QPointF center((ndc.x()+1)*viewport.width()/2,(1-ndc.y())*viewport.height()/2);
+            const bool onScreen=!viewport.isEmpty() && clip.w()>0
+                && center.x()>=-64 && center.x()<=viewport.width()+64
+                && center.y()>=-viewport.height() && center.y()<=viewport.height()*2;
             const int pixels=id==interaction.selectedId()?focusedPixels:(onScreen?shelfPixels:256);
             const auto spec=item.coverPath+QStringLiteral("|%1").arg(pixels);
             const bool request=it==cases.end() || coverSpecs.value(id)!=spec;

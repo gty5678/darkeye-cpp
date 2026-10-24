@@ -26,7 +26,8 @@ public:
     explicit GraphViewWidget(graph::GraphManager &manager, QWidget *parent = nullptr);
 
     void setFavoriteOnly(bool enabled);
-    void setEgoGraph(const QString &centerId, int radius = 1);
+    /** Prepare CPU data, simulation and font atlas while hidden when requested. */
+    void setEgoGraph(const QString &centerId, int radius = 1, bool prepareWhileHidden = false);
     void showEgoGraph(int radius);
     void showAll();
     void showEmpty();
@@ -62,6 +63,7 @@ private:
     int m_egoRadius = 2;
     bool m_loaded = false;
     bool m_pendingVisibleLoad = false;
+    bool m_prepareWhileHidden = false;
     bool m_showingTestGraph = false;
     bool m_imageOverlayEnabled = true;
     QString m_actressImageDirectory;

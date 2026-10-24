@@ -68,8 +68,9 @@ void GraphViewWidget::setFavoriteOnly(bool enabled)
     reloadView();
 }
 
-void GraphViewWidget::setEgoGraph(const QString &centerId, int radius)
+void GraphViewWidget::setEgoGraph(const QString &centerId, int radius, bool prepareWhileHidden)
 {
+    m_prepareWhileHidden = prepareWhileHidden;
     m_showingTestGraph = false;
     m_session.setFilterMode(graph::GraphFilterMode::Ego);
     m_session.setEgoCenter(centerId);
@@ -183,6 +184,9 @@ void GraphViewWidget::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
     if (!m_pendingVisibleLoad && m_loaded) {
+        // Hidden preparation already started the layout and atlas build. Fit
+        // the prepared positions to the now-visible viewport without reloading.
+        if (m_prepareWhileHidden) m_view->fitViewToContent();
         return;
     }
 
@@ -198,7 +202,7 @@ void GraphViewWidget::showEvent(QShowEvent *event)
 
 void GraphViewWidget::reloadView()
 {
-    if (!isVisible() || width() <= 0 || height() <= 0) {
+    if ((!isVisible() && !m_prepareWhileHidden) || width() <= 0 || height() <= 0) {
         m_pendingVisibleLoad = true;
         return;
     }
@@ -217,7 +221,7 @@ void GraphViewWidget::applyManagerChange()
             return;
         }
     }
-    if (!m_loaded || !isVisible() || width() <= 0 || height() <= 0) {
+    if (!m_loaded || (!isVisible() && !m_prepareWhileHidden) || width() <= 0 || height() <= 0) {
         // A deferred full snapshot also incorporates every manager update
         // received while this page is hidden.
         m_pendingVisibleLoad = true;
@@ -306,7 +310,7 @@ void GraphViewWidget::hideNodeImage()
 void GraphViewWidget::loadVisibleSnapshot()
 {
     if (m_showingTestGraph) return;
-    if (!isVisible() || width() <= 0 || height() <= 0) {
+    if ((!isVisible() && !m_prepareWhileHidden) || width() <= 0 || height() <= 0) {
         m_pendingVisibleLoad = true;
         return;
     }

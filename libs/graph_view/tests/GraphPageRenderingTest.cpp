@@ -26,6 +26,7 @@ private slots:
     void coveredRendererSubmitsFrame();
     void rendersWhenRendererExistsBeforeWindowShow();
     void loadsFirstGraphSnapshotAfterAnInitiallyEmptyView();
+    void preparesLatestEgoGraphWhileHidden();
 };
 
 void GraphPageRenderingTest::coveredRendererSubmitsFrame()
@@ -131,6 +132,28 @@ void GraphPageRenderingTest::rendersWhenRendererExistsBeforeWindowShow()
     }
     QSqlDatabase::removeDatabase(publicConnectionName);
     QSqlDatabase::removeDatabase(privateConnectionName);
+}
+
+void GraphPageRenderingTest::preparesLatestEgoGraphWhileHidden()
+{
+    darkeye::graph::GraphManager manager({}, {});
+    darkeye::graph_view::GraphViewWidget graph(manager);
+    graph.resize(480, 400);
+    graph.setEgoGraph(QStringLiteral("w1"), 3, true);
+    QVERIFY(graph.isHidden());
+    QVERIFY(graph.view()->getNodeIds().isEmpty());
+
+    // Data can arrive after preparation starts, before any QRhi surface exists.
+    QVERIFY(manager.upsertRuntimeNode({QStringLiteral("w1"), QStringLiteral("First"), QStringLiteral("work")}));
+    QCOMPARE(graph.view()->getNodeIds(), QStringList{QStringLiteral("w1")});
+    QVERIFY(manager.upsertRuntimeNode({QStringLiteral("w2"), QStringLiteral("Second"), QStringLiteral("work")}));
+    graph.setEgoGraph(QStringLiteral("w2"), 3, true);
+    QCOMPARE(graph.view()->getNodeIds(), QStringList{QStringLiteral("w2")});
+    QVERIFY(graph.isHidden());
+    graph.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&graph));
+    QTRY_VERIFY(graph.view()->getZoom() > 0.01f);
+    QCOMPARE(graph.view()->getNodeIds(), QStringList{QStringLiteral("w2")});
 }
 
 void GraphPageRenderingTest::loadsFirstGraphSnapshotAfterAnInitiallyEmptyView()

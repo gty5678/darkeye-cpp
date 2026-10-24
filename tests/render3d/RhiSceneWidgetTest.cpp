@@ -46,6 +46,59 @@ MeshHandle texturedQuad()
 class RhiSceneWidgetTest final : public QObject {
     Q_OBJECT
 private slots:
+    void replacingOneCoverPreservesOtherMaterialBindings()
+    {
+        RhiSceneWidget view;
+        view.resize(400,300);
+        const auto scene=std::make_shared<Scene>();
+        const auto mesh=texturedQuad();
+        const auto makeTexture=[](QColor color) {
+            auto texture=std::make_shared<TextureData>();
+            texture->image=QImage(8,8,QImage::Format_RGBA8888);
+            texture->image.fill(color);
+            return texture;
+        };
+        auto left=std::make_shared<Material>();
+        left->shading=Material::Shading::Unlit;
+        left->baseColorTexture=makeTexture(Qt::red);
+        auto right=std::make_shared<Material>();
+        right->shading=Material::Shading::Unlit;
+        right->baseColorTexture=makeTexture(Qt::green);
+        const auto leftNode=scene->createNode(),rightNode=scene->createNode();
+        QVERIFY(scene->setMesh(leftNode,mesh,left));
+        QVERIFY(scene->setMesh(rightNode,mesh,right));
+        Transform pose; pose.scale={0.5f,0.5f,1}; pose.translation={-0.65f,0,0};
+        QVERIFY(scene->setTransform(leftNode,pose));
+        pose.translation.setX(0.65f);
+        QVERIFY(scene->setTransform(rightNode,pose));
+        view.setScene(scene);
+        view.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&view));
+        QVERIFY(!view.grabFramebuffer().isNull());
+        const auto builds=view.statistics().materialBindingBuilds;
+        const auto uploads=view.statistics().geometryUploads;
+
+        left->baseColorTexture=makeTexture(Qt::blue);
+        view.update();
+        const auto image=view.grabFramebuffer();
+        QVERIFY(!image.isNull());
+        QCOMPARE(view.statistics().materialBindingBuilds,builds+1);
+        const auto sample=[&](QVector3D center) {
+            const auto p=view.camera().project(center,view.size()).value();
+            return image.pixelColor(qRound(p.x()*image.width()/view.width()),
+                                    qRound(p.y()*image.height()/view.height()));
+        };
+        QVERIFY(colorNear(sample({-0.65f,0,0}),Qt::blue));
+        QVERIFY(colorNear(sample({0.65f,0,0}),Qt::green));
+
+        QVERIFY(scene->removeNode(leftNode));
+        view.update();
+        QVERIFY(!view.grabFramebuffer().isNull());
+        QCOMPARE(view.statistics().materialBindingBuilds,builds+1);
+        QCOMPARE(view.statistics().geometryUploads,uploads);
+        QVERIFY(view.lastError().isEmpty());
+    }
+
     void anisotropicCoverPreservesSpineDetail()
     {
         RhiSceneWidget view; view.resize(400,400);
