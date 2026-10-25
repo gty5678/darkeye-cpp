@@ -25,8 +25,6 @@ public:
     /** Start the initial full graph load on a worker thread.  Repeated calls coalesce. */
     void scheduleInitialize();
     bool refresh(QString *errorMessage = nullptr);
-    /** Incrementally synchronize one database-backed work and its graph relations. */
-    bool refreshWork(qint64 workId, QString *errorMessage = nullptr);
     /** Queue a background incremental refresh; duplicate work IDs are coalesced. */
     void scheduleRefreshWork(qint64 workId);
     /**

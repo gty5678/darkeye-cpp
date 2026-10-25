@@ -26,6 +26,7 @@ public:
     void setSelectedIds(const QList<qint64> &ids);
     void selectId(qint64 id);
     void clearSelection();
+    void setModified(bool modified);
 
 signals:
     void selectionChanged();

@@ -30,9 +30,11 @@ ModernScrollMenu::ModernScrollMenu(const QList<Section> &sections, QWidget *pare
     root->addWidget(navigation);
     m_scroll = new QScrollArea(this);
     m_scroll->setObjectName(QStringLiteral("DesignScrollMenuArea"));
+    m_scroll->viewport()->setObjectName(QStringLiteral("DesignScrollMenuViewport"));
     m_scroll->setWidgetResizable(true);
     m_scroll->setFrameShape(QFrame::NoFrame);
     m_scrollContent = new QWidget(m_scroll);
+    m_scrollContent->setObjectName(QStringLiteral("DesignScrollMenuContent"));
     m_contentLayout = new QVBoxLayout(m_scrollContent);
     m_contentLayout->setContentsMargins(40, 20, 40, 20);
     m_scroll->setWidget(m_scrollContent);

@@ -1,6 +1,7 @@
 #include "ui/pages/management/PersonalRecordManagementWidget.h"
 
 #include "database/CsvExport.h"
+#include "ui/components/ModelSearchBar.h"
 #include "darkeye_ui/components/DesignButton.h"
 #include "darkeye_ui/components/DesignComboBox.h"
 #include "darkeye_ui/components/DesignInput.h"
@@ -16,7 +17,6 @@
 #include <QHeaderView>
 #include <QLineEdit>
 #include <QModelIndexList>
-#include <QSortFilterProxyModel>
 #include <QSqlError>
 #include <QSqlRecord>
 #include <QSqlTableModel>
@@ -27,41 +27,17 @@
 
 namespace darkeye
 {
-namespace
-{
-class AllColumnsFilterModel final : public QSortFilterProxyModel
-{
-public:
-    explicit AllColumnsFilterModel(QObject *parent = nullptr) : QSortFilterProxyModel(parent) {}
-
-protected:
-    bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const override
-    {
-        const QString needle = filterRegularExpression().pattern().trimmed();
-        if (needle.isEmpty())
-            return true;
-        const auto *model = sourceModel();
-        for (int column = 0; column < model->columnCount(sourceParent); ++column)
-            if (model->index(sourceRow, column, sourceParent).data().toString().contains(
-                    needle, Qt::CaseInsensitive))
-                return true;
-        return false;
-    }
-};
-} // namespace
-
 PersonalRecordManagementWidget::PersonalRecordManagementWidget(QSqlDatabase privateDatabase,
                                                                ThemeService &themes, QWidget *parent)
     : QWidget(parent), m_privateDatabase(std::move(privateDatabase)), m_themes(themes)
 {
     setObjectName(QStringLiteral("PersonalRecordManagementWidget"));
     auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(10, 10, 10, 10);
 
     auto *toolbar = new QHBoxLayout;
     toolbar->addWidget(new DesignLabel(QStringLiteral("选择表:"), this));
     m_tableChoice = new DesignComboBox(this);
-    m_tableChoice->setObjectName(QStringLiteral("personalRecordTableChoice"));
+    m_tableChoice->setProperty("managementControlId", QStringLiteral("personalRecordTableChoice"));
     m_tableChoice->addItems({QStringLiteral("love_making"), QStringLiteral("masturbation"),
                              QStringLiteral("sexual_arousal")});
     toolbar->addWidget(m_tableChoice);
@@ -79,29 +55,22 @@ PersonalRecordManagementWidget::PersonalRecordManagementWidget(QSqlDatabase priv
 
     m_model = new QSqlTableModel(this, m_privateDatabase);
     m_model->setEditStrategy(QSqlTableModel::OnManualSubmit);
-    m_filterModel = new AllColumnsFilterModel(this);
-    m_filterModel->setSourceModel(m_model);
-    m_filterModel->setDynamicSortFilter(true);
     m_table = new TokenTableView(this);
     m_table->setObjectName(QStringLiteral("personalRecordTable"));
-    m_table->setModel(m_filterModel);
+    m_table->setModel(m_model);
     m_table->setSortingEnabled(true);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->horizontalHeader()->setStretchLastSection(true);
     root->addWidget(m_table, 1);
 
-    m_search = new DesignLineEdit(this);
-    m_search->setObjectName(QStringLiteral("personalRecordSearch"));
-    m_search->setClearButtonEnabled(true);
-    m_search->setPlaceholderText(QStringLiteral("搜索"));
-    root->addWidget(m_search);
+    auto *searchBar = new ModelSearchBar(m_table, m_themes, this);
+    m_search = searchBar->input();
+    m_search->setProperty("managementControlId", QStringLiteral("personalRecordSearch"));
+    root->addWidget(searchBar);
 
     connect(m_tableChoice, &QComboBox::currentTextChanged, this,
             &PersonalRecordManagementWidget::loadTable);
-    connect(m_search, &QLineEdit::textChanged, this, [this](const QString &text) {
-        m_filterModel->setFilterFixedString(text);
-    });
     connect(addButton, &QPushButton::clicked, this, &PersonalRecordManagementWidget::addRow);
     connect(deleteButton, &QPushButton::clicked, this,
             &PersonalRecordManagementWidget::deleteSelectedRows);
@@ -148,7 +117,7 @@ void PersonalRecordManagementWidget::addRow()
                          &m_themes);
         return;
     }
-    const QModelIndex index = m_filterModel->mapFromSource(m_model->index(row, 0));
+    const QModelIndex index = m_model->index(row, 0);
     m_table->selectRow(index.row());
     m_table->scrollTo(index, QAbstractItemView::PositionAtCenter);
 }
@@ -163,7 +132,7 @@ void PersonalRecordManagementWidget::deleteSelectedRows()
     }
     QList<int> rows;
     for (const QModelIndex &index : selected)
-        rows.append(m_filterModel->mapToSource(index).row());
+        rows.append(index.row());
     std::sort(rows.begin(), rows.end(), [](int left, int right) { return left > right; });
     for (const int row : rows)
         if (!m_model->removeRow(row))
@@ -201,7 +170,7 @@ void PersonalRecordManagementWidget::exportCsv()
     if (!path.endsWith(QStringLiteral(".csv"), Qt::CaseInsensitive))
         path += QStringLiteral(".csv");
     QString errorMessage;
-    if (!exportModelToCsv(m_filterModel, path, &errorMessage))
+    if (!exportModelToCsv(m_model, path, &errorMessage))
     {
         Toast::showError(window(), QStringLiteral("导出失败: %1").arg(errorMessage), &m_themes);
         return;

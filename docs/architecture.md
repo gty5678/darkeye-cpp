@@ -7,7 +7,7 @@
 | 类别 | 当前实现 |
 | --- | --- |
 | 语言与构建 | C++20、CMake 3.25+、Ninja、MSVC 2022、vcpkg manifest |
-| GUI | Qt 6.12.0：Widgets、Quick/Quick3D、QML、QRhi、Qt SQL |
+| GUI | Qt 6.12.0：Widgets、QRhi、Qt SQL |
 | 数据 | SQLite 公共库与私有库，基于 Qt SQL 访问 |
 | 本地通信 | Qt HttpServer，默认仅监听 `127.0.0.1:56789` |
 | 外部采集 | 可选 Collector 进程与 HTTP JSON 客户端，默认端口 56790 |

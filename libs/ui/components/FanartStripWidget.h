@@ -45,7 +45,6 @@ public:
     bool moveEntry(int from, int to);
     bool updateEntry(int index, const QString &url, const QString &file = {});
     bool downloadEntry(int index);
-    bool cancelDownload();
     [[nodiscard]] bool downloadInProgress() const noexcept;
 
     [[nodiscard]] bool finalizedEntries(const QString &serialNumber,
@@ -63,8 +62,6 @@ signals:
 
 private:
     void chooseLocalImage();
-    void addUrl();
-    void editEntry(int index);
     void enterEditMode();
     void leaveEditMode();
     void showPreview(int index);

@@ -56,7 +56,6 @@ public:
     ~AddWorkTabPage3() override;
 
     void beginCreate();
-    void beginCreateAndCrawl(const QString &serialNumber);
     bool loadWork(qint64 workId);
     /// Mirrors Python's asynchronous editor load used by route-based work editing.
     void loadWorkAsync(qint64 workId);

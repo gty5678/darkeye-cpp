@@ -242,15 +242,15 @@ QSize TokenVerticalTabBar::tabSizeHint(int index) const
     const qreal lineSpacing = metrics.height() * 0.05;
     const int characterHeight = metrics.height();
     const int characterWidth = metrics.maxWidth();
-    const int verticalPadding = qRound(characterHeight * 0.2);
-    const int horizontalPadding = qRound(characterWidth * 0.3);
-    int totalHeight = verticalPadding * 2;
+    const int verticalPadding = int(characterHeight * 0.2);
+    const int horizontalPadding = int(characterWidth * 0.3);
+    qreal totalHeight = verticalPadding * 2;
     for (const VerticalTextLayout::TextRun &run :
          VerticalTextLayout::splitTextBlocks(text)) {
         if (run.english)
-            totalHeight += metrics.horizontalAdvance(run.text) + qRound(lineSpacing);
+            totalHeight += metrics.boundingRect(run.text).width() + lineSpacing;
         else
-            totalHeight += qRound((characterHeight + lineSpacing) * run.text.size());
+            totalHeight += (characterHeight + lineSpacing) * run.text.size();
     }
     int maximumCharacterWidth = 0;
     for (const QChar character : text)
@@ -258,12 +258,12 @@ QSize TokenVerticalTabBar::tabSizeHint(int index) const
             maximumCharacterWidth = qMax(maximumCharacterWidth,
                                          metrics.horizontalAdvance(character));
     const int minimumWidth = maximumCharacterWidth > 0
-        ? qRound(maximumCharacterWidth * 1.5) : 40;
+        ? int(maximumCharacterWidth * 1.5) : 40;
     const int idealWidth = maximumCharacterWidth > 0
         ? maximumCharacterWidth + horizontalPadding * 2 : 60;
     const int maximumWidth = maximumCharacterWidth > 0
-        ? qRound(maximumCharacterWidth * 2.5) : 120;
-    return {qMax(minimumWidth, qMin(idealWidth, maximumWidth)), totalHeight};
+        ? int(maximumCharacterWidth * 2.5) : 120;
+    return {qMax(minimumWidth, qMin(idealWidth, maximumWidth)), int(totalHeight)};
 }
 void TokenVerticalTabBar::paintEvent(QPaintEvent *)
 {
@@ -277,8 +277,31 @@ void TokenVerticalTabBar::paintEvent(QPaintEvent *)
         painter.drawControl(QStyle::CE_TabBarTabShape, option);
         painter.setPen(QColor(index == currentIndex() ? tokens.textInverse : tokens.text));
         painter.setFont(font());
-        const int topMargin = qRound(painter.fontMetrics().height() * 0.3);
-        drawVerticalText(painter, tabRect(index).adjusted(0, topMargin, 0, 0), text);
+        painter.setRenderHint(QPainter::TextAntialiasing);
+        const QFontMetrics metrics(painter.font());
+        const qreal lineSpacing = metrics.height() * .05;
+        const qreal charHeight = metrics.height() + lineSpacing;
+        const int charWidth = metrics.maxWidth();
+        const QRect rect = tabRect(index);
+        const int x = rect.right() - charWidth;
+        qreal y = rect.top() + int(metrics.height() * .3);
+        for (const auto &run : VerticalTextLayout::splitTextBlocks(VerticalTextLayout::replaceEllipsis(text))) {
+            if (run.english) {
+                const QRect bounds = metrics.boundingRect(run.text);
+                const qreal width = bounds.width();
+                painter.save();
+                painter.translate(x + charWidth / 2.0, y + width / 2.0);
+                painter.rotate(90);
+                painter.drawText(QPointF(-width / 2.0, metrics.ascent() - bounds.height() / 2.0), run.text);
+                painter.restore();
+                y += width + lineSpacing;
+            } else {
+                for (QChar character : run.text) {
+                    painter.drawText(QRect(x, int(y), charWidth, int(charHeight)), Qt::AlignCenter, QString(character));
+                    y += charHeight;
+                }
+            }
+        }
     }
 }
 

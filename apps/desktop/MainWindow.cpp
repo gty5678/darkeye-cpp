@@ -17,6 +17,7 @@
 #include "ui/pages/StatisticsPage.h"
 #include "ui/pages/SettingsPage.h"
 #include "ui/pages/ShelfPage.h"
+#include "dvd_scene/DvdSceneWidget.h"
 #include "ui/pages/PlaceholderPage.h"
 #include "ui/pages/WorkPage.h"
 #include "crawler/CrawlerScheduler.h"
@@ -39,6 +40,7 @@
 #include <QComboBox>
 #include <QDesktopServices>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileDialog>
 #include <QHBoxLayout>
@@ -231,14 +233,36 @@ void MainWindow::showInitial()
     }
 }
 
-void MainWindow::preloadShelfPage()
+void MainWindow::preloadShelfPage(bool warmGraphics)
 {
     auto *shelf = static_cast<ShelfPage *>(ensurePage(QStringLiteral("shelf")));
-    if (shelf == nullptr || shelf->isInitialized())
+    if (shelf == nullptr || (!warmGraphics && shelf->isInitialized()))
         return;
     QElapsedTimer timer;
     timer.start();
     shelf->initialize();
+    if (warmGraphics && isVisible()) {
+        // A hidden page has no GPU resources yet. Render the actual shelf with
+        // the visible window's QRhi, below the current page, before dismissing
+        // the startup splash. A separate offscreen QRhi would be discarded on
+        // the first navigation and would leave the same first-frame stall.
+        auto *stack = qobject_cast<QStackedWidget *>(shelf->parentWidget());
+        auto *current = stack ? stack->currentWidget() : nullptr;
+        auto *scene = shelf->findChild<dvd_scene::DvdSceneWidget *>();
+        if (current && current != shelf && scene) {
+            shelf->setGeometry(stack->contentsRect());
+            shelf->show();
+            shelf->lower();
+            shelf->layout()->activate();
+            scene->layout()->activate();
+            // Let Qt process the new widget's layout and backing-store updates
+            // before requesting a readback on the prewarmed window.
+            QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+            if (scene->renderWidget()->grabFramebuffer().isNull())
+                qWarning() << "Shelf graphics prewarm did not render a frame";
+            shelf->hide();
+        }
+    }
     qInfo() << "Shelf page preloaded in" << timer.elapsed() << "ms";
 }
 
@@ -657,12 +681,6 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
                 static_cast<ManagementPage *>(ensurePage(QStringLiteral("database")));
             if (management->loadWork(workId))
                 navigateTo(QStringLiteral("database"));
-        });
-        connect(m_workPage, &WorkPage::createRequested, this, [this] {
-            auto *management =
-                static_cast<ManagementPage *>(ensurePage(QStringLiteral("database")));
-            management->beginCreateWork();
-            navigateTo(QStringLiteral("database"));
         });
         connect(m_workPage, &WorkPage::worksChanged, this,
                 [this] { refreshRelationshipGraph(); });

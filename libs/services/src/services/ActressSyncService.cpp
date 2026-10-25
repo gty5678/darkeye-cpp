@@ -147,27 +147,6 @@ bool ActressSyncService::startFetch(qint64 actressId, bool persistCapture)
     return true;
 }
 
-bool ActressSyncService::mergeCapture(const QJsonObject &payload, qint64 expectedActressId,
-                                      QString *errorMessage)
-{
-    const QJsonObject context = payload.value(QStringLiteral("context")).toObject();
-    const qint64 contextualId = context.value(QStringLiteral("actress_id")).toVariant().toLongLong();
-    const qint64 actressId = expectedActressId > 0 ? expectedActressId : contextualId;
-    if (actressId <= 0)
-    {
-        if (errorMessage != nullptr)
-            *errorMessage = QStringLiteral("采集回传缺少女优 ID");
-        return false;
-    }
-    if (contextualId > 0 && contextualId != actressId)
-    {
-        if (errorMessage != nullptr)
-            *errorMessage = QStringLiteral("采集上下文与目标女优不一致");
-        return false;
-    }
-    return persist(actressId, captureData(payload), errorMessage);
-}
-
 bool ActressSyncService::persist(qint64 actressId, const QJsonObject &data, QString *errorMessage)
 {
     if (data.isEmpty())

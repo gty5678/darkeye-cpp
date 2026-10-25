@@ -302,8 +302,8 @@ void ShelfPageTest::nativeRenderingAndActions()
     const auto lighting=scene->renderWidget()->lighting();
     QVERIFY(lighting.imageBasedLighting && lighting.ambientOcclusion && lighting.shadows && lighting.toneMapping);
     QCOMPARE(lighting.environmentRotation,155.0f);
-    QVERIFY(lighting.exposure<1 && lighting.environmentIntensity<1);
-    QVERIFY(lighting.keyLightCameraRelative);
+    QVERIFY(lighting.exposure>1 && lighting.environmentIntensity>1);
+    QVERIFY(!lighting.keyLightCameraRelative);
     QVERIFY(lighting.keyLightDirection.x()<0 && lighting.keyLightDirection.y()>0 && lighting.keyLightDirection.z()>0);
     bool coverLoaded=false;
     int whiteShells=0;
@@ -959,7 +959,9 @@ void ShelfPageTest::routeJumpClearsFiltersAndKeepsWorkExpanded()
     auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
     QVERIFY(application != nullptr);
     darkeye::ThemeService themes(*application);
-    darkeye::ShelfPage page(connection.database(), privateConnection.database(), themes);
+    darkeye::graph::GraphManager graph(connection.database());
+    QVERIFY2(graph.initialize(&error), qPrintable(error));
+    darkeye::ShelfPage page(connection.database(), privateConnection.database(), themes, &graph);
     page.initialize();
     page.resize(1280,800);
     page.show();
@@ -992,6 +994,21 @@ void ShelfPageTest::routeJumpClearsFiltersAndKeepsWorkExpanded()
     QVERIFY(scene != nullptr);
     QTRY_VERIFY(scene->isExpanded());
     QCOMPARE(scene->selectedId(),QString::number(*id));
+    scene->renderWidget()->setAttribute(Qt::WA_TransparentForMouseEvents);
+    auto *relation = view->findChild<QWidget *>("ShelfRelationGraphOverlay");
+    QVERIFY(relation != nullptr);
+    QTRY_VERIFY(scene->isFullyExpanded());
+    QVERIFY(relation->isHidden());
+    scene->toggleOpen();
+    QVERIFY(relation->isHidden());
+    QTRY_VERIFY_WITH_TIMEOUT(relation->isVisible(), 5000);
+    QVERIFY(scene->isNearlyClosed());
+    // A route-opened DVD must follow the same graph lifecycle as a clicked DVD.
+    scene->toggleOpen();
+    QVERIFY(relation->isHidden());
+    QTRY_VERIFY(scene->isFullyExpanded());
+    scene->toggleOpen();
+    QTRY_VERIFY_WITH_TIMEOUT(relation->isVisible(), 5000);
 }
 
 QTEST_MAIN(ShelfPageTest)

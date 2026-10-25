@@ -70,23 +70,7 @@ ID 必须非空且唯一；按 `displayOrder` 稳定排序，事件回传稳定 
 
 Smoke 会聚焦/开盒、读回 framebuffer、关盒返回并校验错误、退出；0 成功，2 错误，3 保存失败，4 超时。Benchmark 使用 1/10/100/500/1000 子集、1280×720、4x MSAA、相同封面数据、60 件驻留窗口；记录 CPU、帧提交次数、绘制数和缓存估算。`--items` 用于 benchmark 时至少需 1000 件。
 
-可选旧版记录工具需要 QuickWidgets/Quick3D/Quick3DUtilsPrivate：
-
-```powershell
-cmake -S apps/render3d_demo -B build/render3d-release -G Ninja `
-  -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/Qt/6.12.0/msvc2022_64 `
-  -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded -DDARKEYE_RENDER3D_BASELINE=ON
-cmake --build build/render3d-release --parallel 4
-$env:PATH = 'C:/Qt/6.12.0/msvc2022_64/bin;' + $env:PATH
-$env:QML_IMPORT_PATH = 'C:/Qt/6.12.0/msvc2022_64/qml'
-$env:QT_QPA_PLATFORM_PLUGIN_PATH = 'C:/Qt/6.12.0/msvc2022_64/plugins'
-./build/render3d-release/darkeye_dvd_baseline.exe --output build/qrhi3d-baseline
-python tools/qrhi3d_baseline_animation.py build/qrhi3d-baseline
-python tools/qrhi3d_performance_report.py --old build/qrhi3d-baseline/baseline.json `
-  --new build/qrhi3d-new-benchmark.json --output docs/qrhi3d-performance.md
-```
-
-GIF 脚本需要 Pillow。旧版直接使用未修改的生产 QML，生成五组图片及 48 帧状态回放；回放不是物理鼠标录屏。性能数据区分 CPU 提交、交互步和实际渲染次数；GPU 执行时间/驱动显存没有采集，不把纹理估算当作显存。旧版与新版的 IBL/AO/阴影算法不同，记录不能证明完整视觉/性能等价。原基础光照性能记录为历史结果；新效果与最新测量见 `docs/qrhi3d-lighting.md`。
+旧版 QML 对照录制器及离线 Qt 网格导出工具已于 2026-10-25 删除。历史对比记录见 docs/qrhi3d-visual-comparison.md；当前光照和测量见 docs/qrhi3d-lighting.md。
 
 ## 架构、材质与资源生命周期
 
@@ -102,7 +86,7 @@ GIF 脚本需要 Pillow。旧版直接使用未修改的生产 QML，生成五�
 
 导入采用 cgltf v1.15（MIT），支持静态三角网格 GLB/外部 glTF、层级、多个 primitive、缺法线生成、切线、baseColor/MR/normal/occlusion/emissive 图、采样与透明模式，以及 KHR_materials_emissive_strength。明确拒绝不支持的 required extension/非静态网格；缺图警告并降级。限制文件/节点/顶点/解码图像大小，避免损坏资产造成无限分配。详见 loader 与 `third_party/cgltf/README.md`。
 
-`assets/dvd-case.glb` 由仓库四个 Qt `.mesh` 离线导出，保留原层级、9 个材质子集、几何与法线，V 转换为 `1-v`；Qt ARGB 颜色转换为线性 glTF 因子。`dvd-case.provenance.json` 保存来源和哈希。可选 `darkeye_dvd_mesh_export --output path.glb` 使用 Quick3DUtilsPrivate，运行时新库不使用 Quick。仓库未提供原模型单独的上游许可证，导出不改变其授权状态。
+`assets/dvd-case.glb` 历史上由四个 Qt `.mesh` 离线导出，保留原层级、9 个材质子集、几何与法线，V 转换为 `1-v`；Qt ARGB 颜色转换为线性 glTF 因子。`dvd-case.provenance.json` 保存来源和哈希。原 Qt 网格和导出工具已删除；GLB 与来源哈希作为历史资产记录保留。仓库未提供原模型单独的上游许可证，导出不改变其授权状态。
 
 ## 验证和问题排查
 

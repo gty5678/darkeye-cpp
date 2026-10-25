@@ -20,6 +20,8 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QResizeEvent>
+#include <QScrollBar>
+#include <QShowEvent>
 #include <QTabWidget>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -50,7 +52,8 @@ ThemeTokens themeTokens(ThemeService *s)
 }
 QColor readable(const QColor &c)
 {
-    return c.lightness() < 135 ? QColor(Qt::white) : QColor(Qt::black);
+    return .299 * c.red() + .587 * c.green() + .114 * c.blue() > 128
+               ? QColor(Qt::black) : QColor(Qt::white);
 }
 class VerticalTabs final : public QTabWidget
 {
@@ -68,7 +71,7 @@ class TagCard final : public QGraphicsObject
           m_size(calculateSize())
     {
         setObjectName(title ? QStringLiteral("WorkTagTitle") : QStringLiteral("WorkTag_%1").arg(id));
-        setAcceptHoverEvents(true);
+        setAcceptHoverEvents(!title);
         setAcceptedMouseButtons(title ? Qt::NoButton : Qt::LeftButton);
         setCursor(title ? Qt::ArrowCursor : Qt::PointingHandCursor);
     }
@@ -86,14 +89,14 @@ class TagCard final : public QGraphicsObject
         QColor bg = m_title ? QColor(t.text) : m_color;
         if (!bg.isValid())
             bg = QColor(t.pageBackground);
-        QColor fg = m_title ? QColor(t.textInverse) : readable(bg),
+        QColor fg = readable(bg),
                border = m_title ? QColor(t.border) : QColor(Qt::transparent);
         if (m_invert)
             std::swap(bg, fg);
         else if (m_hover && !m_title)
         {
             bg = bg.lighter(110);
-            fg = readable(bg);
+            fg = readable(m_color) == QColor(Qt::black) ? QColor("#646464") : QColor("#C5C5C5");
             border = Qt::red;
         }
         QRectF r = boundingRect();
@@ -161,6 +164,11 @@ class TagCard final : public QGraphicsObject
         m_timer->start(150);
         update();
     }
+    void resetHover()
+    {
+        m_hover = false;
+        update();
+    }
 
   protected:
     void hoverEnterEvent(QGraphicsSceneHoverEvent *e) override
@@ -203,7 +211,7 @@ class TagCard final : public QGraphicsObject
         QChar c = m_text.front();
         QFontMetrics fm(cardFont(c));
         qreal adjust = fm.horizontalAdvance(c) * (cjk(c) ? .1 : .4);
-        return {cardWidth, qMax<qreal>(cardWidth * 2, h + cardWidth * .8 - fm.descent() * .3 - adjust)};
+        return {cardWidth, h + cardWidth * .8 - fm.descent() * .3 - adjust};
     }
     qint64 m_id;
     QString m_text;
@@ -256,7 +264,8 @@ class TagFlowScene final : public QGraphicsScene
         if (width <= margin * 2)
             width = m_fallbackWidth;
         int aw = qMax(1, width - margin * 2), cols = qMax(1, aw / (cardWidth + gap)),
-            total = cols * cardWidth + (cols - 1) * gap, ox = margin + (aw - total) / 2;
+            total = cols * cardWidth + (cols - 1) * gap;
+        const qreal ox = margin + (aw - total) / 2.0;
         QVector<qreal> hs(cols, margin);
         bool any = false;
         for (TagCard *c : std::as_const(m_cards))
@@ -291,6 +300,12 @@ class TagGraphicsView final : public QGraphicsView
     }
 
   protected:
+    void showEvent(QShowEvent *e) override
+    {
+        QGraphicsView::showEvent(e);
+        if (auto *flow = dynamic_cast<TagFlowScene *>(scene()))
+            flow->relayout(viewport()->width());
+    }
     void resizeEvent(QResizeEvent *e) override
     {
         QGraphicsView::resizeEvent(e);
@@ -357,13 +372,12 @@ WorkTagSelector::WorkTagSelector(const QList<TagOption> &tags, ThemeService *the
     tools->setFixedWidth(24);
     auto *tl = new QVBoxLayout(tools);
     tl->setContentsMargins(0, 0, 0, 0);
-    tl->setSpacing(0);
     auto *clear = new ShakeButton(QStringLiteral("brush_cleaning"), themes, tools);
     auto *reload = new RotateButton(QStringLiteral("refresh_cw"), themes, tools);
     m_expandButton = new IconButton(QStringLiteral("arrow_right"), themes, tools);
-    clear->setObjectName(QStringLiteral("WorkTagClearButton"));
-    reload->setObjectName(QStringLiteral("WorkTagReloadButton"));
-    m_expandButton->setObjectName(QStringLiteral("WorkTagExpandButton"));
+    clear->setProperty("workControlId", QStringLiteral("WorkTagClearButton"));
+    reload->setProperty("workControlId", QStringLiteral("WorkTagReloadButton"));
+    m_expandButton->setProperty("workControlId", QStringLiteral("WorkTagExpandButton"));
     clear->setToolTip(QStringLiteral("清空已选标签"));
     reload->setToolTip(QStringLiteral("重新加载标签"));
     m_expandButton->setToolTip(QStringLiteral("展开标签库"));
@@ -385,22 +399,22 @@ WorkTagSelector::WorkTagSelector(const QList<TagOption> &tags, ThemeService *the
     m_panel->setFixedWidth(0);
     auto *pl = new QVBoxLayout(m_panel);
     pl->setContentsMargins(0, 0, 0, 0);
-    pl->setSpacing(0);
     auto *bar = new QWidget(m_panel);
     auto *bl = new QHBoxLayout(bar);
     m_search = new DesignLineEdit(bar);
-    m_search->setObjectName(QStringLiteral("WorkTagSearch"));
+    // Keep the design-system object name: Python's MyLineEdit inherits it too.
+    m_search->setProperty("workControlId", QStringLiteral("WorkTagSearch"));
     m_search->setPlaceholderText(QStringLiteral("搜索"));
     m_search->setClearButtonEnabled(true);
     m_search->setMinimumWidth(50);
     m_search->installEventFilter(this);
     m_searchResult = new DesignLabel(QStringLiteral("无搜索结果"), bar);
-    m_searchResult->setObjectName(QStringLiteral("WorkTagSearchResult"));
+    m_searchResult->setProperty("workControlId", QStringLiteral("WorkTagSearchResult"));
     m_searchResult->setFixedWidth(70);
     m_searchPrevious = new IconButton(QStringLiteral("arrow_up"), themes, bar);
     m_searchNext = new IconButton(QStringLiteral("arrow_down"), themes, bar);
-    m_searchPrevious->setObjectName(QStringLiteral("WorkTagSearchPrevious"));
-    m_searchNext->setObjectName(QStringLiteral("WorkTagSearchNext"));
+    m_searchPrevious->setProperty("workControlId", QStringLiteral("WorkTagSearchPrevious"));
+    m_searchNext->setProperty("workControlId", QStringLiteral("WorkTagSearchNext"));
     m_searchPrevious->setToolTip(QStringLiteral("向前搜索(Shift+Enter)"));
     m_searchNext->setToolTip(QStringLiteral("向后搜索(Enter)"));
     m_searchPrevious->setEnabled(false);
@@ -430,7 +444,7 @@ WorkTagSelector::WorkTagSelector(const QList<TagOption> &tags, ThemeService *the
     m_panelAnimation->setEasingCurve(QEasingCurve::InOutQuad);
     connect(m_panelAnimation, &QVariantAnimation::valueChanged, this, [this](const QVariant &v) {
         m_panel->setFixedWidth(v.toInt());
-        setFixedWidth(m_selectedColumnWidth + toolWidth + v.toInt());
+        setFixedWidth(m_selectedContainerWidth + v.toInt());
     });
     connect(clear, &QPushButton::clicked, this, &WorkTagSelector::clearSelection);
     connect(reload, &QPushButton::clicked, this, &WorkTagSelector::reloadTags);
@@ -438,6 +452,14 @@ WorkTagSelector::WorkTagSelector(const QList<TagOption> &tags, ThemeService *the
     connect(m_search, &QLineEdit::textChanged, this, &WorkTagSelector::rebuildSearch);
     connect(m_searchPrevious, &QPushButton::clicked, this, [this] { navigateSearch(-1); });
     connect(m_searchNext, &QPushButton::clicked, this, [this] { navigateSearch(1); });
+    connect(m_tabs, &QTabWidget::currentChanged, this, [this](int index) {
+        if (auto *view = m_views.value(m_tabs->tabText(index)))
+        {
+            if (auto *flow = m_flows.value(m_tabs->tabText(index)))
+                flow->relayout();
+            view->verticalScrollBar()->setValue(0);
+        }
+    });
     if (themes)
         connect(themes, &ThemeService::themeChanged, this, [this] {
             applyViewStyle(m_selectedView);
@@ -456,7 +478,8 @@ bool WorkTagSelector::eventFilter(QObject *w, QEvent *e)
     if (w == m_search && e->type() == QEvent::KeyPress)
     {
         auto *k = static_cast<QKeyEvent *>(e);
-        if (k->key() == Qt::Key_Return || k->key() == Qt::Key_Enter)
+        if ((k->key() == Qt::Key_Return || k->key() == Qt::Key_Enter)
+            && (k->modifiers() == Qt::NoModifier || k->modifiers() == Qt::ShiftModifier))
         {
             navigateSearch(k->modifiers().testFlag(Qt::ShiftModifier) ? -1 : 1);
             return true;
@@ -472,7 +495,6 @@ void WorkTagSelector::reloadTags()
 {
     if (m_loader)
         setTags(m_loader());
-    m_search->clear();
 }
 QList<qint64> WorkTagSelector::selectedIds() const
 {
@@ -511,16 +533,30 @@ void WorkTagSelector::clearSelection()
     for (qint64 id : QList<qint64>(m_selectedOrder))
         setTagSelected(id, false, false);
 }
-void WorkTagSelector::setSelectedColumnWidth(int width)
+void WorkTagSelector::setModified(bool modified)
 {
-    if (width <= 0 || width == m_selectedColumnWidth)
+    // Python TagSelector5.set_state highlights only the selected-tags view.
+    m_selectedView->setProperty("addWorkModified", modified);
+    applyViewStyle(m_selectedView);
+}
+void WorkTagSelector::setSelectedColumnWidth(int width, int containerWidth)
+{
+    if (width <= 0)
         return;
     m_selectedColumnWidth = width;
+    m_selectedContainerWidth = qMax(width + toolWidth, containerWidth);
     m_selectedView->setFixedWidth(width);
     if (QWidget *left = m_selectedView->parentWidget())
-        left->setFixedWidth(width + toolWidth);
-    setFixedWidth(width + toolWidth + (m_panelExpanded ? panelWidth : 0));
-    m_selectedFlow->relayout(width);
+        left->setFixedWidth(m_selectedContainerWidth);
+    setFixedWidth(m_selectedContainerWidth + m_panel->width());
+    m_selectedFlow->relayout();
+}
+void WorkTagSelector::setAvailablePanelWidth(int width)
+{
+    if (width <= 0 || width == m_availablePanelWidth)
+        return;
+    m_availablePanelWidth = width;
+    setPanelExpanded(m_panelExpanded, false);
 }
 void WorkTagSelector::setAvailablePanelExpanded(bool expanded)
 {
@@ -534,13 +570,13 @@ void WorkTagSelector::setPanelExpanded(bool on, bool animate)
     m_panelAnimation->stop();
     if (!animate)
     {
-        const int width = on ? panelWidth : 0;
+        const int width = on ? m_availablePanelWidth : 0;
         m_panel->setFixedWidth(width);
-        setFixedWidth(m_selectedColumnWidth + toolWidth + width);
+        setFixedWidth(m_selectedContainerWidth + width);
         return;
     }
     m_panelAnimation->setStartValue(m_panel->width());
-    m_panelAnimation->setEndValue(on ? panelWidth : 0);
+    m_panelAnimation->setEndValue(on ? m_availablePanelWidth : 0);
     m_panelAnimation->start();
     if (on)
         QTimer::singleShot(350, this, [this] {
@@ -555,7 +591,7 @@ void WorkTagSelector::setTagSelected(qint64 id, bool selected, bool switchTab)
     const TagOption *t = tagById(id);
     if (!t)
         return;
-    if (selected && !t->mutexGroup.isEmpty())
+    if (selected && m_mutexCheckEnabled && !t->mutexGroup.isEmpty())
         for (qint64 sid : std::as_const(m_selectedIds))
         {
             const TagOption *s = tagById(sid);
@@ -585,6 +621,7 @@ void WorkTagSelector::setTagSelected(qint64 id, bool selected, bool switchTab)
             m_selectedFlow->removeCard(c);
         if (auto *c = m_items.value(id))
         {
+            c->resetHover();
             c->setVisible(true);
             if (auto *f = m_flows.value(t->typeName))
             {
@@ -641,7 +678,7 @@ void WorkTagSelector::showSearchResult()
     m_searchResult->setText(QStringLiteral("结果 %1/%2").arg(m_searchIndex + 1).arg(m_searchMatches.size()));
     if (auto *c = m_selectedItems.value(id))
     {
-        m_selectedView->ensureVisible(c);
+        m_selectedView->centerOn(c);
         c->flash();
         return;
     }
@@ -656,7 +693,7 @@ void WorkTagSelector::showSearchResult()
             break;
         }
     if (auto *v = m_views.value(t->typeName))
-        v->ensureVisible(c);
+        v->centerOn(c);
     c->flash();
 }
 void WorkTagSelector::updateAvailableVisibility()
@@ -746,9 +783,12 @@ const TagOption *WorkTagSelector::tagById(qint64 id) const
 void WorkTagSelector::applyViewStyle(QWidget *w) const
 {
     ThemeTokens t = themeTokens(m_themes);
+    const QVariant modified = w->property("addWorkModified");
+    const QString border = modified.toBool() ? t.warning : t.border;
+    const QString radius = modified.isValid() ? QStringLiteral("5px") : t.radiusMd;
     w->setStyleSheet(QStringLiteral("QGraphicsView{border:%1 dashed "
                                     "%2;border-radius:%3;background:%4}")
-                         .arg(t.borderWidth, t.border, t.radiusMd, t.pageBackground));
+                         .arg(t.borderWidth, border, radius, t.pageBackground));
 }
 void WorkTagSelector::applyTabStyle() const
 {

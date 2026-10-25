@@ -52,11 +52,14 @@ class WorkTagSelector final : public QWidget
     // 对应 Python TagSelector5.load_with_ids：由作品编辑器加载关联标签时同步左侧已选区。
     void setSelectedIds(const QList<qint64> &ids);
     void clearSelection();
+    void setModified(bool modified);
     // WorkPage/ShelfPage override TagSelector5's generic 130px view with an 84px compact column.
-    void setSelectedColumnWidth(int width);
+    void setSelectedColumnWidth(int width, int containerWidth = -1);
+    void setAvailablePanelWidth(int width);
     // 编辑作品时与 Python TagSelector5 一致，默认显示可选标签面板。
     void setAvailablePanelExpanded(bool expanded);
     void setLoader(Loader loader);
+    void setMutexCheckEnabled(bool enabled) { m_mutexCheckEnabled = enabled; }
     void reloadTags();
 
   signals:
@@ -96,7 +99,10 @@ class WorkTagSelector final : public QWidget
     QVariantAnimation *m_panelAnimation = nullptr;
     bool m_panelExpanded = false;
     int m_selectedColumnWidth = 130;
+    int m_selectedContainerWidth = 154;
+    int m_availablePanelWidth = 255;
     bool m_updating = false;
+    bool m_mutexCheckEnabled = true;
     QList<qint64> m_searchMatches;
     int m_searchIndex = -1;
     Loader m_loader;

@@ -5,7 +5,6 @@
 
 class QComboBox;
 class QLineEdit;
-class QSortFilterProxyModel;
 class QSqlTableModel;
 class QTableView;
 
@@ -39,7 +38,6 @@ private:
     QLineEdit *m_search = nullptr;
     QTableView *m_table = nullptr;
     QSqlTableModel *m_model = nullptr;
-    QSortFilterProxyModel *m_filterModel = nullptr;
 };
 
 } // namespace darkeye

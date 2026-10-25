@@ -35,8 +35,6 @@ public:
         QWidget *parent = nullptr);
 
     bool loadWork(qint64 workId);
-    void beginCreateWork();
-    void beginCreateWorkAndCrawl(const QString &serialNumber);
     /// Refresh an already-instantiated work editor after actor/actress data changes.
     void refreshPersonSelectors();
 

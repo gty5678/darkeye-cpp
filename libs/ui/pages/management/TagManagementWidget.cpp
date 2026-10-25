@@ -18,7 +18,6 @@
 #include <QHeaderView>
 #include <QLineEdit>
 #include <QMessageBox>
-#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -77,23 +76,65 @@ void TagManagementWidget::buildUi()
     editorColumnLayout->addWidget(previewGroup);
 
     auto *editor = new TokenGroupBox(QStringLiteral("标签详情"), editorColumn);
-    auto *editorLayout = new QVBoxLayout(editor);
-    auto *form = new QFormLayout;
+    auto *form = new QFormLayout(editor);
     m_name = new DesignLineEdit(editor);
     m_type = new DesignComboBox(editor);
     m_color = new ColorPicker(QColor(QStringLiteral("#cccccc")), true, ColorPicker::Shape::Circle,
                               editor);
-    m_color->setMinimumHeight(36);
-    m_detail = new DesignPlainTextEdit(editor);
-    m_detail->setMinimumHeight(100);
-    m_aliases = new DesignLineEdit(editor);
-    m_aliases->setPlaceholderText(QStringLiteral("多个别名使用英文逗号分隔"));
-    form->addRow(QStringLiteral("标签名称"), m_name);
+    m_color->setMaximumHeight(40);
+    m_detail = new DesignLineEdit(editor);
+    m_detail->setObjectName(QStringLiteral("TagDetailInput"));
+    auto *aliasEditor = new QWidget(editor);
+    auto *aliasLayout = new QVBoxLayout(aliasEditor);
+    aliasLayout->setContentsMargins(0, 0, 0, 0);
+    auto *aliasButtons = new QHBoxLayout;
+    auto *addAlias = new IconButton(QStringLiteral("list_plus"), &m_themes, aliasEditor);
+    addAlias->setToolTip(QStringLiteral("添加重定向别名"));
+    auto *removeAlias = new IconButton(QStringLiteral("list_x"), &m_themes, aliasEditor);
+    removeAlias->setToolTip(QStringLiteral("删除选中的别名"));
+    removeAlias->setEnabled(false);
+    aliasButtons->addWidget(addAlias);
+    aliasButtons->addWidget(removeAlias);
+    aliasButtons->addStretch();
+    aliasLayout->addLayout(aliasButtons);
+    m_aliases = new TokenTableWidget(aliasEditor);
+    m_aliases->setObjectName(QStringLiteral("TagAliasTable"));
+    m_aliases->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_aliases->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_aliases->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_aliases->setEditTriggers(QAbstractItemView::DoubleClicked
+                              | QAbstractItemView::EditKeyPressed
+                              | QAbstractItemView::AnyKeyPressed);
+    aliasLayout->addWidget(m_aliases);
+    const auto appendAlias = [this]
+    {
+        const int row = m_aliases->rowCount();
+        m_aliases->insertRow(row);
+        if (m_aliases->columnCount() == 0)
+            return;
+        auto *item = new QTableWidgetItem;
+        m_aliases->setItem(row, 0, item);
+        m_aliases->setCurrentItem(item);
+        m_aliases->scrollToBottom();
+        m_aliases->editItem(item);
+    };
+    const auto deleteAlias = [this]
+    {
+        if (!m_aliases->selectedItems().isEmpty())
+            m_aliases->removeRow(m_aliases->currentRow());
+    };
+    connect(addAlias, &QPushButton::clicked, this, appendAlias);
+    connect(removeAlias, &QPushButton::clicked, this, deleteAlias);
+    connect(m_aliases, &TokenTableWidget::addRequested, this, appendAlias);
+    connect(m_aliases, &TokenTableWidget::deleteRequested, this, deleteAlias);
+    connect(m_aliases, &QTableWidget::itemSelectionChanged, removeAlias,
+            [this, removeAlias]
+            { removeAlias->setEnabled(!m_aliases->selectedItems().isEmpty()); });
+    form->addRow(QStringLiteral("标签名字"), m_name);
     form->addRow(QStringLiteral("标签类型"), m_type);
     form->addRow(QStringLiteral("颜色"), m_color);
-    form->addRow(QStringLiteral("说明"), m_detail);
-    form->addRow(QStringLiteral("别名"), m_aliases);
-    editorLayout->addLayout(form);
+    form->addRow(QStringLiteral("细节"), m_detail);
+    form->addRow(QStringLiteral("重定向"), aliasEditor);
     editorColumnLayout->addWidget(editor);
 
     auto *saveButton = new DesignButton(QStringLiteral("提交"), editorColumn);
@@ -104,10 +145,13 @@ void TagManagementWidget::buildUi()
     editorColumnLayout->addWidget(saveButton);
     editorColumnLayout->addWidget(removeButton);
     editorColumnLayout->addWidget(tagTypeButton);
-    editorColumnLayout->addStretch();
     root->addWidget(editorColumn);
 
     m_tagSelector = new WorkTagSelector({}, &m_themes, this);
+    // Python narrows the view while retaining the original 154px left container.
+    m_tagSelector->setSelectedColumnWidth(116, 154);
+    m_tagSelector->setAvailablePanelWidth(400);
+    m_tagSelector->setMutexCheckEnabled(false);
     m_tagSelector->setAvailablePanelExpanded(true);
     m_tagSelector->setLoader(
         [this]
@@ -153,7 +197,7 @@ void TagManagementWidget::buildUi()
             &TagManagementWidget::redirectSelectedTags);
     connect(m_name, &QLineEdit::textChanged, this, &TagManagementWidget::updatePreview);
     connect(m_color, &ColorPicker::colorChanged, this, &TagManagementWidget::updatePreview);
-    connect(m_detail, &QPlainTextEdit::textChanged, this, &TagManagementWidget::updatePreview);
+    connect(m_detail, &QLineEdit::textChanged, this, &TagManagementWidget::updatePreview);
 }
 
 void TagManagementWidget::refresh()
@@ -222,8 +266,17 @@ void TagManagementWidget::selectTag(qint64 tagId)
     const int typeIndex = record.typeId.has_value() ? m_type->findData(*record.typeId) : 0;
     m_type->setCurrentIndex(typeIndex >= 0 ? typeIndex : 0);
     m_color->setColor(record.color);
-    m_detail->setPlainText(record.detail);
-    m_aliases->setText(record.aliases.join(','));
+    m_detail->setText(record.detail);
+    m_aliases->setRowCount(0);
+    m_aliases->setColumnCount(record.aliases.isEmpty() ? 0 : 1);
+    if (!record.aliases.isEmpty())
+        m_aliases->setHorizontalHeaderLabels({QStringLiteral("tag_name")});
+    for (const QString &alias : record.aliases)
+    {
+        const int row = m_aliases->rowCount();
+        m_aliases->insertRow(row);
+        m_aliases->setItem(row, 0, new QTableWidgetItem(alias));
+    }
     updatePreview();
 }
 
@@ -235,7 +288,8 @@ void TagManagementWidget::beginNewTag()
     m_type->setCurrentIndex(0);
     m_color->setColor(QStringLiteral("#cccccc"));
     m_detail->clear();
-    m_aliases->clear();
+    m_aliases->setRowCount(0);
+    m_aliases->setColumnCount(0);
     updatePreview();
     m_name->setFocus();
 }
@@ -391,7 +445,7 @@ void TagManagementWidget::openTagTypeManager()
 
 void TagManagementWidget::updatePreview()
 {
-    m_preview->setTag(m_name->text(), m_color->color(), m_detail->toPlainText());
+    m_preview->setTag(m_name->text(), m_color->color(), m_detail->text());
 }
 
 TagRecord TagManagementWidget::editorRecord() const
@@ -412,8 +466,14 @@ TagRecord TagManagementWidget::editorRecord() const
     else
         record.typeId.reset();
     record.color = m_color->color();
-    record.detail = m_detail->toPlainText();
-    record.aliases = m_aliases->text().split(',', Qt::SkipEmptyParts);
+    record.detail = m_detail->text();
+    record.aliases.clear();
+    for (int row = 0; row < m_aliases->rowCount(); ++row)
+    {
+        const auto *item = m_aliases->item(row, 0);
+        if (item != nullptr && !item->text().trimmed().isEmpty())
+            record.aliases.append(item->text().trimmed());
+    }
     return record;
 }
 

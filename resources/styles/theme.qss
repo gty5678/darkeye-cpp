@@ -61,11 +61,13 @@ QPlainTextEdit#DesignPlainTextEdit:focus {
 
 QComboBox#DesignComboBox,
 QComboBox#ShelfScopeSelector,
-QComboBox#ShelfSortSelector {
+QComboBox#ShelfSortSelector,
+QComboBox#DesignMakerSelector {
     padding-right: 24px;
 }
 
 QComboBox#DesignComboBox::drop-down,
+QComboBox#DesignMakerSelector::drop-down,
 QComboBox#ShelfScopeSelector::drop-down,
 QComboBox#ShelfSortSelector::drop-down {
     border: none;
@@ -74,6 +76,7 @@ QComboBox#ShelfSortSelector::drop-down {
 }
 
 QComboBox#DesignComboBox::down-arrow,
+QComboBox#DesignMakerSelector::down-arrow,
 QComboBox#ShelfScopeSelector::down-arrow,
 QComboBox#ShelfSortSelector::down-arrow {
     image: none;
@@ -176,9 +179,6 @@ QPlainTextEdit#DesignPlainTextEdit[addWorkModified="true"],
 QSpinBox#DesignSpinBox[addWorkModified="true"],
 QComboBox#DesignComboBox[addWorkModified="true"],
 QWidget#WorkCoverDropWidget[addWorkModified="true"],
-QWidget#WorkActressSelector[addWorkModified="true"],
-QWidget#WorkActorSelector[addWorkModified="true"],
-QWidget#WorkTagSelector[addWorkModified="true"],
 QWidget#FanartStripWidget[addWorkModified="true"] {
     border: 2px solid #FFA500;
 }
@@ -520,6 +520,10 @@ QListWidget#DesignListWidget[personSelectorList="true"]:disabled {
     color: @TEXT_DISABLED@;
     border-color: @BORDER@;
 }
+/* Match Python: warn on the selected people list, including while focused. */
+QListWidget#DesignListWidget[personSelectedList="true"][addWorkModified="true"] {
+    border: 2px solid #FFA500;
+}
 QHeaderView::section {
     color: @TEXT@;
     background-color: @INPUT_BACKGROUND@;
@@ -696,13 +700,18 @@ QLabel#DesignSidebarMenuText {
     font-size: 14px;
 }
 
-/* Match the Python ModernScrollMenu's locally applied token background.  The
- * content-page root must not fall back to the application's page-grey QWidget
- * rule, while nested inputs retain their component-specific backgrounds. */
+/* Keep every scroll-menu surface on the same background. Plain layout widgets
+ * and labels must not paint the application's page-grey background over it. */
 QWidget#DesignModernScrollMenu,
+QScrollArea#DesignScrollMenuArea,
+QWidget#DesignScrollMenuViewport,
+QWidget#DesignScrollMenuContent,
 QWidget[designScrollMenuContent="true"],
 QWidget#DesignScrollMenuSection { background-color: @BACKGROUND@; }
 QWidget#DesignScrollMenuNavigation { background-color: @BACKGROUND@; }
+QWidget#DesignModernScrollMenu .QWidget,
+QWidget#DesignModernScrollMenu QLabel,
+QWidget#DesignModernScrollMenu QCheckBox { background-color: transparent; }
 QFrame#DesignScrollMenuSeparator {
     background-color: @PAGE_BACKGROUND@;
     min-height: 1px;

@@ -2,14 +2,19 @@
 #include "ui/components/FanartStripWidget.h"
 
 #include <QBuffer>
+#include <QDialog>
 #include <QFile>
 #include <QImage>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
 #include <QSignalSpy>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTemporaryDir>
+#include <QTimer>
 #include <QtTest>
 
 namespace
@@ -18,8 +23,8 @@ namespace
 class FakeImageProxy final : public QObject
 {
 public:
-    explicit FakeImageProxy(QByteArray responseBody, bool respond = true)
-        : m_responseBody(std::move(responseBody)), m_respond(respond)
+    explicit FakeImageProxy(QByteArray responseBody, bool respond = true, int delayMs = 0)
+        : m_responseBody(std::move(responseBody)), m_respond(respond), m_delayMs(delayMs)
     {
         connect(&m_server, &QTcpServer::newConnection, this,
                 [this]
@@ -29,7 +34,8 @@ public:
                         socket, &QTcpSocket::readyRead, this,
                         [this, socket]
                         {
-                            m_request += socket->readAll();
+                            m_request = socket->property("request").toByteArray() + socket->readAll();
+                            socket->setProperty("request", m_request);
                             const qsizetype headerEnd = m_request.indexOf("\r\n\r\n");
                             if (headerEnd < 0)
                                 return;
@@ -51,8 +57,10 @@ public:
                                     "application/json\r\nConnection: close\r\nContent-Length: ") +
                                 QByteArray::number(m_responseBody.size()) +
                                 QByteArrayLiteral("\r\n\r\n") + m_responseBody;
-                            socket->write(response);
-                            socket->disconnectFromHost();
+                            QTimer::singleShot(m_delayMs, socket, [socket, response] {
+                                socket->write(response);
+                                socket->disconnectFromHost();
+                            });
                         });
                 });
         const bool listening = m_server.listen(QHostAddress::LocalHost, 0);
@@ -80,6 +88,7 @@ private:
     QByteArray m_responseBody;
     QByteArray m_request;
     bool m_respond = true;
+    int m_delayMs = 0;
 };
 
 QByteArray pngPayload()
@@ -117,6 +126,7 @@ private slots:
     void suggestsSafeJpegFileName();
     void updatesFanartEntryAfterDownload();
     void changingEntriesAbandonsOldDownload();
+    void previewNavigatesWhileDownloading();
 };
 
 void ImageFetchServiceTest::downloadsThroughProxyAsJpeg()
@@ -250,6 +260,72 @@ void ImageFetchServiceTest::changingEntriesAbandonsOldDownload()
     QCOMPARE(strip.entries().size(), 1);
     QCOMPARE(strip.entries().at(0).url, QStringLiteral("https://images.example.test/new.png"));
     QCOMPARE(rejected.count(), 0);
+}
+
+void ImageFetchServiceTest::previewNavigatesWhileDownloading()
+{
+    FakeImageProxy proxy(proxyResponse(true, pngPayload()), true, 250);
+    QTemporaryDir directory;
+    const QString localPath = directory.filePath(QStringLiteral("local.png"));
+    QImage localImage(40, 20, QImage::Format_RGB32);
+    localImage.fill(Qt::red);
+    QVERIFY(localImage.save(localPath));
+    darkeye::FanartStripWidget strip(directory.path(), {}, proxy.endpoint());
+    strip.setEntries({{QStringLiteral("https://images.example.test/first.png"), {}, {}},
+                      {{}, {}, localPath},
+                      {QStringLiteral("https://images.example.test/third.png"), {}, {}}});
+    strip.show();
+    bool checked = false;
+    QTimer::singleShot(5000, &strip, [&strip] {
+        if (auto *dialog = strip.findChild<QDialog *>(QStringLiteral("FanartPreviewDialog")))
+            dialog->reject();
+    });
+    QTimer::singleShot(0, &strip, [&] {
+        auto *dialog = strip.findChild<QDialog *>(QStringLiteral("FanartPreviewDialog"));
+        QVERIFY(dialog);
+        QVERIFY(strip.downloadInProgress());
+        auto *previous = dialog->findChild<QPushButton *>(QStringLiteral("FanartPrevious"));
+        auto *next = dialog->findChild<QPushButton *>(QStringLiteral("FanartNext"));
+        auto *image = dialog->findChild<QLabel *>(QStringLiteral("FanartPreviewImage"));
+        auto *url = dialog->findChild<QLineEdit *>();
+        QVERIFY(previous && next && image && url);
+        QVERIFY(previous->isEnabled());
+        QVERIFY(next->isEnabled());
+        next->click();
+        QVERIFY(!image->pixmap().isNull());
+        const QSize beforeResize = image->pixmap().size();
+        dialog->resize(dialog->width() + 120, dialog->height() + 120);
+        QTRY_VERIFY(image->pixmap().width() > beforeResize.width());
+        url->setFocus();
+        QTest::keyClick(url, Qt::Key_Right);
+        QCOMPARE(url->text(), QString());
+        QTest::keyClicks(url, "https://images.example.test/local.png");
+        next->setFocus();
+        QTest::keyClick(next, Qt::Key_Right);
+        QCOMPARE(url->text(), QStringLiteral("https://images.example.test/third.png"));
+        // Completion belongs to the original entry; the selected remote entry
+        // starts once it finishes, without moving the preview back.
+        QTRY_VERIFY(!strip.entries().at(0).file.isEmpty());
+        QCOMPARE(url->text(), QStringLiteral("https://images.example.test/third.png"));
+        QTRY_VERIFY(!strip.entries().at(2).file.isEmpty());
+        QTRY_VERIFY(!strip.downloadInProgress());
+        QVERIFY(!image->pixmap().isNull());
+        next->click();
+        QCOMPARE(url->text(), QStringLiteral("https://images.example.test/first.png"));
+        previous->click();
+        QCOMPARE(url->text(), QStringLiteral("https://images.example.test/third.png"));
+        previous->click();
+        QCOMPARE(url->text(), QStringLiteral("https://images.example.test/local.png"));
+        checked = true;
+        auto *confirm = dialog->findChild<QPushButton *>(QStringLiteral("DesignButton"));
+        QVERIFY(confirm);
+        confirm->click();
+    });
+    auto *cell = strip.findChild<QWidget *>(QStringLiteral("FanartCell"));
+    QVERIFY(cell);
+    QTest::mouseDClick(cell, Qt::LeftButton);
+    QVERIFY(checked);
+    QCOMPARE(strip.entries().at(1).url, QStringLiteral("https://images.example.test/local.png"));
 }
 
 QTEST_MAIN(ImageFetchServiceTest)

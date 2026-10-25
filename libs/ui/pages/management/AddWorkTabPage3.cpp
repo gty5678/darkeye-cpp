@@ -162,9 +162,7 @@ void AddWorkTabPage3::lazyLoad()
                     return;
                 if (succeeded)
                 {
-                    m_imageDrop->setImagePath(destinationPath);
-                    m_imageDrop->setDirty(true);
-                    m_imageUrl->setText(destinationPath);
+                    m_imageDrop->setPendingImagePath(destinationPath);
                     const QString serial = m_crawlSerial;
                     m_crawlSerial.clear();
                     m_crawlCoverUrls.clear();
@@ -196,9 +194,7 @@ void AddWorkTabPage3::lazyLoad()
                                                    .arg(errorMessage), &m_themes);
                     return;
                 }
-                m_imageDrop->setImagePath(destinationPath);
-                m_imageDrop->setDirty(true);
-                m_imageUrl->setText(destinationPath);
+                m_imageDrop->setPendingImagePath(destinationPath);
                 Toast::showSuccess(window(), QStringLiteral("高清封面已更新，请保存作品"),
                                    &m_themes);
             });
@@ -355,6 +351,7 @@ void AddWorkTabPage3::lazyLoad()
         m_database.databaseName(), true, &tagError,
         [](QSqlDatabase connection) { return WorkRepository(connection).tagOptions(); });
     m_tags = new WorkTagSelector(tagOptions, &m_themes, this);
+    m_tags->setSelectedColumnWidth(116);
     m_tags->setAvailablePanelExpanded(true);
     m_tags->setLoader(
         [this]
@@ -567,6 +564,8 @@ void AddWorkTabPage3::lazyLoad()
         kWorkspaceAuxiliaryMinimumHeight);
     addManualNavigation(navLayout);
     auto *forceLayout = container(QStringLiteral("force"), QStringLiteral("图谱"));
+    // Match Python's edge-to-edge graph instead of the form panes' padding.
+    forceLayout->setContentsMargins(0, 0, 0, 0);
     auto *forcePlaceholder = new QLabel(QStringLiteral("正在生成力导向图..."),
                                         m_slotWidgets.value("force"));
     forcePlaceholder->setObjectName(QStringLiteral("relationGraphPlaceholder"));
@@ -910,17 +909,6 @@ void AddWorkTabPage3::beginCreate()
     m_serialNumber->setReadOnly(false);
     m_serialNumber->setFocus();
     updateEditorActions();
-}
-
-void AddWorkTabPage3::beginCreateAndCrawl(const QString &serialNumber)
-{
-    beginCreate();
-    const QString serial = serialNumber.trimmed().toUpper();
-    if (serial.isEmpty())
-        return;
-    m_serialNumber->setText(serial);
-    m_crawlerFields->clearSelection(); // 空集合按 Python 约定表示全字段采集。
-    crawlSelectedFields();
 }
 
 bool AddWorkTabPage3::loadWork(qint64 workId)
@@ -1814,6 +1802,10 @@ void AddWorkTabPage3::updateModifiedFieldHighlights()
 {
     const auto setModified = [](QWidget *widget, bool modified) {
         widget->setProperty("addWorkModified", modified);
+        if (auto *selector = qobject_cast<PersonTransferSelector *>(widget))
+            selector->setModified(modified);
+        if (auto *selector = qobject_cast<WorkTagSelector *>(widget))
+            selector->setModified(modified);
         widget->style()->unpolish(widget);
         widget->style()->polish(widget);
         widget->update();

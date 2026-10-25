@@ -1,5 +1,11 @@
 # 三平台构建与发布
 
+各平台从环境准备到产物验收的独立操作文档：
+
+- [Windows 打包与发布](windows-packaging.md)
+- [macOS arm64 编译与打包](macos-packaging.md)
+- [Linux x86_64 编译与打包](linux-packaging.md)
+
 ## 支持范围
 
 - Qt **6.12.0 或更新的 Qt 6**；C++20、CMake 3.25+、Ninja、Python 3.9+。

@@ -41,15 +41,12 @@ public:
     void refreshTags();
     void focusSearch();
     [[nodiscard]] QWidget *captureContent();
-    void openEditor(qint64 workId);
-    void openCreateEditor();
     void filterByActor(qint64 actorId);
     void filterByTag(qint64 tagId);
 
 signals:
     void detailRequested(qint64 workId);
     void editRequested(qint64 workId);
-    void createRequested();
     void worksChanged();
 
 private:

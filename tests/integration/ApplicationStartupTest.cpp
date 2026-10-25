@@ -1,5 +1,10 @@
 #include "Application.h"
 #include "MainWindow.h"
+#include "darkeye_ui/components/Sidebar.h"
+#include "dvd_scene/DvdSceneWidget.h"
+#include "database/SchemaManager.h"
+#include "database/SqliteConnection.h"
+#include "database/repositories/WorkRepository.h"
 #include "settings/Settings.h"
 #include "ui/dialogs/TermsDialog.h"
 
@@ -70,6 +75,25 @@ int main(int argc, char **argv)
                 // Rejecting consent must happen before databases are opened.
                 failed |= QFileInfo::exists(publicDb) || QFileInfo::exists(privateDb);
                 accept ? terms->accept() : terms->reject();
+                if (accept) {
+                    // Seed only after consent so prewarm exercises real DVD
+                    // geometry and materials, while rejection still creates no DB.
+                    darkeye::SqliteConnection connection;
+                    QString error;
+                    if (!connection.open(publicDb, false, &error)
+                        || !darkeye::SchemaManager::initializeEmptyDatabase(
+                            connection, darkeye::DatabaseKind::Public, &error)) {
+                        failed = true;
+                    } else {
+                        darkeye::Work work;
+                        work.serialNumber = QStringLiteral("STARTUP-001");
+                        darkeye::WorkRepository works(connection.database());
+                        QList<qint64> tags;
+                        for (const auto &tag : works.tagOptions())
+                            if (tag.name == QStringLiteral("绿色封面")) tags.append(tag.id);
+                        failed |= !works.insertComplete(work, {}, {}, tags, &error).has_value();
+                    }
+                }
                 return;
             }
             if (auto *window = dynamic_cast<darkeye::MainWindow *>(widget);
@@ -77,11 +101,29 @@ int main(int argc, char **argv)
                 mainWindowSeen = true;
                 // Check after startup's finish() has returned and the first
                 // background services have had a chance to execute.
-                QTimer::singleShot(1500, qApp, [&] {
+                QTimer::singleShot(1500, qApp, [&, window] {
                     splashClosed = true;
                     for (QWidget *topLevel : QApplication::topLevelWidgets())
                         if (topLevel->objectName() == QStringLiteral("startupSplash"))
                             splashClosed = false;
+                    auto *scene = window->findChild<darkeye::dvd_scene::DvdSceneWidget *>(
+                        QStringLiteral("ShelfDvdScene"));
+                    auto *sidebar = window->findChild<darkeye::Sidebar *>(QStringLiteral("DesignSidebar"));
+                    if (!scene || !sidebar) {
+                        failed = true;
+                    } else {
+                        auto *renderer = scene->renderWidget();
+                        const auto generation = renderer->statistics().resourceGenerations;
+                        failed |= generation == 0 || renderer->statistics().pixelSize.isEmpty()
+                            || !renderer->lastError().isEmpty() || scene->isVisible()
+                            || scene->itemCount() != 1 || scene->visibleItemCount() != 1;
+                        const auto submitted = renderer->statistics().submittedFrames;
+                        emit sidebar->itemClicked(QStringLiteral("shelf"));
+                        QTest::qWait(100);
+                        failed |= !scene->isVisible()
+                            || renderer->statistics().submittedFrames <= submitted
+                            || renderer->statistics().resourceGenerations != generation;
+                    }
                     QCoreApplication::quit();
                 });
             }

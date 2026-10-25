@@ -34,8 +34,6 @@ public:
     bool start(qint64 actressId);
     /// Fetch a Minnano capture for an editor without modifying the database.
     bool fetchCapture(qint64 actressId);
-    bool mergeCapture(const QJsonObject &payload, qint64 expectedActressId = 0,
-                      QString *errorMessage = nullptr);
     bool cancel();
     [[nodiscard]] bool isBusy() const noexcept;
 

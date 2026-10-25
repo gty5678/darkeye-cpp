@@ -4,9 +4,11 @@
 #include "services/ReferenceJsonService.h"
 
 #include <QWidget>
+#include <QSet>
 
 class QLineEdit;
-class QPlainTextEdit;
+class QLabel;
+class QPushButton;
 class QTableWidget;
 
 namespace darkeye
@@ -27,8 +29,14 @@ public:
 signals:
     void referencesChanged(ReferenceKind kind);
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private:
-    void applyFilter(const QString &text);
+    void performSearch(bool selectFirst = true);
+    void navigateSearch(int direction);
+    void storeEditorEdits();
+    void populateTable();
     void selectRow(int row);
     void beginNew();
     void saveCurrent();
@@ -36,7 +44,6 @@ private:
     void redirectCurrent();
     void importJson();
     void exportJson();
-    [[nodiscard]] ReferenceRecord editorRecord() const;
 
     QSqlDatabase m_database;
     ReferenceKind m_kind;
@@ -44,13 +51,19 @@ private:
     ReferenceJsonService m_jsonService;
     ThemeService &m_themes;
     QList<ReferenceRecord> m_records;
-    qint64 m_currentId = 0;
+    bool m_loading = false;
+    QSet<qint64> m_removedIds;
+    QSet<int> m_dirtyRows;
     QTableWidget *m_table = nullptr;
     QLineEdit *m_search = nullptr;
+    QLabel *m_searchResult = nullptr;
+    QPushButton *m_previousSearch = nullptr;
+    QPushButton *m_nextSearch = nullptr;
+    QList<int> m_searchRows;
+    int m_searchIndex = -1;
     QLineEdit *m_chineseName = nullptr;
     QLineEdit *m_japaneseName = nullptr;
     QLineEdit *m_aliases = nullptr;
-    QPlainTextEdit *m_detail = nullptr;
 };
 
 } // namespace darkeye

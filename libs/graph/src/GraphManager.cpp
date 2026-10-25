@@ -113,29 +113,6 @@ bool GraphManager::refresh(QString *errorMessage)
     return true;
 }
 
-bool GraphManager::refreshWork(qint64 workId, QString *errorMessage)
-{
-    if (workId <= 0) {
-        if (errorMessage != nullptr) {
-            *errorMessage = QStringLiteral("作品 ID 无效。");
-        }
-        return false;
-    }
-    if (!m_initialized && !initialize(errorMessage)) {
-        return false;
-    }
-    QString localError;
-    if (!m_repository.syncWork(m_store, workId, &localError)) {
-        if (errorMessage != nullptr) {
-            *errorMessage = localError;
-        }
-        emit loadFailed(localError);
-        return false;
-    }
-    emit graphChanged();
-    return true;
-}
-
 void GraphManager::scheduleRefreshWork(qint64 workId)
 {
     if (workId <= 0) {

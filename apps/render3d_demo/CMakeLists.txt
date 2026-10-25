@@ -15,24 +15,6 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     add_subdirectory("${DARKEYE_SOURCE_ROOT}/libs/dvd_scene" dvd_scene)
 endif()
 
-option(DARKEYE_RENDER3D_BASELINE "Build the production-QML baseline recorder" OFF)
-if(DARKEYE_RENDER3D_BASELINE)
-    find_package(Qt6 6.12.0 EXACT REQUIRED COMPONENTS QuickWidgets Quick3D Quick3DUtilsPrivate Test)
-    qt_add_executable(darkeye_dvd_baseline baseline.cpp)
-    set_target_properties(darkeye_dvd_baseline PROPERTIES WIN32_EXECUTABLE FALSE)
-    target_link_libraries(darkeye_dvd_baseline PRIVATE Qt6::QuickWidgets Qt6::Quick3D Qt6::Test)
-    get_filename_component(_baseline_root "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
-    target_compile_definitions(darkeye_dvd_baseline PRIVATE
-        DARKEYE_BASELINE_SOURCE_DIR="${_baseline_root}")
-    darkeye_apply_compiler_options(darkeye_dvd_baseline)
-    qt_add_executable(darkeye_dvd_mesh_export export_dvd_mesh.cpp)
-    set_target_properties(darkeye_dvd_mesh_export PROPERTIES WIN32_EXECUTABLE FALSE)
-    target_link_libraries(darkeye_dvd_mesh_export PRIVATE Qt6::Core Qt6::Quick3DUtilsPrivate)
-    target_compile_definitions(darkeye_dvd_mesh_export PRIVATE
-        DARKEYE_BASELINE_SOURCE_DIR="${_baseline_root}")
-    darkeye_apply_compiler_options(darkeye_dvd_mesh_export)
-endif()
-
 qt_add_executable(darkeye_render3d_demo main.cpp)
 get_filename_component(_dvd_demo_root "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 qt_add_resources(darkeye_render3d_demo dvd_demo_assets

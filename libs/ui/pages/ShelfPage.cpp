@@ -95,7 +95,7 @@ void ShelfPage::buildUi()
         if (!asyncConnection.open(databasePath, true, &loadError)) return QStringList{};
         return WorkRepository(asyncConnection.database()).serialSuggestions();
     }, filterContent);
-    m_serialFilter->setObjectName(QStringLiteral("ShelfSerialFilter"));
+
     m_actressFilter = new CompleterLineEdit([databasePath] {
         QString loadError;
         SqliteConnection asyncConnection;

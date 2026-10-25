@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QWidget>
+#include <QTemporaryDir>
 
 class QContextMenuEvent;
 class QColor;
@@ -32,6 +33,8 @@ public:
     /// theme tokens so this reusable widget stays independent of ThemeService.
     void setQualityBadgeStyleSheet(const QString &styleSheet, const QColor &textColor);
     void setImagePath(const QString &path);
+    /// Selects a replacement and compares its pixels with the loaded image.
+    bool setPendingImagePath(const QString &path);
     [[nodiscard]] QString imagePath() const;
     [[nodiscard]] QString resolvedImagePath() const;
     [[nodiscard]] bool isDirty() const noexcept;
@@ -62,6 +65,7 @@ protected:
 private:
     bool chooseImage();
     bool acceptImage(const QString &path, QString *errorMessage = nullptr);
+    void showAcceptedImage(const QString &path);
     void updatePreviewGeometry();
     void updateQualityBadge();
     void refreshStyle();
@@ -69,6 +73,9 @@ private:
     QString m_managedDirectory;
     QString m_purpose = QStringLiteral("人物头像");
     QString m_imagePath;
+    QString m_originalImagePath;
+    // Browser drops can refer to files that only exist during the drag.
+    QTemporaryDir m_pendingImages;
     AsyncImageLabel *m_preview = nullptr;
     QLabel *m_qualityBadge = nullptr;
     QLabel *m_qualityBadgeText = nullptr;

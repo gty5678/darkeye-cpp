@@ -231,22 +231,6 @@ bool ManagementPage::loadWork(qint64 workId)
     return true;
 }
 
-void ManagementPage::beginCreateWork()
-{
-    initialize();
-    ensureTabLoaded(WorkEditorTab);
-    m_workEditor->beginCreate();
-    m_tabs->setCurrentIndex(WorkEditorTab);
-}
-
-void ManagementPage::beginCreateWorkAndCrawl(const QString &serialNumber)
-{
-    initialize();
-    ensureTabLoaded(WorkEditorTab);
-    m_workEditor->beginCreateAndCrawl(serialNumber);
-    m_tabs->setCurrentIndex(WorkEditorTab);
-}
-
 void ManagementPage::refreshPersonSelectors()
 {
     if (m_workEditor != nullptr)

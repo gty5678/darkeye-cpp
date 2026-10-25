@@ -1,7 +1,6 @@
 # C++ / Qt 开发、构建与调试
 
-本仓库是一个 Windows 桌面 C++ / Qt 项目。主程序由 CMake 管理，使用 Qt 6、MSVC、
-Ninja 和 vcpkg manifest 模式；本文档是本项目唯一的本地构建说明。
+本仓库使用 C++ / Qt、CMake、Ninja 和 vcpkg manifest 模式。本文主要介绍 Windows / MSVC 的本地开发流程；其他平台见 [macOS arm64 编译与打包](macos-packaging.md)和 [Linux x86_64 编译与打包](linux-packaging.md)，发布规则见[三平台构建与发布](cross-platform-packaging.md)。
 
 ## 前置条件
 
@@ -225,10 +224,3 @@ mkdir D:\webdav-test
 rclone serve webdav D:\webdav-test --addr 127.0.0.1:8090 --user test --pass 123456
 ```
 
-## Qt 6.12.0 升级验证（2026-10-25）
-
-主程序与独立 3D demo 固定要求 Qt 6.12.0；部署工具从选中的 Qt kit 查找，运行脚本优先读取构建缓存中的 kit 路径。MSVC x64 Release 主程序、测试与 3D demo 构建通过；独立 3D 入口配置通过。安装部署验证目录为 `out/verification/qt612-release`，已核对 Qt DLL 和 `qwindows.dll` 均为 6.12.0。验证时使用本机已有的 vcpkg 依赖并临时关闭依赖安装，以避开工具下载失败；项目的 manifest 配置不变。
-
-沙箱外完整 CTest 为 55/60 通过，日志位于 `build/qt-6.12-tests-unrestricted.log`。剩余失败为 `darkeye_collector_client_tests`、`darkeye_work_page_tests`、`darkeye_shelf_page_tests`、`darkeye_person_page_tests` 和 `darkeye_render3d_dpr_1.5`。业务测试失败涉及 Release 下 `Q_ASSERT` 中的服务监听未执行、以只读模式打开尚不存在的数据库、测试数据与页面结构/光照预期不匹配，未在本次版本升级中改动。
-
-高 DPI 渲染失败为 `transmissionRefractionAndResourceLifetime` 的薄片折射颜色断言；相同源码在 Qt 6.10.3 对照构建、相同 GPU 与缩放下也复现相同断言，日志位于 `build/qt610-render-baseline/tests/render3d-dpr-1.5.txt`。这些结果不代表全套测试通过，Debug 尚未重新构建验证。

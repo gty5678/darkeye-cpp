@@ -1,4 +1,5 @@
 #include "database/repositories/WorkRepository.h"
+#include "database/repositories/ReferenceRepository.h"
 #include "database/SchemaManager.h"
 #include "database/Transaction.h"
 
@@ -18,7 +19,34 @@ private slots:
     void searchesAndUpdatesWorkDetails();
     void filtersRelationsAndPaginates();
     void filtersWorksWithLocalVideo();
+    void tagOptionsKeepPythonColorOrder();
 };
+
+void WorkRepositoryTest::tagOptionsKeepPythonColorOrder()
+{
+    QTemporaryDir directory;
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(QDir(directory.path()).filePath("public.db"), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(connection, darkeye::DatabaseKind::Public, &error));
+    QSqlQuery seed(connection.database());
+    QVERIFY(seed.exec(QStringLiteral("DELETE FROM tag")));
+    QVERIFY(seed.exec(QStringLiteral("INSERT INTO tag_type(tag_type_id,tag_type_name,tag_order) VALUES(999,'type',1)")));
+    QVERIFY(seed.exec(QStringLiteral("INSERT INTO tag(tag_id,tag_name,tag_type_id,color) VALUES"
+                                    "(1,'Z',999,'#000000'),(2,'A',999,'#000000'),(3,'B',999,'#ffffff')")));
+    darkeye::WorkRepository works(connection.database());
+    const auto options = works.tagOptions();
+    QCOMPARE(options.size(), 3);
+    QCOMPARE(options[0].id, 1);
+    QCOMPARE(options[1].id, 2);
+    QCOMPARE(options[2].id, 3);
+    darkeye::ReferenceRepository references(connection.database());
+    const auto records = references.listTags(&error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QCOMPARE(records.size(), 3);
+    for (int i = 0; i < 3; ++i)
+        QCOMPARE(records[i].id, options[i].id);
+}
 
 void WorkRepositoryTest::insertsFindsAndSoftDeletesWork()
 {

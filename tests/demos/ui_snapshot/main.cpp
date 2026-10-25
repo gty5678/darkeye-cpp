@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
     auto *tagPanel = workPage->findChild<QWidget *>(QStringLiteral("WorkTagPanel"));
     auto *tagPanelButton = findWorkControl<QPushButton>(
         workPage, QStringLiteral("WorkTagPanelButton"));
-    auto *tagExpand = workPage->findChild<QPushButton *>(
+    auto *tagExpand = findWorkControl<QPushButton>(workPage,
         QStringLiteral("WorkTagExpandButton"));
     if (tagPanel == nullptr || tagPanelButton == nullptr || tagExpand == nullptr)
         return 29;

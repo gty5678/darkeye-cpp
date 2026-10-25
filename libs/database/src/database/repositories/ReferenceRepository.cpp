@@ -366,7 +366,7 @@ QList<TagRecord> ReferenceRepository::listTags(QString *errorMessage) const
             "LEFT JOIN tag AS alias ON alias.redirect_tag_id=tag.tag_id "
             "WHERE tag.redirect_tag_id IS NULL "
             "GROUP BY tag.tag_id "
-            "ORDER BY COALESCE(tag_type.tag_order, 2147483647), tag.tag_name COLLATE NOCASE")))
+            "ORDER BY COALESCE(tag_type.tag_order, 2147483647), tag.color")))
     {
         if (errorMessage != nullptr)
             *errorMessage = query.lastError().text();

@@ -15,21 +15,15 @@
     <qresource prefix="/icons">
         <file alias="logo.svg">icons/logo.svg</file>
         <file alias="anonymous.jpg">icons/anonymous.jpg</file>
-    </qresource>
-    <qresource prefix="/qml">
-        <file alias="dvd/icons/love-off.svg">qml/dvd/icons/love-off.svg</file>
-        <file alias="dvd/icons/love-on.svg">qml/dvd/icons/love-on.svg</file>
-        <file alias="dvd/icons/square-pen.svg">qml/dvd/icons/square-pen.svg</file>
-        <file alias="dvd/icons/trash-2.svg">qml/dvd/icons/trash-2.svg</file>
+        <file alias="dvd/love-off.svg">icons/dvd/love-off.svg</file>
+        <file alias="dvd/love-on.svg">icons/dvd/love-on.svg</file>
+        <file alias="dvd/square-pen.svg">icons/dvd/square-pen.svg</file>
+        <file alias="dvd/trash-2.svg">icons/dvd/trash-2.svg</file>
     </qresource>
     <qresource prefix="/assets">
         <file alias="shop/darkeye-shop.glb">../libs/dvd/darkeye-shop.glb</file>
         <file alias="dvd/dvd.glb">../libs/dvd/dvd.glb</file>
         <file alias="hdr/lebombo_1k.hdr">hdr/lebombo_1k.hdr</file>
         <file alias="maps/0.png">maps/0.png</file>
-        <file alias="meshes/back.mesh">meshes/back.mesh</file>
-        <file alias="meshes/cD.mesh">meshes/cD.mesh</file>
-        <file alias="meshes/front.mesh">meshes/front.mesh</file>
-        <file alias="meshes/spine.mesh">meshes/spine.mesh</file>
     </qresource>
 </RCC>

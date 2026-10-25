@@ -1,4 +1,5 @@
 #include "ui/pages/management/WorkBatchStateWidget.h"
+#include "ui/components/ModelSearchBar.h"
 
 #include "darkeye_ui/theme/ThemeService.h"
 #include "darkeye_ui/components/DesignButton.h"
@@ -138,7 +139,6 @@ WorkBatchStateWidget::WorkBatchStateWidget(WorkStateMode mode, QSqlDatabase data
       m_coverDirectory(std::move(coverDirectory)), m_fanartDirectory(std::move(fanartDirectory))
 {
     auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(0, 0, 0, 0);
     const int checkboxColumns = m_mode == WorkStateMode::Active ? 1 : 0;
     m_table = new TokenTableView(this);
     m_model = new WorkStateTableModel(m_records, checkboxColumns != 0, m_table);
@@ -147,14 +147,9 @@ WorkBatchStateWidget::WorkBatchStateWidget(WorkStateMode mode, QSqlDatabase data
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     root->addWidget(m_table, 1);
 
-    auto *searchLayout = new QHBoxLayout;
-    m_search = new DesignLineEdit(this);
-    m_search->setClearButtonEnabled(true);
-    m_search->setFixedWidth(200);
-    m_search->setPlaceholderText(QStringLiteral("搜索"));
-    searchLayout->addWidget(m_search);
-    searchLayout->addStretch();
-    root->addLayout(searchLayout);
+    auto *searchBar = new ModelSearchBar(m_table, m_themes, this);
+    m_search = searchBar->input();
+    root->addWidget(searchBar);
 
     auto *buttons = new QHBoxLayout;
     auto *refreshButton = new DesignButton(QStringLiteral("刷新数据"), this);
@@ -194,7 +189,6 @@ WorkBatchStateWidget::WorkBatchStateWidget(WorkStateMode mode, QSqlDatabase data
     }
     root->addLayout(buttons);
     connect(refreshButton, &QPushButton::clicked, this, &WorkBatchStateWidget::refresh);
-    connect(m_search, &QLineEdit::textChanged, this, &WorkBatchStateWidget::filterRows);
     connect(m_table, &QTableView::doubleClicked, this,
             [this](const QModelIndex &index)
             {
@@ -213,7 +207,7 @@ void WorkBatchStateWidget::refresh()
 {
     QString errorMessage;
     m_records = m_repository.listByDeletedState(m_mode == WorkStateMode::RecycleBin,
-                                                m_search->text(), &errorMessage);
+                                                {}, &errorMessage);
     if (!errorMessage.isEmpty())
     {
         Toast::showError(window(), errorMessage, &m_themes);
@@ -222,7 +216,6 @@ void WorkBatchStateWidget::refresh()
     const int checkboxColumns = m_mode == WorkStateMode::Active ? 1 : 0;
     m_model->reset();
     m_table->setColumnHidden(checkboxColumns, true);
-    filterRows(m_search->text());
 }
 
 QList<qint64> WorkBatchStateWidget::checkedIds() const
@@ -253,29 +246,6 @@ QList<qint64> WorkBatchStateWidget::allIds() const
 void WorkBatchStateWidget::setAllChecked(bool checked)
 {
     m_model->setAllChecked(checked);
-}
-
-void WorkBatchStateWidget::filterRows(const QString &text)
-{
-    const QString needle = text.trimmed();
-    const int firstDataColumn = m_mode == WorkStateMode::Active ? 1 : 0;
-    for (int row = 0; row < m_model->rowCount(); ++row)
-    {
-        bool matches = needle.isEmpty();
-        if (!matches)
-        {
-            for (int column = firstDataColumn; column < m_model->columnCount(); ++column)
-            {
-                const QModelIndex index = m_model->index(row, column);
-                if (m_model->data(index).toString().contains(needle, Qt::CaseInsensitive))
-                {
-                    matches = true;
-                    break;
-                }
-            }
-        }
-        m_table->setRowHidden(row, !matches);
-    }
 }
 
 void WorkBatchStateWidget::moveCheckedToRecycleBin()

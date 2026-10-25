@@ -10,6 +10,8 @@ nav:
   - 开发准备: development.md
   - Windows 打包与发布: windows-packaging.md
   - 三平台构建与发布: cross-platform-packaging.md
+  - macOS 编译与打包: macos-packaging.md
+  - Linux 编译与打包: linux-packaging.md
   - 书架页性能优化: shelf-page-performance.md
   - 数据安全说明: security.md
   - 整体架构: architecture.md

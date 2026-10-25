@@ -153,9 +153,9 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
         button->setStyleSheet("QToolButton { background:transparent;border:0;border-radius:6px; } QToolButton:hover { background:rgba(255,255,255,100); }");
         connect(button,&QToolButton::clicked,this,handler); tools->addWidget(button); return button;
     };
-    m_coverFavorite=tool("ShelfCoverFavorite",":/qml/dvd/icons/love-off.svg",QStringLiteral("收藏"),[this]{on_heart_clicked(selectedIndex());});
-    tool("ShelfCoverEdit",":/qml/dvd/icons/square-pen.svg",QStringLiteral("编辑"),[this]{on_edit_clicked(selectedIndex());});
-    tool("ShelfCoverDelete",":/qml/dvd/icons/trash-2.svg",QStringLiteral("删除"),[this]{on_delete_clicked(selectedIndex());});
+    m_coverFavorite=tool("ShelfCoverFavorite",":/icons/dvd/love-off.svg",QStringLiteral("收藏"),[this]{on_heart_clicked(selectedIndex());});
+    tool("ShelfCoverEdit",":/icons/dvd/square-pen.svg",QStringLiteral("编辑"),[this]{on_edit_clicked(selectedIndex());});
+    tool("ShelfCoverDelete",":/icons/dvd/trash-2.svg",QStringLiteral("删除"),[this]{on_delete_clicked(selectedIndex());});
     m_coverActions->setFixedSize(40,136); m_coverActions->hide();
     connect(this,&DvdShelfView::expandedWorkMetaChanged,this,&DvdShelfView::updateCoverInfo);
     connect(this,&DvdShelfView::expandedWorkMetaChanged,this,&DvdShelfView::layoutOverlays);
@@ -277,12 +277,13 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     lighting.environmentBackground=lighting.imageBasedLighting=bool(environment);
     lighting.ambientOcclusion=lighting.shadows=lighting.toneMapping=true;
     // The legacy QML probeOrientation was (0,155,0). Rotate both the sky and
-    // IBL together, and leave headroom for bright paper/plastic highlights.
+    // IBL together. Lift exposure and fill light so covers and shadowed spines
+    // remain readable, while tone mapping preserves paper/plastic highlights.
     lighting.environmentRotation=155;
-    lighting.exposure=0.85f;
-    lighting.environmentIntensity=0.8f;
+    lighting.exposure=0.95f;
+    lighting.environmentIntensity=1.0f;
     lighting.keyLightDirection={-0.5f,0.8f,1.0f};
-    lighting.keyLightIntensity=1.8f;
+    lighting.keyLightIntensity=2.2f;
     // Keep the key light fixed above-left of the initial camera view.
     lighting.keyLightCameraRelative=false;
     m_scene->renderWidget()->setLighting(lighting);
@@ -296,7 +297,6 @@ void DvdShelfView::setWorks(const QList<WorkSummary> &works)
     m_scene->setItems({});
     m_works=works;
     m_useInitialCamera=true;
-    m_suppressRelationGraphUntilDeselected=false;
     clearExpandedMeta();
     hideOverlays();
     QList<dvd_scene::DvdItemViewModel> items;
@@ -359,11 +359,11 @@ void DvdShelfView::updateSelection()
     if(m_settingWorks) return;
     const int index=selectedIndex();
     const bool returning=m_scene->state()==dvd_scene::DvdInteractionController::State::Returning;
-    if(index<0) { m_pendingOpen.clear(); m_suppressRelationGraphUntilDeselected=false; clearExpandedMeta(); hideOverlays(); return; }
+    if(index<0) { m_pendingOpen.clear(); clearExpandedMeta(); hideOverlays(); return; }
     refresh_expanded_work_meta(index);
     if(returning || m_scene->isExpanded()) {
         if(m_relationGraphContainer) m_relationGraphContainer->hide();
-    } else if(!m_suppressRelationGraphUntilDeselected && m_relationGraph) {
+    } else if(m_relationGraph) {
         const auto workId=workIdAt(index);
         if(m_relationGraphWorkId!=workId) {
             m_relationGraphContainer->hide();
@@ -384,7 +384,7 @@ void DvdShelfView::updateActions()
     m_openAction->setText(m_scene->isExpanded()?QStringLiteral("合盒"):QStringLiteral("开盒"));
     m_openAction->setEnabled(m_scene->state()==dvd_scene::DvdInteractionController::State::Focused);
     m_playAction->setEnabled(m_hasLocalVideo);
-    m_coverFavorite->setIcon(QIcon(m_favorited?":/qml/dvd/icons/love-on.svg":":/qml/dvd/icons/love-off.svg"));
+    m_coverFavorite->setIcon(QIcon(m_favorited?":/icons/dvd/love-on.svg":":/icons/dvd/love-off.svg"));
     m_coverFavorite->setToolTip(m_favoriteAction->text());
 }
 void DvdShelfView::updateCoverInfo()
@@ -760,7 +760,6 @@ bool DvdShelfView::openWork(qint64 workId)
     for(int i=0;i<m_works.size();++i) if(m_works[i].id==workId) { index=i; break; }
     if(index<0) return false;
     m_useInitialCamera=false;
-    m_suppressRelationGraphUntilDeselected=true;
     hideOverlays();
     m_scene->setCameraX(float(index*dvdSpacing),true);
     m_pendingOpen=QString::number(workId);
@@ -776,7 +775,7 @@ bool DvdShelfView::openWork(qint64 workId)
 void DvdShelfView::showRelationGraph(qint64 workId)
 {
     if (m_relationGraph == nullptr || m_relationGraphContainer == nullptr || workId <= 0 ||
-        workId!=currentWorkId() || m_suppressRelationGraphUntilDeselected || !m_scene->isNearlyClosed()
+        workId!=currentWorkId() || !m_scene->isNearlyClosed()
         || m_scene->state()!=dvd_scene::DvdInteractionController::State::Focused)
         return;
     if (m_relationGraphCenterX >= 0 && m_relationGraphCenterY >= 0)

@@ -9,6 +9,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QSet>
+#include <QStyle>
 #include <QVBoxLayout>
 #include <algorithm>
 
@@ -46,6 +47,7 @@ PersonTransferSelector::PersonTransferSelector(QString personLabel, QWidget *par
     actions->addWidget(remove);
     layout->addLayout(actions);
     m_selected = new TokenListWidget(this);
+    m_selected->setProperty("personSelectedList", true);
     m_selected->setProperty("personSelectorList", true);
     layout->addWidget(m_selected, 1);
 
@@ -74,6 +76,15 @@ void PersonTransferSelector::setOptions(const QList<IdLabelOption> &options)
 }
 
 QList<qint64> PersonTransferSelector::selectedIds() const { return m_selectedIds; }
+
+void PersonTransferSelector::setModified(bool modified)
+{
+    // Python highlights only the receive (selected people) list.
+    m_selected->setProperty("addWorkModified", modified);
+    m_selected->style()->unpolish(m_selected);
+    m_selected->style()->polish(m_selected);
+    m_selected->update();
+}
 
 void PersonTransferSelector::setSelectedIds(const QList<qint64> &ids)
 {

@@ -51,7 +51,8 @@ public:
                         QWidget *parent = nullptr);
 
     void showInitial();
-    void preloadShelfPage();
+    // warmGraphics requires a visible window with its graphics prewarm complete.
+    void preloadShelfPage(bool warmGraphics = false);
     /// Connects the HTTP bridge after both the window and local API are constructed.
     void setLocalApiServer(LocalApiServer &api);
 

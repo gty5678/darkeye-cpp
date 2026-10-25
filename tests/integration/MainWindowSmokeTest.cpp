@@ -22,6 +22,7 @@
 #include "ui/components/WorkTagSelector.h"
 #include "ui/components/PersonTransferSelector.h"
 #include "ui/components/JsonTransferBar.h"
+#include "ui/components/ModelSearchBar.h"
 #include "darkeye_ui/components/Sidebar.h"
 #include "ui/pages/management/MakerManagementWidget.h"
 #include "ui/pages/management/LabelManagementWidget.h"
@@ -63,6 +64,7 @@
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QtTest>
+#include <algorithm>
 
 namespace
 {
@@ -100,6 +102,10 @@ class MainWindowSmokeTest final : public QObject
     Q_OBJECT
 
 private slots:
+    void referenceManagementMatchesPython_data();
+    void referenceManagementMatchesPython();
+    void makerManagementAddsAndSavesDraftRows();
+    void makerManagementSearchMatchesPythonBehavior();
     void histogramShowsPercentileLines();
     void homeShowsThreeRandomRows();
     void exposesAllPrimaryNavigationPages();
@@ -107,6 +113,315 @@ private slots:
     void summarySearchKeyboardNavigation_data();
     void summarySearchKeyboardNavigation();
 };
+
+void MainWindowSmokeTest::referenceManagementMatchesPython_data()
+{
+    QTest::addColumn<bool>("series");
+    QTest::newRow("label") << false;
+    QTest::newRow("series") << true;
+}
+
+void MainWindowSmokeTest::referenceManagementMatchesPython()
+{
+    QFETCH(bool, series);
+    QTemporaryDir directory;
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(directory.filePath(QStringLiteral("public.db")), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        connection, darkeye::DatabaseKind::Public, &error));
+    const auto kind = series ? darkeye::ReferenceKind::Series : darkeye::ReferenceKind::Label;
+    QSqlQuery clear(connection.database());
+    QVERIFY(clear.exec(series ? QStringLiteral("DELETE FROM series") : QStringLiteral("DELETE FROM label")));
+    darkeye::ReferenceRepository repository(connection.database());
+    QVERIFY(repository.create({kind, 0, QStringLiteral("Alpha一"), {}, {}, QStringLiteral("详情"),
+                               series ? QStringLiteral("相关") : QString()}, &error).has_value());
+    QVERIFY(repository.create(kind, QStringLiteral("Alpha二"), &error).has_value());
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    darkeye::LabelManagementWidget widget(kind, connection.database(), themes);
+    auto *table = widget.findChild<QTableWidget *>();
+    QLineEdit *search = nullptr;
+    for (auto *edit : widget.findChildren<QLineEdit *>())
+        if (edit->property("referenceControlId").toString() == QStringLiteral("search")) search = edit;
+    auto *add = findSettingsButton(&widget, QStringLiteral("新增行"));
+    auto *remove = findSettingsButton(&widget, QStringLiteral("删除行"));
+    auto *save = findSettingsButton(&widget, QStringLiteral("保存修改"));
+    auto *revert = findSettingsButton(&widget, QStringLiteral("撤销修改"));
+    QVERIFY(table && search && add && remove && save && revert);
+    QCOMPARE(table->columnCount(), series ? 6 : 5);
+    QVERIFY(table->isColumnHidden(series ? 5 : 4));
+    QVERIFY(table->editTriggers().testFlag(QAbstractItemView::DoubleClicked));
+    QCOMPARE(table->columnWidth(0), 180);
+    QCOMPARE(table->columnWidth(2), 220);
+    QCOMPARE(search->width(), 200);
+    QCOMPARE(widget.findChildren<QPlainTextEdit *>().size(), 0);
+    const QString previewDirectory = qEnvironmentVariable("DARKEYE_REFERENCE_PREVIEW_DIR");
+    if (!previewDirectory.isEmpty())
+    {
+        widget.resize(1200, 700);
+        widget.show();
+        QCoreApplication::processEvents();
+        QVERIFY(widget.grab().save(QDir(previewDirectory).filePath(
+            series ? QStringLiteral("series.png") : QStringLiteral("label.png"))));
+    }
+    QCOMPARE(search->objectName(), QStringLiteral("DesignInput"));
+    QList<QLineEdit *> formEdits;
+    for (auto *edit : widget.findChildren<QLineEdit *>(Qt::FindDirectChildrenOnly))
+        if (edit != search) formEdits.append(edit);
+    QCOMPARE(formEdits.size(), 3);
+    table->setCurrentCell(0, 0);
+    formEdits.at(2)->setText(QStringLiteral("表单别名"));
+    QCOMPARE(table->item(0, 2)->text(), QStringLiteral("表单别名"));
+    search->setText(QStringLiteral("alpha"));
+    QCOMPARE(table->currentRow(), 0);
+    QTest::keyClick(search, Qt::Key_Return);
+    QCOMPARE(table->currentRow(), 1);
+    QTest::keyClick(search, Qt::Key_Return, Qt::ShiftModifier);
+    QCOMPARE(table->currentRow(), 0);
+    for (int row = 0; row < table->rowCount(); ++row) QVERIFY(!table->isRowHidden(row));
+    search->clear();
+    table->item(0, 3)->setText(QStringLiteral("新详情"));
+    if (series) table->item(0, 4)->setText(QStringLiteral("新相关系列"));
+    table->item(0, 0)->setText(QStringLiteral("Alpha修改"));
+    table->setCurrentCell(1, 0);
+    table->item(1, 2)->setText(QStringLiteral("修改别名"));
+    add->click();
+    QCOMPARE(table->rowCount(), 3);
+    table->item(2, 0)->setText(QStringLiteral("草稿"));
+    QCOMPARE(repository.list(kind).size(), 2);
+    save->click();
+    const auto records = repository.list(kind);
+    QCOMPARE(records.size(), 3);
+    auto modified = std::find_if(records.cbegin(), records.cend(), [](const auto &r) {
+        return r.chineseName == QStringLiteral("Alpha修改");
+    });
+    QVERIFY(modified != records.cend());
+    QCOMPARE(modified->detail, QStringLiteral("新详情"));
+    if (series) QCOMPARE(modified->extra, QStringLiteral("新相关系列"));
+    table->selectRow(0);
+    remove->click();
+    QCOMPARE(table->rowCount(), 2);
+    QCOMPARE(repository.list(kind).size(), 3);
+    revert->click();
+    QCOMPARE(table->rowCount(), 3);
+    table->selectRow(0);
+    remove->click();
+    save->click();
+    QCOMPARE(repository.list(kind).size(), 2);
+    // A bad draft must roll back earlier updates in the same save operation.
+    table->item(0, 0)->setText(QStringLiteral("不应提交"));
+    add->click();
+    save->click();
+    QCOMPARE(repository.list(kind).size(), 2);
+    for (const auto &record : repository.list(kind))
+        QVERIFY(record.chineseName != QStringLiteral("不应提交"));
+    revert->click();
+    QCOMPARE(table->rowCount(), 2);
+}
+
+void MainWindowSmokeTest::makerManagementAddsAndSavesDraftRows()
+{
+    QTemporaryDir directory;
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(directory.filePath(QStringLiteral("public.db")), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        connection, darkeye::DatabaseKind::Public, &error));
+    QSqlQuery clear(connection.database());
+    QVERIFY(clear.exec(QStringLiteral("DELETE FROM prefix_maker_relation")));
+    QVERIFY(clear.exec(QStringLiteral("DELETE FROM maker")));
+    darkeye::ReferenceRepository repository(connection.database());
+    const auto makerId = repository.create(darkeye::ReferenceKind::Maker, QStringLiteral("原片商"), &error);
+    QVERIFY(makerId.has_value());
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    darkeye::MakerManagementWidget widget(connection.database(), themes);
+    QTableWidget *prefixes = nullptr;
+    QTableWidget *makers = nullptr;
+    for (auto *table : widget.findChildren<QTableWidget *>())
+        if (table->columnCount() == 3) prefixes = table;
+        else if (table->columnCount() == 4) makers = table;
+    QVERIFY(prefixes && makers);
+    const auto button = [&](const QString &tooltip) -> QPushButton * {
+        for (auto *candidate : widget.findChildren<QPushButton *>())
+            if (candidate->toolTip() == tooltip) return candidate;
+        return nullptr;
+    };
+    auto *add = button(QStringLiteral("新增行"));
+    auto *save = button(QStringLiteral("保存修改"));
+    auto *remove = button(QStringLiteral("删除行"));
+    auto *revert = button(QStringLiteral("撤销修改"));
+    QVERIFY(add && save && remove && revert);
+    auto edits = widget.findChildren<QLineEdit *>();
+    edits.removeIf([](QLineEdit *edit) {
+        return edit->property("makerControlId").toString() == QStringLiteral("MakerManagementSearch");
+    });
+    QCOMPARE(edits.size(), 4);
+    auto *makerChoice = widget.findChild<QComboBox *>();
+    QVERIFY(makerChoice);
+    QCOMPARE(prefixes->rowCount(), 0);
+    QCOMPARE(makers->rowCount(), 1);
+    add->click();
+    QCOMPARE(prefixes->rowCount(), 1);
+    QCOMPARE(prefixes->currentRow(), 0);
+    QCOMPARE(prefixes->item(0, 0)->text(), QStringLiteral("番号前缀"));
+    QCOMPARE(prefixes->item(0, 1)->data(Qt::UserRole).toLongLong(), 1);
+    QVERIFY(prefixes->isColumnHidden(2));
+    QVERIFY(makers->isColumnHidden(3));
+    QVERIFY(prefixes->editTriggers().testFlag(QAbstractItemView::DoubleClicked));
+    edits[0]->setText(QStringLiteral("AAA"));
+    makerChoice->setCurrentIndex(makerChoice->findData(*makerId));
+    QCOMPARE(prefixes->item(0, 0)->text(), QStringLiteral("AAA"));
+    add->click();
+    QCOMPARE(prefixes->rowCount(), 2);
+    edits[0]->setText(QStringLiteral("BBB"));
+    makerChoice->setCurrentIndex(0);
+    // An invalid second draft must roll back the first insertion and keep both drafts.
+    save->click();
+    QCOMPARE(repository.listMakerPrefixes().size(), 0);
+    QCOMPARE(prefixes->rowCount(), 2);
+    makerChoice->setCurrentIndex(makerChoice->findData(*makerId));
+    prefixes->setCurrentCell(0, 0);
+    QCOMPARE(edits[0]->text(), QStringLiteral("AAA"));
+    makers->setCurrentCell(0, 0);
+    add->click();
+    QCOMPARE(makers->rowCount(), 2);
+    makers->item(1, 0)->setText(QStringLiteral("新片商"));
+    QCOMPARE(edits[1]->text(), QStringLiteral("新片商"));
+    add->click();
+    QCOMPARE(makers->rowCount(), 3);
+    remove->click();
+    QCOMPARE(makers->rowCount(), 2);
+    QCOMPARE(repository.list(darkeye::ReferenceKind::Maker).size(), 1);
+    save->click();
+    QCOMPARE(repository.listMakerPrefixes().size(), 0);
+    QCOMPARE(prefixes->item(0, 0)->text(), QStringLiteral("AAA"));
+    QCOMPARE(repository.list(darkeye::ReferenceKind::Maker).size(), 2);
+    prefixes->setCurrentCell(1, 0);
+    save->click();
+    QCOMPARE(repository.listMakerPrefixes().size(), 2);
+    makers->setCurrentCell(0, 0);
+    QCOMPARE(prefixes->rowCount(), 2);
+    QCOMPARE(makers->rowCount(), 2);
+    add->click();
+    QCOMPARE(makers->rowCount(), 3);
+    revert->click();
+    QCOMPARE(makers->rowCount(), 2);
+    QCOMPARE(prefixes->rowCount(), 2);
+    // Deletion is staged and can be reverted in the active table.
+    makers->setCurrentCell(0, 0);
+    remove->click();
+    QCOMPARE(makers->rowCount(), 1);
+    QCOMPARE(repository.list(darkeye::ReferenceKind::Maker).size(), 2);
+    revert->click();
+    QCOMPARE(makers->rowCount(), 2);
+    // Reverting one table must leave the other table's draft intact.
+    prefixes->setCurrentCell(0, 0);
+    add->click();
+    QCOMPARE(prefixes->rowCount(), 3);
+    makers->setCurrentCell(0, 0);
+    revert->click();
+    QCOMPARE(prefixes->rowCount(), 3);
+    prefixes->setCurrentCell(0, 0);
+    revert->click();
+    QCOMPARE(prefixes->rowCount(), 2);
+    prefixes->setCurrentCell(0, 0);
+    remove->click();
+    QCOMPARE(repository.listMakerPrefixes().size(), 2);
+    save->click();
+    QCOMPARE(repository.listMakerPrefixes().size(), 1);
+}
+
+void MainWindowSmokeTest::makerManagementSearchMatchesPythonBehavior()
+{
+    QTemporaryDir directory;
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(directory.filePath(QStringLiteral("public.db")), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        connection, darkeye::DatabaseKind::Public, &error));
+    QSqlQuery clear(connection.database());
+    QVERIFY(clear.exec(QStringLiteral("DELETE FROM prefix_maker_relation")));
+    QVERIFY(clear.exec(QStringLiteral("DELETE FROM maker")));
+    darkeye::ReferenceRepository repository(connection.database());
+    const auto makerId = repository.create(darkeye::ReferenceKind::Maker, QStringLiteral("Alpha片商"), &error);
+    QVERIFY(makerId.has_value());
+    QVERIFY(repository.createMakerPrefix(QStringLiteral("ALPHA-1"), *makerId, &error).has_value());
+    QVERIFY(repository.createMakerPrefix(QStringLiteral("ALPHA-2"), *makerId, &error).has_value());
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    darkeye::MakerManagementWidget widget(connection.database(), themes);
+    QLineEdit *search = nullptr;
+    QLabel *result = nullptr;
+    for (auto *edit : widget.findChildren<QLineEdit *>())
+        if (edit->property("makerControlId").toString() == QStringLiteral("MakerManagementSearch"))
+            search = edit;
+    for (auto *label : widget.findChildren<QLabel *>())
+        if (label->property("makerControlId").toString() == QStringLiteral("MakerManagementSearchResult"))
+            result = label;
+    QPushButton *previous = nullptr;
+    QPushButton *next = nullptr;
+    for (auto *button : widget.findChildren<QPushButton *>())
+    {
+        if (button->accessibleName() == QStringLiteral("上一个搜索结果")) previous = button;
+        if (button->accessibleName() == QStringLiteral("下一个搜索结果")) next = button;
+    }
+    QTableWidget *prefixes = nullptr;
+    QTableWidget *makers = nullptr;
+    for (auto *table : widget.findChildren<QTableWidget *>())
+        if (table->columnCount() == 3) prefixes = table;
+        else makers = table;
+    QVERIFY(search && result && previous && next && prefixes && makers);
+    QVERIFY(search->isClearButtonEnabled());
+    QVERIFY(!previous->isEnabled() && !next->isEnabled());
+    // Search all columns, ignoring case and counting each matching row only once.
+    search->setText(QStringLiteral(" aLpHa "));
+    QCOMPARE(result->text(), QStringLiteral("结果 1/2"));
+    QCOMPARE(prefixes->currentRow(), 0);
+    QCOMPARE(prefixes->rowCount(), 2);
+    QTest::keyClick(search, Qt::Key_Return);
+    QCOMPARE(prefixes->currentRow(), 1);
+    QCOMPARE(result->text(), QStringLiteral("结果 2/2"));
+    QTest::keyClick(search, Qt::Key_Return);
+    QCOMPARE(prefixes->currentRow(), 0);
+    QTest::keyClick(search, Qt::Key_Enter, Qt::ShiftModifier);
+    QCOMPARE(prefixes->currentRow(), 1);
+    previous->click();
+    QCOMPARE(prefixes->currentRow(), 0);
+    next->click();
+    QCOMPARE(prefixes->currentRow(), 1);
+    // Maker names displayed in the prefix relation are searchable too.
+    search->setText(QStringLiteral("片商"));
+    QCOMPARE(result->text(), QStringLiteral("结果 1/2"));
+    makers->setCurrentCell(0, 0);
+    QCOMPARE(result->text(), QStringLiteral("结果 1/1"));
+    next->click();
+    QCOMPARE(makers->currentRow(), 0);
+    makers->item(0, 0)->setText(QStringLiteral("改名"));
+    makers->item(0, 1)->setText(QStringLiteral("改名"));
+    QTRY_COMPARE(result->text(), QStringLiteral("无匹配结果"));
+    QVERIFY(!next->isEnabled() && !previous->isEnabled());
+    search->clear();
+    QCOMPARE(result->text(), QStringLiteral("无搜索结果"));
+    // Search does not submit edits and includes unsaved new rows.
+    for (auto *button : widget.findChildren<QPushButton *>())
+        if (button->toolTip() == QStringLiteral("新增行")) button->click();
+    makers->item(1, 0)->setText(QStringLiteral("草稿片商"));
+    search->setText(QStringLiteral("草稿"));
+    QCOMPARE(result->text(), QStringLiteral("结果 1/1"));
+    QCOMPARE(makers->currentRow(), 1);
+    QCOMPARE(repository.list(darkeye::ReferenceKind::Maker).size(), 1);
+    for (auto *button : widget.findChildren<QPushButton *>())
+        if (button->toolTip() == QStringLiteral("撤销修改")) button->click();
+    QTRY_COMPARE(result->text(), QStringLiteral("无匹配结果"));
+    prefixes->setCurrentCell(1, 0);
+    search->setText(QStringLiteral("ALPHA"));
+    QCOMPARE(result->text(), QStringLiteral("结果 1/2"));
+    for (auto *button : widget.findChildren<QPushButton *>())
+        if (button->toolTip() == QStringLiteral("删除行")) button->click();
+    QTRY_COMPARE(result->text(), QStringLiteral("找到 1 个结果"));
+    next->click();
+    QCOMPARE(result->text(), QStringLiteral("结果 1/1"));
+    QCOMPARE(prefixes->currentRow(), 0);
+}
 
 void MainWindowSmokeTest::histogramShowsPercentileLines()
 {
@@ -654,6 +969,18 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     loadManagementTab(5);
     const auto stateWidgets = window.findChildren<darkeye::WorkBatchStateWidget *>();
     QCOMPARE(stateWidgets.size(), 2);
+    for (auto *stateWidget : stateWidgets)
+    {
+        auto *searchBar = stateWidget->findChild<darkeye::ModelSearchBar *>();
+        QVERIFY(searchBar != nullptr);
+        auto *table = stateWidget->findChild<QTableView *>();
+        const int rows = table->model()->rowCount();
+        searchBar->input()->setText(QStringLiteral("不存在的作品"));
+        QCOMPARE(table->model()->rowCount(), rows);
+        for (int row = 0; row < rows; ++row)
+            QVERIFY(!table->isRowHidden(row));
+        searchBar->input()->clear();
+    }
     auto *maintenanceWidget = window.findChild<darkeye::WorkMaintenanceWidget *>();
     QVERIFY(maintenanceWidget != nullptr);
     auto *addWorkEditor =

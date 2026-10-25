@@ -163,15 +163,12 @@ int Application::run()
     prepareGraphicsPrewarm();
     m_mainWindow->showInitial();
     finishGraphicsPrewarm();
+    reportStartupStatus(QStringLiteral("正在准备书架首帧"));
+    m_mainWindow->preloadShelfPage(true);
     m_splash->finish(m_mainWindow.get());
     m_splash.reset();
     reportStartupStatus(QStringLiteral("主窗口已显示，后台初始化继续进行"));
     QTimer::singleShot(0, &m_application, [this] { startBackgroundServices(); });
-    // Let the initial work page paint first, then build the real shelf page
-    // while the application is otherwise idle. The first shelf click can reuse
-    // this exact QRhi widget and scene instead of paying createPage/lazyLoad.
-    QTimer::singleShot(250, m_mainWindow.get(),
-                       [this] { m_mainWindow->preloadShelfPage(); });
     return m_application.exec();
 }
 

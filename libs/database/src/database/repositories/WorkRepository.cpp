@@ -612,8 +612,7 @@ QList<TagOption> WorkRepository::tagOptions() const
             "COALESCE(CAST(tag.group_id AS TEXT), '') FROM tag "
             "LEFT JOIN tag_type ON tag_type.tag_type_id=tag.tag_type_id "
             "WHERE tag.redirect_tag_id IS NULL "
-            "ORDER BY COALESCE(tag_type.tag_order, 2147483647), tag.color, tag.tag_name COLLATE "
-            "NOCASE")))
+            "ORDER BY COALESCE(tag_type.tag_order, 2147483647), tag.color")))
     {
         return options;
     }

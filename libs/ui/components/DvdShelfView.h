@@ -175,7 +175,6 @@ private:
     qreal m_fanartLeft = -1;
     qreal m_fanartTop = -1;
     qreal m_fanartWidth = 0;
-    bool m_suppressRelationGraphUntilDeselected = false;
 };
 
 } // namespace darkeye

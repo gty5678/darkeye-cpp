@@ -8,6 +8,7 @@
 #include "darkeye_ui/components/ToastNotification.h"
 #include "darkeye_ui/components/TokenViews.h"
 #include "darkeye_ui/theme/ThemeService.h"
+#include "darkeye_ui/theme/IconProvider.h"
 
 #include <QComboBox>
 #include <QDialog>
@@ -17,7 +18,11 @@
 #include <QHeaderView>
 #include <QLineEdit>
 #include <QMessageBox>
-#include <QPlainTextEdit>
+#include <QEvent>
+#include <QKeyEvent>
+#include <QLabel>
+#include <QScopedValueRollback>
+#include <QSqlError>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -104,45 +109,66 @@ LabelManagementWidget::LabelManagementWidget(ReferenceKind kind, QSqlDatabase da
                              QStringLiteral("别名"), QStringLiteral("详情"), QStringLiteral("ID")});
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_table->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
+    m_table->setColumnHidden(series ? 5 : 4, true);
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Interactive);
     m_table->setColumnWidth(0, 180);
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Interactive);
     m_table->setColumnWidth(1, 180);
     m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Interactive);
     m_table->setColumnWidth(2, 220);
-    m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Interactive);
+    m_table->setColumnWidth(3, 100);
     if (series)
     {
         m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Interactive);
-        m_table->setColumnWidth(4, 160);
+        m_table->setColumnWidth(4, 100);
         m_table->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
     }
     else
         m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
     root->addWidget(m_table, 1);
 
+    auto *searchLayout = new QHBoxLayout;
     m_search = new DesignLineEdit(this);
-    m_search->setPlaceholderText(QStringLiteral("搜索%1").arg(kindName));
-    root->addWidget(m_search);
+    m_search->setAccessibleName(QStringLiteral("搜索表格"));
+    m_search->setProperty("referenceControlId", QStringLiteral("search"));
+    m_search->setPlaceholderText(QStringLiteral("搜索"));
+    m_search->setClearButtonEnabled(true);
+    m_search->setFixedWidth(200);
+    m_search->installEventFilter(this);
+    m_searchResult = new DesignLabel(QStringLiteral("无搜索结果"), this);
+    m_searchResult->setFixedWidth(70);
+    m_previousSearch = new IconButton(QStringLiteral("arrow_up"), &m_themes, this);
+    m_nextSearch = new IconButton(QStringLiteral("arrow_down"), &m_themes, this);
+    m_previousSearch->setToolTip(QStringLiteral("向前搜索(Shift+Enter)"));
+    m_nextSearch->setToolTip(QStringLiteral("向后搜索(Enter)"));
+    m_previousSearch->setAccessibleName(QStringLiteral("上一个搜索结果"));
+    m_nextSearch->setAccessibleName(QStringLiteral("下一个搜索结果"));
+    searchLayout->addWidget(m_search);
+    searchLayout->addWidget(m_searchResult);
+    searchLayout->addWidget(m_previousSearch);
+    searchLayout->addWidget(m_nextSearch);
+    searchLayout->addStretch();
+    root->addLayout(searchLayout);
 
     auto *buttons = new QHBoxLayout;
-    const auto iconButton = [this](const QString &icon, const QString &toolTip) {
-        auto *button = new IconButton(icon, &m_themes, this);
-        button->setToolTip(toolTip);
-        return button;
+    auto *newButton = new DesignButton(QStringLiteral("新增行"), this);
+    auto *deleteButton = new DesignButton(QStringLiteral("删除行"), this);
+    auto *saveButton = new DesignButton(QStringLiteral("保存修改"), this);
+    auto *revertButton = new DesignButton(QStringLiteral("撤销修改"), this);
+    auto *refreshButton = new DesignButton(QStringLiteral("读数据库数据"), this);
+    auto *exportButton = new DesignButton(QStringLiteral("导出%1到json文件").arg(kindName), this);
+    auto *importButton = new DesignButton(QStringLiteral("从json文件导入%1").arg(kindName), this);
+    auto *redirectButton = new DesignButton(QStringLiteral("重定向%1").arg(kindName), this);
+    const auto updateTransferIcons = [this, exportButton, importButton] {
+        const auto icon = IconProvider::builtIn(QStringLiteral("database"), QSize(24, 24),
+                                                m_themes.currentTokens().icon);
+        exportButton->setIcon(icon);
+        importButton->setIcon(icon);
     };
-    auto *newButton = iconButton(QStringLiteral("list_plus"), QStringLiteral("新增行"));
-    auto *deleteButton = iconButton(QStringLiteral("list_x"), QStringLiteral("删除行"));
-    auto *saveButton = iconButton(QStringLiteral("save"), QStringLiteral("保存修改"));
-    auto *revertButton = iconButton(QStringLiteral("eraser"), QStringLiteral("撤销修改"));
-    auto *refreshButton = iconButton(QStringLiteral("refresh"), QStringLiteral("读数据库数据"));
-    auto *exportButton = iconButton(QStringLiteral("arrow_up_to_line"),
-                                    QStringLiteral("导出%1到 JSON 文件").arg(kindName));
-    auto *importButton = iconButton(QStringLiteral("arrow_down_to_line"),
-                                    QStringLiteral("从 JSON 文件导入%1").arg(kindName));
-    auto *redirectButton = iconButton(QStringLiteral("share_2"),
-                                      QStringLiteral("重定向%1").arg(kindName));
+    updateTransferIcons();
+    connect(&m_themes, &ThemeService::themeChanged, this, updateTransferIcons);
     for (QPushButton *button : {newButton, deleteButton, saveButton, revertButton, refreshButton,
                                 exportButton, importButton})
         buttons->addWidget(button);
@@ -154,18 +180,34 @@ LabelManagementWidget::LabelManagementWidget(ReferenceKind kind, QSqlDatabase da
     m_chineseName = new DesignLineEdit(this);
     m_japaneseName = new DesignLineEdit(this);
     m_aliases = new DesignLineEdit(this);
-    m_aliases->setPlaceholderText(QStringLiteral("多个别名使用英文逗号分隔"));
-    m_detail = new DesignPlainTextEdit(this);
-    m_detail->setMaximumHeight(80);
     form->addRow(new DesignLabel(QStringLiteral("中文名"), this), m_chineseName);
     form->addRow(new DesignLabel(QStringLiteral("日文名"), this), m_japaneseName);
     form->addRow(new DesignLabel(QStringLiteral("别名"), this), m_aliases);
-    form->addRow(new DesignLabel(QStringLiteral("详情"), this), m_detail);
     root->addLayout(form);
 
-    connect(m_table, &QTableWidget::cellClicked, this,
-            [this](int row, int) { selectRow(row); });
-    connect(m_search, &QLineEdit::textChanged, this, &LabelManagementWidget::applyFilter);
+    connect(m_table, &QTableWidget::currentCellChanged, this,
+            [this](int row, int, int, int) { if (!m_loading) selectRow(row); });
+    connect(m_table, &QTableWidget::itemChanged, this, [this](QTableWidgetItem *item) {
+        if (m_loading || item->row() < 0 || item->row() >= m_records.size()) return;
+        auto &record = m_records[item->row()];
+        switch (item->column())
+        {
+        case 0: record.chineseName = item->text(); break;
+        case 1: record.japaneseName = item->text(); break;
+        case 2: record.aliases = item->text(); break;
+        case 3: record.detail = item->text(); break;
+        case 4: if (m_kind == ReferenceKind::Series) record.extra = item->text(); else return; break;
+        default: return;
+        }
+        m_dirtyRows.insert(item->row());
+        if (item->row() == m_table->currentRow()) selectRow(item->row());
+        performSearch(false);
+    });
+    for (auto *edit : {m_chineseName, m_japaneseName, m_aliases})
+        connect(edit, &QLineEdit::textChanged, this, &LabelManagementWidget::storeEditorEdits);
+    connect(m_search, &QLineEdit::textChanged, this, [this] { performSearch(); });
+    connect(m_previousSearch, &QPushButton::clicked, this, [this] { navigateSearch(-1); });
+    connect(m_nextSearch, &QPushButton::clicked, this, [this] { navigateSearch(1); });
     connect(newButton, &QPushButton::clicked, this, &LabelManagementWidget::beginNew);
     connect(deleteButton, &QPushButton::clicked, this, &LabelManagementWidget::removeCurrent);
     connect(saveButton, &QPushButton::clicked, this, &LabelManagementWidget::saveCurrent);
@@ -186,100 +228,173 @@ void LabelManagementWidget::refresh()
         Toast::showError(window(), error, &m_themes);
         return;
     }
-    m_table->setRowCount(m_records.size());
-    for (qsizetype row = 0; row < m_records.size(); ++row)
-    {
-        const ReferenceRecord &record = m_records.at(row);
-        m_table->setItem(row, 0, new QTableWidgetItem(record.chineseName));
-        m_table->setItem(row, 1, new QTableWidgetItem(record.japaneseName));
-        m_table->setItem(row, 2, new QTableWidgetItem(record.aliases));
-        m_table->setItem(row, 3, new QTableWidgetItem(record.detail));
-        if (m_kind == ReferenceKind::Series)
-        {
-            m_table->setItem(row, 4, new QTableWidgetItem(record.extra));
-            m_table->setItem(row, 5, new QTableWidgetItem(QString::number(record.id)));
-        }
-        else
-            m_table->setItem(row, 4, new QTableWidgetItem(QString::number(record.id)));
-    }
-    applyFilter(m_search->text());
-    beginNew();
+    std::sort(m_records.begin(), m_records.end(), [](const auto &a, const auto &b) { return a.id < b.id; });
+    m_removedIds.clear();
+    m_dirtyRows.clear();
+    populateTable();
+    if (!m_records.isEmpty()) m_table->setCurrentCell(0, 0);
 }
 
-void LabelManagementWidget::applyFilter(const QString &text)
+void LabelManagementWidget::populateTable()
 {
-    for (int row = 0; row < m_table->rowCount(); ++row)
     {
-        bool matches = text.trimmed().isEmpty();
-        for (int column = 0; !matches && column < m_table->columnCount(); ++column)
+        QScopedValueRollback<bool> loading(m_loading, true);
+        m_table->setRowCount(0);
+        m_table->setRowCount(m_records.size());
+        for (int row = 0; row < m_records.size(); ++row)
         {
-            const QTableWidgetItem *item = m_table->item(row, column);
-            matches = item != nullptr && item->text().contains(text, Qt::CaseInsensitive);
+            const auto &record = m_records.at(row);
+            const QStringList values{record.chineseName, record.japaneseName, record.aliases,
+                                     record.detail, m_kind == ReferenceKind::Series ? record.extra
+                                                                                  : QString::number(record.id),
+                                     QString::number(record.id)};
+            for (int column = 0; column < m_table->columnCount(); ++column)
+                m_table->setItem(row, column, new QTableWidgetItem(values.at(column)));
         }
-        m_table->setRowHidden(row, !matches);
     }
+    selectRow(-1);
+    performSearch(false);
+}
+
+void LabelManagementWidget::performSearch(bool selectFirst)
+{
+    m_searchRows.clear();
+    m_searchIndex = -1;
+    const QString query = m_search->text().trimmed();
+    if (!query.isEmpty())
+        for (int row = 0; row < m_table->rowCount(); ++row)
+            for (int column = 0; column < m_table->columnCount(); ++column)
+                if (m_table->item(row, column)->text().contains(query, Qt::CaseInsensitive))
+                {
+                    m_searchRows.append(row);
+                    break;
+                }
+    m_previousSearch->setEnabled(!m_searchRows.isEmpty());
+    m_nextSearch->setEnabled(!m_searchRows.isEmpty());
+    if (m_searchRows.isEmpty())
+    {
+        m_searchResult->setText(query.isEmpty() ? QStringLiteral("无搜索结果") : QStringLiteral("无匹配结果"));
+        return;
+    }
+    if (selectFirst) { navigateSearch(1); return; }
+    m_searchIndex = m_searchRows.indexOf(m_table->currentRow());
+    m_searchResult->setText(m_searchIndex >= 0
+        ? QStringLiteral("结果 %1/%2").arg(m_searchIndex + 1).arg(m_searchRows.size())
+        : QStringLiteral("找到 %1 个结果").arg(m_searchRows.size()));
+}
+
+void LabelManagementWidget::navigateSearch(int direction)
+{
+    if (m_searchRows.isEmpty()) return;
+    m_searchIndex = (m_searchIndex + direction + m_searchRows.size()) % m_searchRows.size();
+    const int row = m_searchRows.at(m_searchIndex);
+    m_table->setCurrentCell(row, 0);
+    m_table->selectRow(row);
+    m_table->scrollToItem(m_table->item(row, 0), QAbstractItemView::PositionAtCenter);
+    m_searchResult->setText(QStringLiteral("结果 %1/%2").arg(m_searchIndex + 1).arg(m_searchRows.size()));
+}
+
+bool LabelManagementWidget::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_search && event->type() == QEvent::KeyPress)
+    {
+        const auto *key = static_cast<QKeyEvent *>(event);
+        if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter)
+            && (key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::ShiftModifier))
+        {
+            navigateSearch(key->modifiers() == Qt::ShiftModifier ? -1 : 1);
+            return true;
+        }
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 void LabelManagementWidget::selectRow(int row)
 {
-    if (row < 0 || row >= m_records.size()) return;
-    const ReferenceRecord &record = m_records.at(row);
-    m_currentId = record.id;
+    QScopedValueRollback<bool> loading(m_loading, true);
+    const ReferenceRecord record = row >= 0 && row < m_records.size() ? m_records.at(row) : ReferenceRecord{};
     m_chineseName->setText(record.chineseName);
     m_japaneseName->setText(record.japaneseName);
     m_aliases->setText(record.aliases);
-    m_detail->setPlainText(record.detail);
+}
+
+void LabelManagementWidget::storeEditorEdits()
+{
+    const int row = m_table->currentRow();
+    if (m_loading || row < 0 || row >= m_records.size()) return;
+    {
+        QScopedValueRollback<bool> loading(m_loading, true);
+        auto &record = m_records[row];
+        record.chineseName = m_chineseName->text();
+        record.japaneseName = m_japaneseName->text();
+        record.aliases = m_aliases->text();
+        m_table->item(row, 0)->setText(record.chineseName);
+        m_table->item(row, 1)->setText(record.japaneseName);
+        m_table->item(row, 2)->setText(record.aliases);
+        m_dirtyRows.insert(row);
+    }
+    performSearch(false);
 }
 
 void LabelManagementWidget::beginNew()
 {
-    m_currentId = 0;
-    m_table->clearSelection();
-    m_chineseName->clear();
-    m_japaneseName->clear();
-    m_aliases->clear();
-    m_detail->clear();
+    m_records.append({m_kind, 0, {}, {}, {}, {}, {}});
+    m_dirtyRows.insert(m_records.size() - 1);
+    populateTable();
+    m_table->setCurrentCell(m_records.size() - 1, 0);
+    m_table->selectRow(m_records.size() - 1);
+    m_table->scrollToBottom();
 }
 
 void LabelManagementWidget::saveCurrent()
 {
-    ReferenceRecord record = editorRecord();
+    // Close an active cell editor before collecting all staged changes.
+    m_table->setFocus();
+    if (!m_database.transaction())
+    {
+        Toast::showError(window(), m_database.lastError().text(), &m_themes);
+        return;
+    }
     QString error;
-    if (record.id == 0)
+    bool success = true;
+    for (qint64 id : m_removedIds)
+        if (!m_repository.remove(m_kind, id, &error)) { success = false; break; }
+    for (int row = 0; success && row < m_records.size(); ++row)
     {
-        const auto id = m_repository.create(record, &error);
-        if (id.has_value()) m_currentId = *id;
+        if (!m_dirtyRows.contains(row)) continue;
+        const auto &record = m_records.at(row);
+        success = record.id == 0 ? m_repository.create(record, &error).has_value()
+                                 : m_repository.update(record, &error);
     }
-    else if (!m_repository.update(record, &error))
+    if (success) success = m_database.commit();
+    if (!success)
     {
-    }
-    if (!error.isEmpty())
-    {
+        if (error.isEmpty()) error = m_database.lastError().text();
+        m_database.rollback();
         Toast::showError(window(), error, &m_themes);
         return;
     }
     refresh();
     emit referencesChanged(m_kind);
+    Toast::showSuccess(window(), QStringLiteral("保存成功"), &m_themes);
 }
 
 void LabelManagementWidget::removeCurrent()
 {
-    if (m_currentId <= 0)
+    const int row = m_table->currentRow();
+    if (row < 0 || m_table->selectionModel()->selectedRows().isEmpty())
     {
         Toast::showWarning(window(), QStringLiteral("请先选择要删除的行"), &m_themes);
         return;
     }
-    if (QMessageBox::question(this, QStringLiteral("确认删除"), QStringLiteral("确定删除当前厂牌？")) !=
-        QMessageBox::Yes)
-        return;
-    QString error;
-    if (!m_repository.remove(m_kind, m_currentId, &error))
-    {
-        Toast::showError(window(), error, &m_themes);
-        return;
-    }
-    refresh();
-    emit referencesChanged(m_kind);
+    if (m_records.at(row).id > 0) m_removedIds.insert(m_records.at(row).id);
+    m_records.removeAt(row);
+    QSet<int> dirtyRows;
+    for (int dirty : m_dirtyRows)
+        if (dirty != row) dirtyRows.insert(dirty > row ? dirty - 1 : dirty);
+    m_dirtyRows = dirtyRows;
+    populateTable();
+    if (!m_records.isEmpty()) m_table->setCurrentCell(qMin(row, int(m_records.size()) - 1), 0);
 }
 
 void LabelManagementWidget::redirectCurrent()
@@ -345,17 +460,6 @@ void LabelManagementWidget::exportJson()
         return;
     }
     Toast::showSuccess(window(), QStringLiteral("%1已导出").arg(kindName), &m_themes);
-}
-
-ReferenceRecord LabelManagementWidget::editorRecord() const
-{
-    QString extra;
-    const auto found = std::find_if(m_records.cbegin(), m_records.cend(), [this](const ReferenceRecord &record)
-                                    { return record.id == m_currentId; });
-    if (found != m_records.cend())
-        extra = found->extra;
-    return {m_kind, m_currentId, m_chineseName->text(), m_japaneseName->text(),
-            m_aliases->text(), m_detail->toPlainText(), extra};
 }
 
 } // namespace darkeye

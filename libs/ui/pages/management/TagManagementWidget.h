@@ -7,7 +7,6 @@
 class QComboBox;
 class QGroupBox;
 class QLineEdit;
-class QPlainTextEdit;
 class QTableWidget;
 
 namespace darkeye
@@ -57,8 +56,8 @@ private:
     QLineEdit *m_name = nullptr;
     QComboBox *m_type = nullptr;
     ColorPicker *m_color = nullptr;
-    QPlainTextEdit *m_detail = nullptr;
-    QLineEdit *m_aliases = nullptr;
+    QLineEdit *m_detail = nullptr;
+    TokenTableWidget *m_aliases = nullptr;
     TagDisplayPreview *m_preview = nullptr;
     QGroupBox *m_multiSelectGroup = nullptr;
     ColorPicker *m_multiSelectColor = nullptr;

@@ -1,6 +1,7 @@
 #include "ui/components/FanartStripWidget.h"
 
 #include "services/ImageFetchService.h"
+#include "darkeye_ui/theme/IconProvider.h"
 
 #include <QDir>
 #include <QDialog>
@@ -12,11 +13,11 @@
 #include <QHBoxLayout>
 #include <QImage>
 #include <QImageReader>
-#include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QKeyEvent>
 #include <QLineEdit>
 #include <QMouseEvent>
 #include <QPainter>
@@ -43,6 +44,76 @@ namespace
 constexpr int fanartThumbSide = 100;
 constexpr int fanartThumbMargin = 4;
 constexpr int fanartThumbCell = fanartThumbSide + 2 * fanartThumbMargin;
+
+class FanartPreviewImage final : public QLabel
+{
+public:
+    using QLabel::QLabel;
+
+    void showImage(const QPixmap &source, const QString &placeholder)
+    {
+        m_source = source;
+        if (m_source.isNull())
+        {
+            clear();
+            setText(placeholder);
+        }
+        else
+            scaleImage();
+    }
+
+protected:
+    void resizeEvent(QResizeEvent *event) override
+    {
+        QLabel::resizeEvent(event);
+        if (!m_source.isNull())
+            scaleImage();
+    }
+
+private:
+    void scaleImage()
+    {
+        setPixmap(m_source.scaled(size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    }
+    QPixmap m_source;
+};
+
+class FanartPreviewDialog final : public QDialog
+{
+public:
+    using QDialog::QDialog;
+    std::function<void(int)> navigate;
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        // QPushButton consumes arrow keys for focus traversal before they can
+        // reach the dialog. Handle navigation first, except in the URL editor.
+        if (event->type() == QEvent::KeyPress && !qobject_cast<QLineEdit *>(watched))
+        {
+            auto *key = static_cast<QKeyEvent *>(event);
+            if (navigate && (key->key() == Qt::Key_Left || key->key() == Qt::Key_Right))
+            {
+                navigate(key->key() == Qt::Key_Left ? -1 : 1);
+                key->accept();
+                return true;
+            }
+        }
+        return QDialog::eventFilter(watched, event);
+    }
+
+    void keyPressEvent(QKeyEvent *event) override
+    {
+        if (navigate && !qobject_cast<QLineEdit *>(focusWidget()) &&
+            (event->key() == Qt::Key_Left || event->key() == Qt::Key_Right))
+        {
+            navigate(event->key() == Qt::Key_Left ? -1 : 1);
+            event->accept();
+            return;
+        }
+        QDialog::keyPressEvent(event);
+    }
+};
 
 class FanartHorizontalScrollArea final : public QScrollArea
 {
@@ -295,7 +366,8 @@ FanartStripWidget::FanartStripWidget(QString fanartDirectory, QString legacyCove
                     if (!errorMessage.isEmpty())
                         emit imageRejected(errorMessage);
                 }
-                emit downloadStateChanged(false);
+                // A preview may start the newly selected image from fanartChanged.
+                emit downloadStateChanged(downloadInProgress());
             });
     rebuild();
 }
@@ -451,11 +523,6 @@ bool FanartStripWidget::downloadEntry(int index)
     return true;
 }
 
-bool FanartStripWidget::cancelDownload()
-{
-    return downloadInProgress() && m_imageFetch->cancel(m_activeRequestId);
-}
-
 bool FanartStripWidget::downloadInProgress() const noexcept
 {
     return m_activeRequestId != 0;
@@ -585,53 +652,6 @@ void FanartStripWidget::chooseLocalImage()
         addLocalImage(path);
 }
 
-void FanartStripWidget::addUrl()
-{
-    if (!m_canAdd || downloadInProgress())
-        return;
-    bool accepted = false;
-    const QString url =
-        QInputDialog::getText(this, QStringLiteral("添加剧照网址"), QStringLiteral("HTTP(S) 地址"),
-                              QLineEdit::Normal, {}, &accepted)
-            .trimmed();
-    if (!accepted || url.isEmpty())
-        return;
-    const QUrl parsed(url);
-    if (!parsed.isValid() ||
-        (parsed.scheme() != QStringLiteral("http") && parsed.scheme() != QStringLiteral("https")))
-    {
-        emit imageRejected(QStringLiteral("网址需要以 http(s) 开头"));
-        return;
-    }
-    m_entries.append({url, {}, {}});
-    rebuild();
-    emit fanartChanged(m_entries);
-}
-
-void FanartStripWidget::editEntry(int index)
-{
-    if (downloadInProgress() || index < 0 || index >= m_entries.size())
-        return;
-    bool accepted = false;
-    const QString url =
-        QInputDialog::getText(this, QStringLiteral("编辑剧照网址"), QStringLiteral("HTTP(S) 地址"),
-                              QLineEdit::Normal, m_entries.at(index).url, &accepted)
-            .trimmed();
-    if (!accepted)
-        return;
-    if (!url.isEmpty())
-    {
-        const QUrl parsed(url);
-        if (!parsed.isValid() || (parsed.scheme() != QStringLiteral("http") &&
-                                  parsed.scheme() != QStringLiteral("https")))
-        {
-            emit imageRejected(QStringLiteral("网址需要以 http(s) 开头"));
-            return;
-        }
-    }
-    updateEntry(index, url, m_entries.at(index).file);
-}
-
 void FanartStripWidget::enterEditMode()
 {
     if (m_previewMode)
@@ -657,33 +677,50 @@ void FanartStripWidget::showPreview(int index)
     if (index < 0 || index >= m_entries.size())
         return;
 
-    QDialog dialog(this);
-    dialog.setWindowTitle(QStringLiteral("剧照预览"));
-    dialog.resize(640, 720);
+    FanartPreviewDialog dialog(this);
+    dialog.setObjectName(QStringLiteral("FanartPreviewDialog"));
+    dialog.setWindowTitle(QStringLiteral("Fanart"));
+    dialog.resize(440, 560);
     auto *layout = new QVBoxLayout(&dialog);
-    auto *image = new QLabel(&dialog);
+    auto *image = new FanartPreviewImage(&dialog);
+    image->setObjectName(QStringLiteral("FanartPreviewImage"));
     image->setAlignment(Qt::AlignCenter);
-    image->setMinimumSize(600, 520);
+    image->setMinimumSize(600, 600);
+    image->setStyleSheet(QStringLiteral("QLabel { background-color: transparent; border: none; }"));
     image->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     layout->addWidget(image, 1);
 
     auto *position = new QLabel(&dialog);
     position->setAlignment(Qt::AlignCenter);
-    layout->addWidget(position);
-
     auto *navigation = new QHBoxLayout;
-    auto *previous = new QPushButton(QStringLiteral("上一张"), &dialog);
-    auto *next = new QPushButton(QStringLiteral("下一张"), &dialog);
-    navigation->addStretch();
+    auto *previous = new QPushButton(&dialog);
+    auto *next = new QPushButton(&dialog);
+    previous->setIcon(IconProvider::builtIn(QStringLiteral("arrow_left"), QSize(18, 18),
+                                           palette().color(QPalette::ButtonText)));
+    next->setIcon(IconProvider::builtIn(QStringLiteral("arrow_right"), QSize(18, 18),
+                                       palette().color(QPalette::ButtonText)));
+    previous->setIconSize(QSize(18, 18));
+    next->setIconSize(QSize(18, 18));
+    previous->setToolTip(QStringLiteral("上一张"));
+    next->setToolTip(QStringLiteral("下一张"));
+    previous->setObjectName(QStringLiteral("FanartPrevious"));
+    next->setObjectName(QStringLiteral("FanartNext"));
+    previous->setAutoDefault(false);
+    next->setAutoDefault(false);
     navigation->addWidget(previous);
+    navigation->addWidget(position, 1);
     navigation->addWidget(next);
-    navigation->addStretch();
     layout->addLayout(navigation);
 
+    layout->addWidget(new QLabel(QStringLiteral("图片网址："), &dialog));
     auto *url = new QLineEdit(&dialog);
     url->setReadOnly(m_previewMode);
     url->setPlaceholderText(QStringLiteral("图片网址"));
     auto *download = new QPushButton(QStringLiteral("下载"), &dialog);
+    download->setIcon(IconProvider::builtIn(QStringLiteral("arrow_down_to_line"), QSize(18, 18),
+                                           palette().color(QPalette::ButtonText)));
+    download->setIconSize(QSize(18, 18));
+    download->setAutoDefault(false);
     auto *urlRow = new QHBoxLayout;
     urlRow->addWidget(url, 1);
     urlRow->addWidget(download);
@@ -692,63 +729,65 @@ void FanartStripWidget::showPreview(int index)
     auto *actions = new QHBoxLayout;
     actions->addStretch();
     auto *confirm = new QPushButton(QStringLiteral("确定"), &dialog);
+    confirm->setObjectName(QStringLiteral("DesignButton"));
+    confirm->setProperty("variant", QStringLiteral("primary"));
+    confirm->setDefault(true);
     auto *cancel = new QPushButton(QStringLiteral("取消"), &dialog);
     actions->addWidget(confirm);
     actions->addWidget(cancel);
     layout->addLayout(actions);
 
     int currentIndex = index;
+    QStringList draftUrls;
+    for (const auto &entry : std::as_const(m_entries))
+        draftUrls.append(entry.url);
+    connect(url, &QLineEdit::textEdited, &dialog, [&draftUrls, &currentIndex](const QString &text) {
+        draftUrls[currentIndex] = text.trimmed();
+    });
     QSet<int> autoDownloadAttempted;
-    const auto refresh = [this, &currentIndex, &autoDownloadAttempted, image, position,
+    const auto refresh = [this, &currentIndex, &draftUrls, &autoDownloadAttempted, image, position,
                           previous, next, url, download] {
         if (currentIndex < 0 || currentIndex >= m_entries.size())
             return;
         const FanartEntry &entry = m_entries.at(currentIndex);
         const QString path = resolvedPath(entry);
         const QPixmap pixmap(path);
-        image->setPixmap(pixmap.isNull()
-                             ? QPixmap()
-                             : pixmap.scaled(image->size(), Qt::KeepAspectRatio,
-                                             Qt::SmoothTransformation));
-        image->setText(pixmap.isNull()
-                           ? (entry.url.isEmpty() ? QStringLiteral("无预览")
-                                                  : downloadInProgress()
-                                                        ? QStringLiteral("图片未下载，正在下载…")
-                                                        : QStringLiteral("图片未下载"))
-                           : QString());
+        image->showImage(pixmap, draftUrls.at(currentIndex).isEmpty()
+                                    ? QStringLiteral("无预览")
+                                    : m_activeDownloadIndex == currentIndex
+                                          ? QStringLiteral("图片未下载，正在下载…")
+                                          : QStringLiteral("图片未下载"));
         position->setText(QStringLiteral("%1 / %2").arg(currentIndex + 1).arg(m_entries.size()));
-        previous->setEnabled(m_entries.size() > 1 && !downloadInProgress());
-        next->setEnabled(m_entries.size() > 1 && !downloadInProgress());
-        url->setText(entry.url);
-        download->setEnabled(!entry.url.isEmpty() && path.isEmpty() && !downloadInProgress());
+        previous->setEnabled(m_entries.size() > 1);
+        next->setEnabled(m_entries.size() > 1);
+        url->setText(draftUrls.at(currentIndex));
+        download->setText(downloadInProgress() ? QStringLiteral("下载中…") : QStringLiteral("下载"));
+        download->setEnabled(!draftUrls.at(currentIndex).isEmpty() && !downloadInProgress());
 
         // Python's FanartEditDialog downloads an unresolved HTTP(S) entry as soon
         // as the enlarged preview is opened or its navigation changes.
-        if (path.isEmpty() && !entry.url.isEmpty() && !downloadInProgress() &&
+        if (path.isEmpty() && !draftUrls.at(currentIndex).isEmpty() && !downloadInProgress() &&
             !autoDownloadAttempted.contains(currentIndex))
         {
             autoDownloadAttempted.insert(currentIndex);
+            m_entries[currentIndex].url = draftUrls.at(currentIndex);
             downloadEntry(currentIndex);
         }
     };
 
-    connect(previous, &QPushButton::clicked, &dialog, [this, &currentIndex, refresh] {
-        currentIndex = (currentIndex + m_entries.size() - 1) % m_entries.size();
+    dialog.navigate = [this, &currentIndex, refresh](int step) {
+        if (m_entries.size() <= 1)
+            return;
+        currentIndex = (currentIndex + step + m_entries.size()) % m_entries.size();
         refresh();
-    });
-    connect(next, &QPushButton::clicked, &dialog, [this, &currentIndex, refresh] {
-        currentIndex = (currentIndex + 1) % m_entries.size();
-        refresh();
-    });
+    };
+    connect(previous, &QPushButton::clicked, &dialog, [&dialog] { dialog.navigate(-1); });
+    connect(next, &QPushButton::clicked, &dialog, [&dialog] { dialog.navigate(1); });
     connect(download, &QPushButton::clicked, &dialog,
-            [this, &currentIndex, &autoDownloadAttempted, url, refresh] {
-        if (!m_previewMode)
-        {
-            updateEntry(currentIndex, url->text(), m_entries.at(currentIndex).file);
-            autoDownloadAttempted.remove(currentIndex);
-        }
+            [this, &currentIndex, &draftUrls, &autoDownloadAttempted, refresh] {
         if (!downloadInProgress())
         {
+            m_entries[currentIndex].url = draftUrls.at(currentIndex);
             autoDownloadAttempted.insert(currentIndex);
             downloadEntry(currentIndex);
         }
@@ -757,12 +796,19 @@ void FanartStripWidget::showPreview(int index)
     connect(this, &FanartStripWidget::fanartChanged, &dialog, refresh);
     connect(this, &FanartStripWidget::downloadStateChanged, &dialog,
             [refresh](bool) { refresh(); });
-    connect(confirm, &QPushButton::clicked, &dialog, [this, &currentIndex, url, &dialog] {
+    connect(confirm, &QPushButton::clicked, &dialog, [this, &draftUrls, &dialog] {
         if (!m_previewMode)
-            updateEntry(currentIndex, url->text(), m_entries.at(currentIndex).file);
+        {
+            for (int i = 0; i < m_entries.size() && i < draftUrls.size(); ++i)
+                m_entries[i].url = draftUrls.at(i);
+            rebuild();
+            emit fanartChanged(m_entries);
+        }
         dialog.accept();
     });
     connect(cancel, &QPushButton::clicked, &dialog, &QDialog::reject);
+    for (auto *widget : dialog.findChildren<QWidget *>())
+        widget->installEventFilter(&dialog);
     refresh();
     dialog.exec();
 }

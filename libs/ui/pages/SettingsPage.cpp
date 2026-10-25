@@ -155,34 +155,6 @@ bool startUpdater(QWidget *parent, const QStringList &additionalArguments)
     return true;
 }
 
-class PendingSettingsPage final : public darkeye::LazyWidget
-{
-public:
-    PendingSettingsPage(QString name, QWidget *parent)
-        : LazyWidget(parent), m_name(std::move(name))
-    {
-    }
-
-private:
-    void lazyLoad() override
-    {
-        auto *layout = new QVBoxLayout(this);
-        layout->setContentsMargins(0, 0, 0, 0);
-        auto *label = new darkeye::DesignLabel(QStringLiteral("该设置页正在逐项迁移"), this);
-        label->setTone(QStringLiteral("muted"));
-        layout->addWidget(label);
-        layout->addStretch();
-    }
-
-    QString m_name;
-};
-
-QWidget *pendingSettingsPage(const QString &name, QWidget *parent)
-{
-    return new PendingSettingsPage(name, parent);
-}
-
-
 } // namespace
 
 NfoSettingsPage::NfoSettingsPage(QSqlDatabase publicDatabase, settings::Paths paths, QWidget *parent)
@@ -429,11 +401,6 @@ void AboutSettingsPage::lazyLoad()
     layout->addLayout(runtimePaths);
 
     auto *downloadRow = new QHBoxLayout;
-    downloadRow->addWidget(new DesignLabel(QStringLiteral("下载移动客户端"), this));
-    auto *android = new DesignButton(QStringLiteral("Android 版"), this);
-    android->setEnabled(false);
-    downloadRow->addWidget(android);
-    downloadRow->addSpacing(16);
     downloadRow->addWidget(new DesignLabel(QStringLiteral("下载浏览器插件"), this));
     const auto addDownloadButton = [this, downloadRow](const QString &text)
     {
@@ -450,7 +417,19 @@ void AboutSettingsPage::lazyLoad()
     layout->addLayout(downloadRow);
 
     auto *links = new QHBoxLayout;
+    links->setSpacing(16);
+    const auto addLink = [this](QVBoxLayout *column, const QString &title,
+                                const QString &description, const QString &url)
+    {
+        auto *card = new TokenLinkCard(title, description, url, &m_themeService, this);
+        card->setMinimumWidth(0);
+        card->setMaximumWidth(280);
+        card->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        column->addWidget(card);
+    };
     auto *projectLinks = new QVBoxLayout;
+    projectLinks->setSpacing(8);
+    projectLinks->setAlignment(Qt::AlignTop);
     projectLinks->addWidget(new DesignLabel(QStringLiteral("项目链接"), this));
     const QList<std::tuple<QString, QString, QString>> projects = {
         {QStringLiteral("GitHub"), QStringLiteral("源代码仓库与问题反馈"),
@@ -464,10 +443,12 @@ void AboutSettingsPage::lazyLoad()
     };
     for (const auto &[title, description, url] : projects)
     {
-        projectLinks->addWidget(new TokenLinkCard(title, description, url, &m_themeService, this));
+        addLink(projectLinks, title, description, url);
     }
 
     auto *referenceLinks = new QVBoxLayout;
+    referenceLinks->setSpacing(8);
+    referenceLinks->setAlignment(Qt::AlignTop);
     referenceLinks->addWidget(new DesignLabel(QStringLiteral("参考项目"), this));
     const QList<std::tuple<QString, QString, QString>> references = {
         {QStringLiteral("mdcz"), QStringLiteral("开源媒体库元数据刮削与管理"),
@@ -481,7 +462,7 @@ void AboutSettingsPage::lazyLoad()
     };
     for (const auto &[title, description, url] : references)
     {
-        referenceLinks->addWidget(new TokenLinkCard(title, description, url, &m_themeService, this));
+        addLink(referenceLinks, title, description, url);
     }
     links->addLayout(projectLinks);
     links->addLayout(referenceLinks);
@@ -1651,6 +1632,7 @@ SettingsPage::SettingsPage(ThemeService &themeService, const QString &shortcutsF
       m_publicDatabase(std::move(publicDatabase)), m_privateDatabase(std::move(privateDatabase)),
       m_paths(std::move(paths))
 {
+    setProperty("designScrollMenuContent", true);
 }
 
 void SettingsPage::lazyLoad()

@@ -2,11 +2,13 @@
 
 #include "ui/components/AsyncImageLabel.h"
 
+#include <QBuffer>
 #include <QContextMenuEvent>
 #include <QDir>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFileDialog>
+#include <QFile>
 #include <QFileInfo>
 #include <QImageReader>
 #include <QLabel>
@@ -18,9 +20,73 @@
 #include <QResizeEvent>
 #include <QSaveFile>
 #include <QUrl>
+#include <QUuid>
 
 namespace darkeye
 {
+namespace
+{
+QImage imageForJpeg(const QImage &image)
+{
+    if (!image.hasAlphaChannel())
+        return image;
+    QImage flattened(image.size(), QImage::Format_RGB32);
+    flattened.fill(Qt::white);
+    QPainter painter(&flattened);
+    painter.drawImage(0, 0, image);
+    return flattened;
+}
+
+bool imagesHaveZeroMse(const QImage &first, const QImage &second)
+{
+    if (first.isNull() || second.isNull() || first.size() != second.size())
+        return false;
+
+    const QImage firstPixels = first.convertToFormat(QImage::Format_RGBA8888);
+    const QImage secondPixels = second.convertToFormat(QImage::Format_RGBA8888);
+    double squaredError = 0;
+    for (int y = 0; y < firstPixels.height(); ++y)
+    {
+        const uchar *firstRow = firstPixels.constScanLine(y);
+        const uchar *secondRow = secondPixels.constScanLine(y);
+        for (qsizetype x = 0; x < qsizetype(firstPixels.width()) * 4; ++x)
+        {
+            const int difference = int(firstRow[x]) - int(secondRow[x]);
+            squaredError += difference * difference;
+        }
+    }
+    // Python's mse() uses the original resolution and requires exactly zero,
+    // without a similarity threshold. Normalize Qt's decoded pixel storage.
+    return squaredError / (double(firstPixels.width()) * firstPixels.height()) == 0.0;
+}
+
+bool imagesMatchSavedCover(const QString &savedPath, const QString &candidatePath)
+{
+    QImageReader savedReader(savedPath);
+    const bool savedAsJpeg = savedReader.format() == QByteArrayLiteral("jpeg");
+    savedReader.setAutoTransform(true);
+    const QImage saved = savedReader.read();
+    QImageReader candidateReader(candidatePath);
+    candidateReader.setAutoTransform(true);
+    const QImage candidate = candidateReader.read();
+    if (saved.isNull() || candidate.isNull() || saved.size() != candidate.size())
+        return false;
+    if (imagesHaveZeroMse(saved, candidate))
+        return true;
+    if (!savedAsJpeg)
+        return false;
+
+    // Older C++ builds re-encoded every cover at quality 92. Non-JPEG sources
+    // still use that conversion. Compare the exact decoded save result too,
+    // so dropping the original after saving works without a fuzzy threshold.
+    QByteArray encoded;
+    QBuffer buffer(&encoded);
+    if (!buffer.open(QIODevice::WriteOnly)
+        || !imageForJpeg(candidate).save(&buffer, "JPEG", 92))
+        return false;
+    return imagesHaveZeroMse(saved, QImage::fromData(encoded, "JPEG"));
+}
+} // namespace
 
 ImageDropWidget::ImageDropWidget(QString managedDirectory, QWidget *parent)
     : QWidget(parent), m_managedDirectory(QDir::cleanPath(std::move(managedDirectory)))
@@ -109,6 +175,7 @@ void ImageDropWidget::setQualityBadgeStyleSheet(const QString &styleSheet,
 void ImageDropWidget::setImagePath(const QString &path)
 {
     const QString normalized = path.trimmed();
+    m_originalImagePath = normalized;
     if (m_imagePath == normalized)
     {
         setDirty(false);
@@ -121,6 +188,12 @@ void ImageDropWidget::setImagePath(const QString &path)
         m_preview->setSource(resolvedImagePath());
     updateQualityBadge();
     setDirty(false);
+}
+
+bool ImageDropWidget::setPendingImagePath(const QString &path)
+{
+    const QFileInfo info(path);
+    return acceptImage(info.isAbsolute() ? path : QDir(m_managedDirectory).filePath(path));
 }
 
 QString ImageDropWidget::imagePath() const
@@ -158,7 +231,7 @@ void ImageDropWidget::clearImage()
     m_imagePath.clear();
     m_preview->clearSource();
     updateQualityBadge();
-    setDirty(true);
+    setDirty(!m_originalImagePath.isEmpty());
     emit imageChanged({});
 }
 
@@ -202,6 +275,7 @@ bool ImageDropWidget::persistAsJpeg(const QString &fileName, QString *relativePa
     }
 
     QImageReader reader(sourceInfo.absoluteFilePath());
+    const bool sourceIsJpeg = reader.format() == QByteArrayLiteral("jpeg");
     reader.setAutoTransform(true);
     QImage image = reader.read();
     if (image.isNull())
@@ -224,15 +298,25 @@ bool ImageDropWidget::persistAsJpeg(const QString &fileName, QString *relativePa
             *errorMessage = target.errorString();
         return false;
     }
-    if (image.hasAlphaChannel())
+    bool written = false;
+    if (sourceIsJpeg)
     {
-        QImage flattened(image.size(), QImage::Format_RGB32);
-        flattened.fill(Qt::white);
-        QPainter painter(&flattened);
-        painter.drawImage(0, 0, image);
-        image = flattened;
+        // Match Python's rename_save_image(): retain JPEG bytes rather than
+        // introducing another lossy generation on every import.
+        QFile source(sourceInfo.absoluteFilePath());
+        if (!source.open(QIODevice::ReadOnly))
+        {
+            if (errorMessage != nullptr)
+                *errorMessage = source.errorString();
+            return false;
+        }
+        const QByteArray bytes = source.readAll();
+        written = source.error() == QFileDevice::NoError
+            && target.write(bytes) == bytes.size();
     }
-    if (!image.save(&target, "JPEG", 92) || !target.commit())
+    else
+        written = imageForJpeg(image).save(&target, "JPEG", 92);
+    if (!written || !target.commit())
     {
         if (errorMessage != nullptr)
             *errorMessage = target.errorString().isEmpty()
@@ -274,7 +358,7 @@ void ImageDropWidget::resizeEvent(QResizeEvent *event)
 
 void ImageDropWidget::dragEnterEvent(QDragEnterEvent *event)
 {
-    if (event->mimeData()->hasUrls())
+    if (event->mimeData()->hasUrls() || event->mimeData()->hasImage())
         event->acceptProposedAction();
 }
 
@@ -287,6 +371,20 @@ void ImageDropWidget::dropEvent(QDropEvent *event)
             event->acceptProposedAction();
             return;
         }
+    }
+    // Some browsers supply bitmap data rather than a usable local file URL.
+    if (event->mimeData()->hasImage())
+    {
+        const QImage image = qvariant_cast<QImage>(event->mimeData()->imageData());
+        const QString path = m_pendingImages.filePath(
+            QUuid::createUuid().toString(QUuid::WithoutBraces) + QStringLiteral(".png"));
+        if (!image.isNull() && m_pendingImages.isValid() && image.save(path, "PNG"))
+        {
+            showAcceptedImage(path);
+            event->acceptProposedAction();
+            return;
+        }
+        emit imageRejected(QStringLiteral("无法保存拖入的%1图片数据").arg(m_purpose));
     }
 }
 
@@ -338,12 +436,36 @@ bool ImageDropWidget::acceptImage(const QString &path, QString *errorMessage)
         emit imageRejected(message);
         return false;
     }
-    m_imagePath = QDir::cleanPath(path);
-    m_preview->setSource(m_imagePath);
-    updateQualityBadge();
-    setDirty(true);
-    emit imageChanged(m_imagePath);
+    // Own the original bytes before returning from the drop event. Resizing
+    // reloads the preview from disk, and saving also needs the full-size image.
+    const QString pendingPath = m_pendingImages.filePath(
+        QUuid::createUuid().toString(QUuid::WithoutBraces));
+    if (!m_pendingImages.isValid() || !QFile::copy(path, pendingPath))
+    {
+        const QString message = QStringLiteral("无法保留拖入的%1图片：%2").arg(m_purpose, path);
+        if (errorMessage != nullptr)
+            *errorMessage = message;
+        emit imageRejected(message);
+        return false;
+    }
+    showAcceptedImage(pendingPath);
     return true;
+}
+
+void ImageDropWidget::showAcceptedImage(const QString &path)
+{
+    const QFileInfo originalInfo(m_originalImagePath);
+    const QString originalPath = originalInfo.isAbsolute()
+        ? m_originalImagePath : QDir(m_managedDirectory).filePath(m_originalImagePath);
+    const bool unchanged = !m_originalImagePath.isEmpty()
+        && imagesMatchSavedCover(originalPath, path);
+    // Keep the saved path for identical pixels so editor path comparisons and
+    // later metadata-only saves do not treat a temporary copy as a new cover.
+    m_imagePath = unchanged ? m_originalImagePath : path;
+    m_preview->setSource(resolvedImagePath());
+    updateQualityBadge();
+    setDirty(!unchanged);
+    emit imageChanged(m_imagePath);
 }
 
 void ImageDropWidget::updatePreviewGeometry()

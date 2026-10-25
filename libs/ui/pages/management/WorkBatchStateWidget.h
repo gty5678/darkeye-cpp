@@ -38,7 +38,6 @@ private:
     [[nodiscard]] QList<qint64> selectedIds() const;
     [[nodiscard]] QList<qint64> allIds() const;
     void setAllChecked(bool checked);
-    void filterRows(const QString &text);
     void moveCheckedToRecycleBin();
     void restore(bool all);
     void removePermanently(bool all);

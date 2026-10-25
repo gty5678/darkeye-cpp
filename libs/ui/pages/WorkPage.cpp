@@ -661,21 +661,9 @@ void WorkPage::showWorkDetails(qint64 workId)
     emit detailRequested(workId);
 }
 
-void WorkPage::openEditor(qint64 workId)
-{
-    initialize();
-    loadWork(workId);
-}
-
 void WorkPage::loadWork(qint64 workId)
 {
     emit editRequested(workId);
-}
-
-void WorkPage::openCreateEditor()
-{
-    initialize();
-    emit createRequested();
 }
 
 void WorkPage::filterByActor(qint64 actorId)
