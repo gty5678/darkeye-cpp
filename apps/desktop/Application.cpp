@@ -15,6 +15,7 @@
 
 #include <QColor>
 #include <QDate>
+#include <QDesktopServices>
 #include <QDir>
 #include <QEventLoop>
 #include <QIcon>
@@ -37,8 +38,8 @@ namespace
 
 QString latestManifestUrl()
 {
-    const QString configPath = QDir(QCoreApplication::applicationDirPath())
-                                   .filePath(QStringLiteral("config/update.ini"));
+    const QString configPath = QDir(settings::Paths().configDirectory())
+                                   .filePath(QStringLiteral("update.ini"));
     QSettings config(configPath, QSettings::IniFormat);
     const QString configured = config.value(QStringLiteral("Update/LatestJsonUrl")).toString().trimmed();
     return configured.isEmpty() ? QStringLiteral("https://darkeye.win/latest.json") : configured;
@@ -51,6 +52,7 @@ QString currentIsoWeek()
     return QStringLiteral("%1-%2").arg(year).arg(week, 2, 10, QLatin1Char('0'));
 }
 
+#ifdef Q_OS_WIN
 bool startUpdater()
 {
     const QString updater = QDir(QCoreApplication::applicationDirPath())
@@ -60,12 +62,13 @@ bool startUpdater()
     const QStringList arguments = {
         QStringLiteral("--install-dir"), QCoreApplication::applicationDirPath(),
         QStringLiteral("--current-version"), QStringLiteral(DARKEYE_VERSION),
-        QStringLiteral("--main-exe"), QStringLiteral("DarkEye.exe"),
+        QStringLiteral("--main-exe"), QFileInfo(QCoreApplication::applicationFilePath()).fileName(),
         QStringLiteral("--latest-json-url"), latestManifestUrl(),
         QStringLiteral("--keep"), QStringLiteral("data"),
         QStringLiteral("--pid"), QString::number(QCoreApplication::applicationPid())};
     return QProcess::startDetached(updater, arguments, QCoreApplication::applicationDirPath());
 }
+#endif
 
 } // namespace
 
@@ -74,6 +77,13 @@ Application::Application(int &argc, char **argv)
 {
     Resources::ensureInitialized();
     configureIdentity();
+    QString argumentError;
+    if (!settings::Paths::configureFromArguments(m_application.arguments(), &argumentError)) {
+        qCritical().noquote() << argumentError;
+        m_startupExitCode = 2;
+        return;
+    }
+    m_paths = settings::Paths();
     m_application.setWindowIcon(QIcon(QStringLiteral(":/icons/logo.svg")));
     const QPixmap logo(QStringLiteral(":/icons/logo.svg"));
     m_splash = std::make_unique<QSplashScreen>(logo);
@@ -97,7 +107,10 @@ Application::Application(int &argc, char **argv)
 
     LogService::initialize(m_paths.logFile());
     qInfo() << "Darkeye C++ starting" << QCoreApplication::applicationVersion();
+    qInfo() << "Runtime mode:" << (m_paths.isPortable() ? "portable" : "standard");
     qInfo() << "Runtime data directory:" << m_paths.dataDirectory();
+    qInfo() << "Configuration directory:" << m_paths.configDirectory();
+    qInfo() << "AV wiki directory:" << m_paths.wikiDirectory();
     qInfo() << "Public database:" << m_paths.publicDatabase();
 }
 
@@ -114,6 +127,7 @@ void Application::reportStartupStatus(const QString &text)
 // matching the Python entry point. Background services start after the splash.
 int Application::run()
 {
+    if (m_startupExitCode != 0) return m_startupExitCode;
     if (!m_splash || !m_splash->isVisible())
         return 1;
     AppSettings appSettings = settings::app();
@@ -312,6 +326,11 @@ void Application::checkForUpdatesAutomatically()
                 if (!result.updateAvailable || !showNotification || m_mainWindow == nullptr)
                     return;
 
+#ifndef Q_OS_WIN
+                if (QMessageBox::question(m_mainWindow.get(), QStringLiteral("发现新版本"),
+                        result.message + QStringLiteral("\n\n打开发布页下载适合本系统的版本？")) == QMessageBox::Yes)
+                    QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/gty5678/darkeye-cpp/releases")));
+#else
                 const QString prompt = result.message
                     + QStringLiteral("\n\n是否立即更新？软件将退出以完成更新。");
                 if (QMessageBox::question(m_mainWindow.get(), QStringLiteral("发现新版本"), prompt,
@@ -324,6 +343,7 @@ void Application::checkForUpdatesAutomatically()
                     return;
                 }
                 QCoreApplication::quit();
+#endif
                      });
     service->check(QUrl::fromUserInput(latestManifestUrl()), QStringLiteral(DARKEYE_VERSION));
 }

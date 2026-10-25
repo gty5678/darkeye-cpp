@@ -1,20 +1,24 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
 
 namespace darkeye::settings
 {
 
-/// 表示一套以程序目录为根目录的路径。
-///
-/// 默认构造时使用当前可执行文件目录；测试或独立工具可在构造时传入根目录。
+/// 安装资源与可写数据的统一路径入口。
+/// portable.ini 明确指定便携数据目录；无便携配置时使用系统用户数据目录。
 class Paths final
 {
 public:
-    /// 使用当前可执行文件目录作为根目录。
+    /// 使用当前可执行文件目录检测运行模式。
     Paths();
-    /// 使用指定目录作为路径根目录。
-    explicit Paths(QString applicationDirectory);
+    /// 启动时解析路径参数，供所有默认构造的 Paths 共用；相对参数以启动工作目录解析。
+    static bool configureFromArguments(const QStringList &arguments, QString *errorMessage = nullptr);
+    /// 指定程序目录；可选的数据目录覆盖用于测试和独立工具。
+    explicit Paths(QString applicationDirectory, QString dataDirectoryOverride = {},
+                   QString configDirectoryOverride = {}, QString wikiDirectoryOverride = {});
+    [[nodiscard]] bool isPortable() const;
 
     /// 返回该对象使用的程序根目录。
     [[nodiscard]] const QString &applicationDirectory() const noexcept;
@@ -22,6 +26,11 @@ public:
     [[nodiscard]] QString resourcesDirectory() const;
     [[nodiscard]] QString configDirectory() const;
     [[nodiscard]] QString dataDirectory() const;
+    [[nodiscard]] QString cacheDirectory() const;
+    [[nodiscard]] QString temporaryDirectory() const;
+    [[nodiscard]] QString wikiDirectory() const;
+    /// 随程序分发的只读知识库，仅用于首次初始化。
+    [[nodiscard]] QString bundledWikiDirectory() const;
     /// 返回固定配置文件及各类 JSON、日志文件路径。
     [[nodiscard]] QString settingsFile() const;
     [[nodiscard]] QString publicDatabase() const;
@@ -43,13 +52,19 @@ public:
     bool ensureRuntimeDirectories(QString *errorMessage = nullptr) const;
 
 private:
-    /// 将相对程序根目录的路径规范化为绝对路径。
-    [[nodiscard]] QString absolutePathFromApplicationDirectory(const QString &relativePath) const;
-    /// 从 settings.ini 读取路径；缺失时使用相对根目录的默认路径。
+    /// 查找程序目录或 macOS .app 外的 portable.ini。
+    [[nodiscard]] QString portableConfigurationFile() const;
+    [[nodiscard]] QString resourceRootDirectory() const;
+    /// 将旧版相对程序目录的配置迁移到版本 2 的数据目录规则。
+    bool migratePathSettings(QString *errorMessage) const;
+    /// 从 settings.ini 读取路径；版本 2 的相对路径以数据目录为根。
     [[nodiscard]] QString configuredPath(const QString &key,
                                          const QString &defaultRelativePath) const;
 
     QString m_applicationDirectory;
+    QString m_dataDirectoryOverride;
+    QString m_configDirectoryOverride;
+    QString m_wikiDirectoryOverride;
 };
 
 } // namespace darkeye::settings

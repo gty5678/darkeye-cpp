@@ -39,6 +39,7 @@ private:
     void stopLlamaServer();
 
     QApplication m_application;
+    int m_startupExitCode = 0;
     settings::Paths m_paths;
     ThemeService m_themeService;
     DatabaseManager m_databaseManager;

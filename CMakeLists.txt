@@ -9,9 +9,6 @@ option(DARKEYE_BUILD_RENDER3D_DEMO "Build the standalone QRhi 3D demo" OFF)
 option(DARKEYE_DEPLOY_QT_RUNTIME
        "Deploy Qt runtime beside Darkeye after each Windows build" ON)
 
-option(DARKEYE_INSTALL_DATA
-    "Install Darkeye data" OFF)
-
 include(CompilerOptions)
 include(Dependencies)
 include(Packaging)

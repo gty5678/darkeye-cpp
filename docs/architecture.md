@@ -7,7 +7,7 @@
 | 类别 | 当前实现 |
 | --- | --- |
 | 语言与构建 | C++20、CMake 3.25+、Ninja、MSVC 2022、vcpkg manifest |
-| GUI | Qt 6.10：Widgets、Quick/Quick3D、QML、QRhi、Qt SQL |
+| GUI | Qt 6.12.0：Widgets、Quick/Quick3D、QML、QRhi、Qt SQL |
 | 数据 | SQLite 公共库与私有库，基于 Qt SQL 访问 |
 | 本地通信 | Qt HttpServer，默认仅监听 `127.0.0.1:56789` |
 | 外部采集 | 可选 Collector 进程与 HTTP JSON 客户端，默认端口 56790 |
@@ -122,6 +122,6 @@ SQLite 在同一物理数据库上仍只允许一个写者。若运行指标确�
 
 ## 发布边界
 
-CMake 将桌面程序和 `resources/` 安装到输出目录；`DARKEYE_INSTALL_DATA` 决定是否附带 `data/`。
+CMake Install 部署桌面程序、运行依赖以及 `config/` 和 `avwiki/`，不附带开发数据或生成便携标记。
 Windows 下构建后会使用 `windeployqt` 部署开发运行所需的 Qt 文件；`cmake --install` 还会收集
 msdfgen、FreeType 等运行时依赖。具体命令和预设见[开发准备](development.md)。

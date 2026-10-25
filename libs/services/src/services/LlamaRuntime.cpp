@@ -61,7 +61,7 @@ QString LlamaRuntime::start(const LlamaCppSettings &settings)
     if (isRunning()) return {};
     const QString executable = settings.serverExecutable.trimmed();
     if (executable.isEmpty() || settings.modelPath.trimmed().isEmpty())
-        return QStringLiteral("请先选择 llama-server.exe 和 GGUF 模型。");
+        return QStringLiteral("请先选择 llama-server 和 GGUF 模型。");
     m_process.setProgram(executable);
     m_process.setArguments(buildArguments(settings));
     m_process.setWorkingDirectory(QFileInfo(executable).absolutePath());

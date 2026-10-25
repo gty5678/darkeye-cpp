@@ -9,7 +9,7 @@ Ninja 和 vcpkg manifest 模式；本文档是本项目唯一的本地构建说�
 - Git
 - [Visual Studio 2022](https://aka.ms/vs/17/release/vs_community.exe)，
 - CMake 3.25 或更高版本、Ninja。
-- Qt 6.10.3 ，并且安装的 **MSVC 2022 64-bit** kit。
+- Qt 6.12.0 ，并且安装的 **MSVC 2022 64-bit** kit。
 - vcpkg。项目的 C++ 第三方依赖由根目录的 `vcpkg.json` 自动解析，不要手动复制第三方库目录。
 
 ### 安装Git
@@ -22,11 +22,16 @@ Ninja 和 vcpkg manifest 模式；本文档是本项目唯一的本地构建说�
 
 ### 安装Qt
 
-使用在线安装的方式，需要注册登陆账号，只安装Qt 6.10.3的MSVC依赖即可，大概5G不到
+使用在线安装的方式，需要注册登陆账号，只安装Qt 6.12.0的MSVC依赖即可，大概5G不到
 
-添加用户环境变量，这个很重要
+Windows 构建预设默认使用 `C:/Qt/6.12.0/msvc2022_64/lib/cmake/Qt6`，不再读取可能指向旧版本的 `Qt6_DIR` 环境变量。使用其他安装位置时，在配置命令中覆盖路径：
 ```powershell
-$env:Qt6_DIR = "C:/Qt/6.10.3/msvc2022_64/lib/cmake/Qt6"
+cmake --preset windows-msvc-release -DQt6_DIR=D:/Qt/6.12.0/msvc2022_64/lib/cmake/Qt6
+```
+
+非预设构建仍可设置以下环境变量供 `tools/build.py` 使用：
+```powershell
+$env:Qt6_DIR = "C:/Qt/6.12.0/msvc2022_64/lib/cmake/Qt6"
 ```
 
 
@@ -71,8 +76,7 @@ $env:X_VCPKG_ASSET_SOURCES="x-azurl,https://mirrors.ustc.edu.cn/vcpkg/assets/"
 | --- | --- | --- |
 | 日常 Debug 构建 | `windows-msvc-debug` | `debug` |
 | Debug 构建并启用测试 | `windows-msvc-debug-tests` | `debug-tests` |
-| Release（不含 `data`） | `windows-msvc-release-no-data` | `release-no-data` |
-| Release（含 `data`） | `windows-msvc-release-data` | `release-data` |
+| Release 构建 | `windows-msvc-release` | `release` |
 | Release 构建并启用测试 | `windows-msvc-release-tests` | `release-tests` |
 
 首次配置时，vcpkg 会下载并构建 `vcpkg.json` 中锁定的依赖，耗时会比后续配置更长。
@@ -109,24 +113,19 @@ Windows 下脚本自动查找 Visual Studio、加载 x64 MSVC / Windows SDK 环�
 并使用上面的 CMake 预设。Linux / macOS 下使用 PATH 中的 CMake，构建目录为
 `build/<系统>-<配置>`；需自行安装相应编译器、Qt 和依赖，项目在这些平台上的构建尚未验证。
 
-编译 Release、安装并生成 7z（不含用户 data，需安装 7-Zip）：
+Windows 安装版和便携版统一通过打包脚本生成：
 
 ```powershell
-python tools/package.py
-python tools/package.py --destination out/Darkeye-release
+python tools/package.py                       # 构建并生成安装 exe 和便携 7z
+python tools/package.py --format portable     # 仅便携版
+python tools/package.py --format installer    # 仅安装版
+python tools/package.py --skip-build          # 使用现有 Release 构建重新打包
 ```
 
-版本号自动读取根目录 `CMakeLists.txt` 中的 `project(Darkeye VERSION ...)`，与软件显示版本一致。
-默认安装到 `out/Daryeye-<版本号>`，7z 位于同级的 `out/Daryeye-<版本号>.7z`，例如 `Daryeye-1.2.5.7z`。
-每次打包前先删除对应的整个构建目录（Windows 为 `build/windows-msvc-release`），
-清除 CMake 缓存和旧编译产物后重新配置、全量编译。单独运行 `build.py` 仍采用增量编译。
-压缩包内保留一层安装目录名，主程序、DLL 和资源目录都位于其中。
-开始构建前自动删除同名安装目录、7z 文件和遗留的 `.7z.tmp` 文件，再重新生成。
-`--destination` 须指定项目 `out` 内的目录；`--dry-run` 只显示删除计划，不实际删除。
-安装阶段由 CMake 部署 Qt 运行库和第三方 DLL。
-收集完成后、生成 7z 前，脚本会删除 `vc_redist.x64.exe` 和 `opengl32sw.dll`。
-压缩后使用 `7z t` 验证完整性；Windows 自动查找常见安装目录，其他平台从 PATH 查找 `7zz` / `7z` / `7za`。
-压缩和校验时显示 7-Zip 实时进度；结束时显示压缩用时和整个打包流程的总用时，失败时也会显示总用时。
+打包额外需要 7-Zip 和 Inno Setup（只生成一种时只需对应工具）。默认使用 `release` 增量构建，
+输出 `out/Darkeye-<版本>-windows-x64-portable.7z` 和 `out/Darkeye-<版本>-windows-x64-setup.exe`。
+全量重建使用 `--clean`。环境配置、完整操作步骤、目录布局和安装规则见
+[Windows 安装版与便携版生成方法](windows-packaging.md#windows-packaging)。
 
 在仓库根目录执行日常 Debug 构建：
 
@@ -152,10 +151,10 @@ build/windows-msvc-debug/apps/desktop/Darkeye.exe
 ```powershell
 cmake --preset windows-msvc-debug-tests
 cmake --build --preset debug-tests
-ctest --preset debug
+ctest --preset debug-tests
 ```
 
-`ctest --preset debug` 会在测试失败时输出失败信息。也可用 `ctest --test-dir build/windows-msvc-debug-tests --output-on-failure`
+`ctest --preset debug-tests` 会在测试失败时输出失败信息。也可用 `ctest --test-dir build/windows-msvc-debug-tests --output-on-failure`
 运行同一套测试。
 
 ## Visual Studio 2022 调试
@@ -165,7 +164,9 @@ ctest --preset debug
 3. 在 CMake Targets View 中将 `Darkeye` 设为启动项，等待首次 CMake 配置和构建完成。
 4. 在 C++ 源文件中设置断点，按 `F5` 开始调试；使用 `Ctrl+F5` 直接运行而不附加调试器。
 
-若 Visual Studio 提示找不到 Qt 或 vcpkg，请在启动 Visual Studio 前设置 `Qt6_DIR`、`VCPKG_ROOT`，然后执行
+普通 `Darkeye.exe` 调试目标传入 `--config-dir <项目根>/config --avwiki-dir <项目根>/avwiki --data-dir <项目根>/data`，直接使用开发目录，不在 exe 同级生成 data。新电脑检出项目后，Windows MSVC 首次 CMake 配置会自动从 `tools/launch.vs.json` 生成 `.vs/launch.vs.json`，无需手动复制；已有本地配置不会被覆盖。该配置只匹配普通目标；Install 目标不传路径参数，按安装目录中的资源与便携标记选择路径。使用 Visual Studio 工程生成器时，CMake 同样设置了构建目标的调试参数。
+
+若 Visual Studio 提示找不到 Qt 或 vcpkg，请检查预设中的 `Qt6_DIR` 路径，并在启动 Visual Studio 前设置 `VCPKG_ROOT`，然后执行
 **Project → Delete Cache and Reconfigure**。切换 Debug/Release 或切换依赖配置后，也应重新配置。
 
 ## VS Code 调试
@@ -176,22 +177,21 @@ ctest --preset debug
 2. 执行 **CMake: Configure**，再执行 **CMake: Build**。
 3. 选择 `Darkeye` 作为启动目标；在源文件添加断点后按 `F5`。
 
-VS Code 必须从已设置 `Qt6_DIR`、`VCPKG_ROOT` 的 Developer PowerShell 启动，或在系统环境变量中配置它们；否则 CMake 无法定位 Qt 和 vcpkg 工具链。
+VS Code 必须从已设置 `VCPKG_ROOT` 的 Developer PowerShell 启动，或在系统环境变量中配置它；Qt 使用预设中的 6.12.0 kit 路径。
 
 ## 安装目录与发布构建
 
 Release 构建不等同于安装包。构建完成后执行 `cmake --install`，才能得到可分发目录：
 
 ```powershell
-cmake --preset windows-msvc-release-data
-cmake --build --preset release-data
-cmake --install build/windows-msvc-release-data --config Release
+cmake --preset windows-msvc-release
+cmake --build --preset release
+cmake --install build/windows-msvc-release --config Release
 ```
 
-输出目录为 `out/install/release-data`。`release-data` 会一并安装 `data/`；若发布包不需要数据，使用
-`windows-msvc-release-no-data` / `release-no-data`，输出到 `out/install/release-no-data`。
+四个预设的安装目录分别为 `out/install/debug`、`out/install/debug-tests`、`out/install/release`、`out/install/release-tests`。Install 只部署程序、运行依赖以及必要的 `config/` 和 `avwiki/`，不复制开发数据，也不生成 `data`、`seed-data` 或 `portable.ini`。对外发布安装包或便携包使用 `tools/package.py`。
 
-安装步骤会复制程序、`resources/`、Qt 运行时和所需的 vcpkg DLL。交付前请在未安装开发环境的 Windows
+安装步骤会复制程序、只读 `config/`、初始 `avwiki/`、Qt 运行时和所需的 vcpkg DLL。交付前请在未安装开发环境的 Windows
 机器上验证 `Darkeye.exe` 能否直接启动。
 
 ## 常见问题
@@ -199,7 +199,7 @@ cmake --install build/windows-msvc-release-data --config Release
 ### CMake 找不到 Qt6
 
 确认 `Qt6_DIR` 指向类似
-`C:/Qt/6.10.3/msvc2022_64/lib/cmake/Qt6` 的目录，而不是 Qt 安装根目录；然后删除 CMake 缓存并重新配置。
+`C:/Qt/6.12.0/msvc2022_64/lib/cmake/Qt6` 的目录，而不是 Qt 安装根目录；然后删除 CMake 缓存并重新配置。
 
 ### vcpkg 工具链或依赖找不到
 
@@ -224,3 +224,11 @@ mkdir D:\webdav-test
 ```
 rclone serve webdav D:\webdav-test --addr 127.0.0.1:8090 --user test --pass 123456
 ```
+
+## Qt 6.12.0 升级验证（2026-10-25）
+
+主程序与独立 3D demo 固定要求 Qt 6.12.0；部署工具从选中的 Qt kit 查找，运行脚本优先读取构建缓存中的 kit 路径。MSVC x64 Release 主程序、测试与 3D demo 构建通过；独立 3D 入口配置通过。安装部署验证目录为 `out/verification/qt612-release`，已核对 Qt DLL 和 `qwindows.dll` 均为 6.12.0。验证时使用本机已有的 vcpkg 依赖并临时关闭依赖安装，以避开工具下载失败；项目的 manifest 配置不变。
+
+沙箱外完整 CTest 为 55/60 通过，日志位于 `build/qt-6.12-tests-unrestricted.log`。剩余失败为 `darkeye_collector_client_tests`、`darkeye_work_page_tests`、`darkeye_shelf_page_tests`、`darkeye_person_page_tests` 和 `darkeye_render3d_dpr_1.5`。业务测试失败涉及 Release 下 `Q_ASSERT` 中的服务监听未执行、以只读模式打开尚不存在的数据库、测试数据与页面结构/光照预期不匹配，未在本次版本升级中改动。
+
+高 DPI 渲染失败为 `transmissionRefractionAndResourceLifetime` 的薄片折射颜色断言；相同源码在 Qt 6.10.3 对照构建、相同 GPU 与缩放下也复现相同断言，日志位于 `build/qt610-render-baseline/tests/render3d-dpr-1.5.txt`。这些结果不代表全套测试通过，Debug 尚未重新构建验证。

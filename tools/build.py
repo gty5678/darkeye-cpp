@@ -94,22 +94,21 @@ def clean_build_directory(build_dir, dry_run=False):
         shutil.rmtree(target)
 
 
-def build_project(configuration="Release", run_tests=False, dry_run=False, clean=False):
+def build_project(configuration="Release", run_tests=False, dry_run=False, clean=False, skip_build=False, build_directory=None):
     env = os.environ.copy()
     system = platform.system().lower()
     config = configuration.lower()
 
     if system == "windows":
         root = visual_studio_root(env)
+        env.setdefault("VCPKG_ROOT", str(root / "VC/vcpkg"))
         if not dry_run:
             env = windows_environment(root, env)
         bundled_cmake = root / "Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe"
         cmake = str(bundled_cmake) if bundled_cmake.is_file() else shutil.which(
             "cmake", path=env.get("PATH")
         )
-        name = f"{config}-tests" if run_tests else (
-            "release-no-data" if config == "release" else "debug"
-        )
+        name = f"{config}-tests" if run_tests else config
         configure = [cmake, "--preset", f"windows-msvc-{name}"]
         build = [cmake, "--build", "--preset", name]
         build_dir = PROJECT_ROOT / "build" / (
@@ -117,29 +116,50 @@ def build_project(configuration="Release", run_tests=False, dry_run=False, clean
         )
     else:
         cmake = shutil.which("cmake", path=env.get("PATH"))
-        build_dir = PROJECT_ROOT / "build" / (
-            f"{system}-{config}" + ("-tests" if run_tests else "")
-        )
-        configure = [cmake, "-S", str(PROJECT_ROOT), "-B", str(build_dir),
-                     f"-DCMAKE_BUILD_TYPE={configuration}",
-                     f"-DDARKEYE_BUILD_TESTS={'ON' if run_tests else 'OFF'}",
-                     "-DDARKEYE_INSTALL_DATA=OFF"]
-        for variable in ("Qt6_DIR", "CMAKE_TOOLCHAIN_FILE"):
-            if env.get(variable):
-                configure.append(f"-D{variable}={env[variable]}")
-        if not env.get("CMAKE_TOOLCHAIN_FILE") and env.get("VCPKG_ROOT"):
-            toolchain = Path(env["VCPKG_ROOT"]) / "scripts/buildsystems/vcpkg.cmake"
-            configure.append(f"-DCMAKE_TOOLCHAIN_FILE={toolchain}")
+        machine = platform.machine().lower()
+        if system == "darwin":
+            if machine not in ("arm64", "aarch64"):
+                raise RuntimeError("macOS releases require an arm64 host and arm64 Qt kit.")
+            prefix = "macos-arm64"
+        elif system == "linux" and machine in ("x86_64", "amd64"):
+            prefix = "linux-x64"
+        else:
+            raise RuntimeError(f"Unsupported build host: {system}/{machine}")
+        name = f"{prefix}-{config}" + ("-tests" if run_tests else "")
+        build_dir = PROJECT_ROOT / "build" / name
+        configure = [cmake, "--preset", name]
+        build = [cmake, "--build", "--preset", name]
+
+    # Environment overrides keep committed presets independent of local Qt paths.
+    for variable in ("Qt6_DIR", "CMAKE_TOOLCHAIN_FILE", "VCPKG_TARGET_TRIPLET"):
+        if env.get(variable):
+            configure.append(f"-D{variable}={env[variable]}")
+    if build_directory is not None:
+        build_dir = Path(build_directory).absolute()
+        configure.extend(["-B", str(build_dir)])
         build = [cmake, "--build", str(build_dir), "--config", configuration, "--parallel"]
 
     if not cmake:
         raise RuntimeError("找不到 CMake，请安装 CMake 并加入 PATH。")
+    if skip_build:
+        if not dry_run:
+            cache_file = build_dir / "CMakeCache.txt"
+            if not cache_file.is_file():
+                raise RuntimeError(f"No configured native build at {build_dir}")
+            cache = cache_file.read_text(encoding="utf-8")
+            for line in cache.splitlines():
+                if line.startswith("CMAKE_BUILD_TYPE:"):
+                    cached_configuration = line.partition("=")[2]
+                    if cached_configuration and cached_configuration != configuration:
+                        raise RuntimeError(f"Expected {configuration} build, found {cached_configuration}: {build_dir}")
+        return cmake, env, build_dir
     if clean:
         clean_build_directory(build_dir, dry_run)
     run(configure, env, dry_run)
     run(build, env, dry_run)
     if run_tests:
-        run([cmake, "--test-dir", str(build_dir), "-C", configuration,
+        ctest = str(Path(cmake).with_name("ctest.exe" if system == "windows" else "ctest"))
+        run([ctest, "--test-dir", str(build_dir), "-C", configuration,
              "--output-on-failure"], env, dry_run)
     return cmake, env, build_dir
 
@@ -150,9 +170,11 @@ def main():
                         choices=("Debug", "Release"), default="Release")
     parser.add_argument("--test", "--run-tests", action="store_true",
                         help="启用测试构建，编译成功后运行测试")
+    parser.add_argument("--clean", action="store_true", help="Rebuild from scratch")
+    parser.add_argument("--build-dir", type=Path, help="Override the preset build directory")
     parser.add_argument("--dry-run", action="store_true", help="只显示命令，不执行构建")
     args = parser.parse_args()
-    build_project(args.config, args.test, args.dry_run)
+    build_project(args.config, args.test, args.dry_run, args.clean, build_directory=args.build_dir)
     return 0
 
 

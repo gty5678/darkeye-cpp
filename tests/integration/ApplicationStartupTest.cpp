@@ -19,6 +19,16 @@ int main(int argc, char **argv)
     QTemporaryDir databases;
     if (!databases.isValid()) return 4;
     darkeye::Application application(argc, argv);
+    const darkeye::settings::Paths runtimePaths;
+    const QStringList arguments = QCoreApplication::arguments();
+    for (const auto &entry : {qMakePair(QStringLiteral("--config-dir"), runtimePaths.configDirectory()),
+                              qMakePair(QStringLiteral("--avwiki-dir"), runtimePaths.wikiDirectory()),
+                              qMakePair(QStringLiteral("--data-dir"), runtimePaths.dataDirectory())}) {
+        const int index = arguments.indexOf(entry.first);
+        if (index < 0 || index + 1 >= arguments.size()
+            || entry.second != QDir(arguments.at(index + 1)).absolutePath()) return 9;
+    }
+    if (QFileInfo::exists(QDir(runtimePaths.dataDirectory()).filePath(QStringLiteral("avwiki")))) return 10;
     QSplashScreen *splash = nullptr;
     for (QWidget *widget : QApplication::topLevelWidgets()) {
         if (widget->objectName() == QStringLiteral("startupSplash"))

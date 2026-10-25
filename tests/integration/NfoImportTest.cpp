@@ -150,7 +150,7 @@ void NfoImportTest::blockedImages()
 void NfoImportTest::mdczCastCreationAndFallback()
 {
     QTemporaryDir temp;
-    settings::Paths paths(temp.path());
+    settings::Paths paths(temp.path(), QDir(temp.path()).filePath(QStringLiteral("data")));
     SqliteConnection connection;
     QString error;
     QVERIFY(connection.open(temp.filePath(QStringLiteral("public.db")), false, &error));
@@ -186,7 +186,7 @@ void NfoImportTest::mdczCastCreationAndFallback()
 void NfoImportTest::mdczFanartMigration()
 {
     QTemporaryDir temp;
-    settings::Paths paths(temp.filePath(QStringLiteral("app")));
+    settings::Paths paths(temp.filePath(QStringLiteral("app")), QDir(temp.filePath(QStringLiteral("app"))).filePath(QStringLiteral("data")));
     SqliteConnection connection;
     QString error;
     QVERIFY(connection.open(temp.filePath(QStringLiteral("public.db")), false, &error));

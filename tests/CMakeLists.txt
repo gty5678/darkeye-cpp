@@ -1,3 +1,12 @@
+# Native UI tests require a desktop (Linux: run ctest through xvfb-run).
+if(WIN32)
+    set(DARKEYE_TEST_NATIVE_PLATFORM windows)
+elseif(APPLE)
+    set(DARKEYE_TEST_NATIVE_PLATFORM cocoa)
+else()
+    set(DARKEYE_TEST_NATIVE_PLATFORM xcb)
+endif()
+
 add_subdirectory(demos)
 add_subdirectory(render3d)
 add_subdirectory(dvd_scene)
@@ -15,11 +24,14 @@ set_target_properties(darkeye_startup_tests PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/startup")
 darkeye_apply_compiler_options(darkeye_startup_tests)
 foreach(mode IN ITEMS reject accept)
-    add_test(NAME darkeye_startup_${mode} COMMAND darkeye_startup_tests ${mode})
+    add_test(NAME darkeye_startup_${mode} COMMAND darkeye_startup_tests ${mode}
+        --config-dir "${PROJECT_SOURCE_DIR}/config"
+        --avwiki-dir "${CMAKE_CURRENT_BINARY_DIR}/startup/wiki-${mode}"
+        --data-dir "${CMAKE_CURRENT_BINARY_DIR}/startup/data-${mode}")
     set_tests_properties(darkeye_startup_${mode} PROPERTIES
         RUN_SERIAL TRUE
         TIMEOUT 30
-        ENVIRONMENT "QT_QPA_PLATFORM=windows;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;TEMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime"
+        ENVIRONMENT "DARKEYE_DATA_DIR=${CMAKE_CURRENT_BINARY_DIR}/startup/data;QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;TEMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime"
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}")
 endforeach()
 
@@ -30,7 +42,7 @@ function(darkeye_add_qt_test target source)
     add_test(NAME ${target} COMMAND ${target})
     set_tests_properties(${target} PROPERTIES
         ENVIRONMENT
-            "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
+            "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;DARKEYE_DATA_DIR=${CMAKE_CURRENT_BINARY_DIR}/runtime/${target};TEMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime"
         ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}"
     )
@@ -53,7 +65,7 @@ darkeye_add_qt_test(darkeye_app_tests unit/AppPathsTest.cpp)
 darkeye_add_qt_test(darkeye_ui_smoke_tests integration/MainWindowSmokeTest.cpp)
 set_tests_properties(darkeye_ui_smoke_tests PROPERTIES
     RUN_SERIAL TRUE TIMEOUT 120
-    ENVIRONMENT "QT_QPA_PLATFORM=windows;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;TEMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime")
+    ENVIRONMENT "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;TEMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime")
 target_link_libraries(darkeye_ui_smoke_tests PRIVATE darkeye::desktop_ui)
 darkeye_add_qt_test(darkeye_theme_tests unit/ThemeServiceTest.cpp)
 darkeye_add_qt_test(darkeye_layout_tests unit/LayoutTest.cpp)
@@ -76,7 +88,7 @@ set_tests_properties(darkeye_ui_boundary_tests PROPERTIES
         "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}"
 )
 darkeye_add_qt_test(darkeye_myads_tests unit/MyAdsTest.cpp)
-darkeye_configure_packaging(darkeye_myads_tests)
+darkeye_configure_packaging(darkeye_myads_tests NO_INSTALL)
 add_test(NAME darkeye_myads_drag_tests
     COMMAND $<TARGET_FILE:darkeye_myads_tests>
         cancelledTabDragReturnsToOriginalPosition -platform offscreen)
@@ -86,13 +98,13 @@ set_tests_properties(darkeye_myads_drag_tests PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}")
 set_tests_properties(darkeye_myads_tests PROPERTIES
     ENVIRONMENT
-        "QT_QPA_PLATFORM=windows;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
+        "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
 )
 add_test(NAME darkeye_myads_demo_smoke
     COMMAND $<TARGET_FILE:darkeye_myads_demo> --smoke-test)
 set_tests_properties(darkeye_myads_demo_smoke PROPERTIES
     ENVIRONMENT
-        "QT_QPA_PLATFORM=windows;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
+        "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
     ENVIRONMENT_MODIFICATION
         "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}"
 )
@@ -100,7 +112,7 @@ add_test(NAME darkeye_graph_view_demo_smoke
     COMMAND $<TARGET_FILE:darkeye_graph_view_demo> --smoke-test)
 set_tests_properties(darkeye_graph_view_demo_smoke PROPERTIES
     ENVIRONMENT
-        "QT_QPA_PLATFORM=windows;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
+        "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
     ENVIRONMENT_MODIFICATION
         "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}"
     TIMEOUT 10
@@ -156,7 +168,7 @@ darkeye_add_qt_test(darkeye_shelf_page_tests integration/ShelfPageTest.cpp)
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/shelf-runtime")
 set_tests_properties(darkeye_shelf_page_tests PROPERTIES
     RUN_SERIAL TRUE TIMEOUT 120
-    ENVIRONMENT "QT_QPA_PLATFORM=windows;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;TEMP=${CMAKE_CURRENT_BINARY_DIR}/shelf-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/shelf-runtime")
+    ENVIRONMENT "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;TEMP=${CMAKE_CURRENT_BINARY_DIR}/shelf-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/shelf-runtime")
 darkeye_add_qt_test(darkeye_av_page_tests integration/AvPageTest.cpp)
 darkeye_add_qt_test(darkeye_person_page_tests integration/PersonPageTest.cpp)
 
@@ -203,7 +215,7 @@ darkeye_apply_compiler_options(darkeye_graph_page_rendering_tests)
 add_test(NAME darkeye_graph_page_rendering_tests COMMAND darkeye_graph_page_rendering_tests)
 set_tests_properties(darkeye_graph_page_rendering_tests PROPERTIES
     ENVIRONMENT
-        "QT_QPA_PLATFORM=windows;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
+        "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
     ENVIRONMENT_MODIFICATION
         "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}"
     TIMEOUT 10

@@ -338,7 +338,7 @@ void SchemaManagerTest::managerBacksUpBeforeMigratingLegacyDatabase()
     QTemporaryDir temporaryDirectory;
     QVERIFY(temporaryDirectory.isValid());
     const QString applicationDirectory = temporaryDirectory.path();
-    const darkeye::settings::Paths paths(applicationDirectory);
+    const darkeye::settings::Paths paths(applicationDirectory, QDir(applicationDirectory).filePath(QStringLiteral("data")));
     QVERIFY(paths.ensureRuntimeDirectories());
 
     {

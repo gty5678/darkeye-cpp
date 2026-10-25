@@ -15,7 +15,7 @@
 #include <QMessageBox>
 #include <QHBoxLayout>
 #include <QScrollArea>
-#include <QStandardPaths>
+#include "settings/Paths.h"
 #include <QUrl>
 #include <QUuid>
 #include <QVBoxLayout>
@@ -231,7 +231,7 @@ void ModifyActressPage::downloadCapturedAvatar(const QJsonObject &capture)
         return;
     if (m_avatarFetchRequestId != 0)
         m_avatarFetch->cancel(m_avatarFetchRequestId);
-    const QString temporaryRoot = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    const QString temporaryRoot = settings::Paths().temporaryDirectory();
     const QString destination = QDir(temporaryRoot).filePath(
         QStringLiteral("darkeye/minnano_%1_%2.jpg").arg(personId()).arg(QUuid::createUuid().toString(QUuid::Id128)));
     m_avatarFetchRequestId = m_avatarFetch->fetchToJpeg(source, destination);

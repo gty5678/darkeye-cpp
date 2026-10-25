@@ -123,16 +123,17 @@ bool ensureDefaults(QString settingsFile, QString *errorMessage)
     saveCrawler(CrawlerSettings{}, m_store.fileName());
     saveTranslation(TranslationSettings{}, m_store.fileName());
     m_store.setValues({
-        {QStringLiteral("Paths/Database"), QStringLiteral("data/public/public.db")},
-        {QStringLiteral("Paths/DatabaseBackups"), QStringLiteral("data/public/public_backup/")},
-        {QStringLiteral("Paths/Actressimages"), QStringLiteral("data/public/actressimages/")},
-        {QStringLiteral("Paths/Actorimages"), QStringLiteral("data/public/actorimages/")},
-        {QStringLiteral("Paths/WorkCovers"), QStringLiteral("data/public/workcovers/")},
-        {QStringLiteral("Paths/Fanart"), QStringLiteral("data/public/fanart/")},
-        {QStringLiteral("Paths/PrivateDatabase"), QStringLiteral("data/private/private.db")},
+        {QStringLiteral("Paths/Version"), 2},
+        {QStringLiteral("Paths/Database"), QStringLiteral("public/public.db")},
+        {QStringLiteral("Paths/DatabaseBackups"), QStringLiteral("public/public_backup/")},
+        {QStringLiteral("Paths/Actressimages"), QStringLiteral("public/actressimages/")},
+        {QStringLiteral("Paths/Actorimages"), QStringLiteral("public/actorimages/")},
+        {QStringLiteral("Paths/WorkCovers"), QStringLiteral("public/workcovers/")},
+        {QStringLiteral("Paths/Fanart"), QStringLiteral("public/fanart/")},
+        {QStringLiteral("Paths/PrivateDatabase"), QStringLiteral("private/private.db")},
         {QStringLiteral("Paths/PrivateDatabaseBackups"),
-         QStringLiteral("data/private/private_backup/")},
-        {QStringLiteral("Paths/Temp"), QStringLiteral("data/temp/")},
+         QStringLiteral("private/private_backup/")},
+        {QStringLiteral("Paths/Temp"), QStringLiteral("temp/")},
         {QStringLiteral("Paths/Videos"), QString()},
         {QStringLiteral("Video/LocalPlayerExe"), QString()},
     });

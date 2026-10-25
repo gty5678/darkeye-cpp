@@ -306,6 +306,9 @@ void ImageDropWidget::contextMenuEvent(QContextMenuEvent *event)
         QProcess::startDetached(QStringLiteral("explorer"),
                                 {QStringLiteral("/select,"),
                                  QDir::toNativeSeparators(imageInfo.absoluteFilePath())});
+#elif defined(Q_OS_MACOS)
+        QProcess::startDetached(QStringLiteral("open"),
+                                {QStringLiteral("-R"), imageInfo.absoluteFilePath()});
 #else
         QProcess::startDetached(QStringLiteral("xdg-open"), {imageInfo.absolutePath()});
 #endif

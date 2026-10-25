@@ -102,7 +102,7 @@ void WorkPageTest::loadsConfiguredRealDatabaseWhenAvailable()
               "check");
 
     const QString applicationDirectory = QFileInfo(dataDirectory).absoluteDir().absolutePath();
-    const darkeye::settings::Paths paths(applicationDirectory);
+    const darkeye::settings::Paths paths(applicationDirectory, dataDirectory);
     darkeye::SqliteConnection connection;
     QString errorMessage;
     QVERIFY2(connection.open(paths.publicDatabase(), true, &errorMessage), qPrintable(errorMessage));

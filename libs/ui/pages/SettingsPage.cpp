@@ -91,11 +91,20 @@ QString detectedDatabaseVersion(const QString &path)
 
 QString latestManifestUrl()
 {
-    const QString configPath = QDir(QCoreApplication::applicationDirPath())
-                                   .filePath(QStringLiteral("config/update.ini"));
+    const QString configPath = QDir(settings::Paths().configDirectory())
+                                   .filePath(QStringLiteral("update.ini"));
     QSettings config(configPath, QSettings::IniFormat);
     const QString configured = config.value(QStringLiteral("Update/LatestJsonUrl")).toString().trimmed();
     return configured.isEmpty() ? QStringLiteral("https://darkeye.win/latest.json") : configured;
+}
+
+QString executableFileFilter()
+{
+#ifdef Q_OS_WIN
+    return QStringLiteral("可执行文件 (*.exe);;所有文件 (*)");
+#else
+    return QStringLiteral("可执行文件 (*)");
+#endif
 }
 
 QString updaterExecutablePath()
@@ -123,7 +132,7 @@ QStringList updaterArguments()
 {
     return {QStringLiteral("--install-dir"), QCoreApplication::applicationDirPath(),
             QStringLiteral("--current-version"), QStringLiteral(DARKEYE_VERSION),
-            QStringLiteral("--main-exe"), QStringLiteral("DarkEye.exe"),
+            QStringLiteral("--main-exe"), QFileInfo(QCoreApplication::applicationFilePath()).fileName(),
             QStringLiteral("--latest-json-url"), latestManifestUrl(),
             QStringLiteral("--keep"), QStringLiteral("data"),
             QStringLiteral("--pid"), QString::number(QCoreApplication::applicationPid())};
@@ -255,8 +264,8 @@ void NfoSettingsPage::importFolder(bool mdcz, bool useVideoPaths)
     });
 }
 
-AboutSettingsPage::AboutSettingsPage(ThemeService &themeService, QWidget *parent)
-    : LazyWidget(parent), m_themeService(themeService)
+AboutSettingsPage::AboutSettingsPage(ThemeService &themeService, QWidget *parent, settings::Paths paths)
+    : LazyWidget(parent), m_themeService(themeService), m_runtimePaths(std::move(paths))
 {
 }
 
@@ -297,6 +306,12 @@ void AboutSettingsPage::lazyLoad()
                 QMessageBox::information(this, result.title, result.message);
                 return;
             }
+#ifndef Q_OS_WIN
+            if (QMessageBox::question(this, result.title,
+                    result.message + QStringLiteral("\n\n打开发布页下载适合本系统的版本？")) == QMessageBox::Yes)
+                QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/gty5678/darkeye-cpp/releases")));
+            return;
+#endif
             const QString prompt = result.message
                 + QStringLiteral("\n\n已检测到新版本。软件将退出以完成更新，是否立即更新？");
             if (QMessageBox::question(this, result.title, prompt,
@@ -349,6 +364,10 @@ void AboutSettingsPage::lazyLoad()
                                  QStringLiteral("已启动更新程序，软件即将退出完成更新。"));
         QTimer::singleShot(200, qApp, &QCoreApplication::quit);
     });
+#ifndef Q_OS_WIN
+    // Native installers / package managers perform upgrades on these platforms.
+    localUpdate->hide();
+#endif
     versionRow->addWidget(localUpdate);
 
     const auto addExternalButton = [this, versionRow](const QString &text, const QString &url)
@@ -392,6 +411,22 @@ void AboutSettingsPage::lazyLoad()
     updateOptions->addWidget(updateNotification);
     updateOptions->addStretch();
     layout->addLayout(updateOptions);
+
+    auto *runtimePaths = new QFormLayout;
+    runtimePaths->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    const auto addRuntimePath = [this, runtimePaths](const QString &title, const QString &path)
+    {
+        auto *value = new DesignLabel(QDir::toNativeSeparators(QDir(path).absolutePath()), this);
+        value->setTextFormat(Qt::PlainText);
+        value->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+        value->setWordWrap(true);
+        runtimePaths->addRow(new DesignLabel(title, this), value);
+    };
+    addRuntimePath(QStringLiteral("数据目录（data-dir）"), m_runtimePaths.dataDirectory());
+    addRuntimePath(QStringLiteral("配置目录（config）"), m_runtimePaths.configDirectory());
+    addRuntimePath(QStringLiteral("知识库目录（avwiki）"), m_runtimePaths.wikiDirectory());
+    layout->addSpacing(12);
+    layout->addLayout(runtimePaths);
 
     auto *downloadRow = new QHBoxLayout;
     downloadRow->addWidget(new DesignLabel(QStringLiteral("下载移动客户端"), this));
@@ -531,7 +566,7 @@ void VideoSettingsPage::browsePlayer()
 {
     const QString path = QFileDialog::getOpenFileName(
         this, QStringLiteral("选择播放器可执行文件"), QString{},
-        QStringLiteral("可执行文件 (*.exe);;所有文件 (*.*)"));
+        executableFileFilter());
     if (!path.isEmpty())
     {
         m_player->setText(path);
@@ -687,7 +722,7 @@ void ShortcutSettingsPage::lazyLoad()
     }
     layout->addStretch();
     layout->addWidget(
-        new DesignLabel(QStringLiteral("<small>配置将自动保存到 data/shortcuts.json</small>"),
+        new DesignLabel(QStringLiteral("<small>配置保存位置：%1</small>").arg(settings::Paths().shortcutsFile().toHtmlEscaped()),
                         this));
 }
 
@@ -891,7 +926,7 @@ void CrawlerSettingsPage::browseCollector()
 {
     const QString path = QFileDialog::getOpenFileName(
         this, QStringLiteral("选择信息补充器可执行文件"), QString{},
-        QStringLiteral("可执行文件 (*.exe);;所有文件 (*.*)"));
+        executableFileFilter());
     if (!path.isEmpty())
     {
         m_collectorExecutable->setText(path);
@@ -1037,7 +1072,7 @@ void TranslationSettingsPage::lazyLoad()
     llamaForm->addRow(new DesignLabel(QStringLiteral("快速下载"), this), llamaLinks);
     m_serverExecutable = new DesignLineEdit(this);
     m_serverExecutable->setText(values.llama.serverExecutable);
-    m_serverExecutable->setPlaceholderText(QStringLiteral("llama-server.exe 的绝对路径"));
+    m_serverExecutable->setPlaceholderText(QStringLiteral("llama-server 的绝对路径"));
     m_modelPath = new DesignLineEdit(this);
     m_modelPath->setText(values.llama.modelPath);
     m_modelPath->setPlaceholderText(QStringLiteral("GGUF 模型文件路径"));
@@ -1051,7 +1086,7 @@ void TranslationSettingsPage::lazyLoad()
     auto *modelRow = new QHBoxLayout;
     modelRow->addWidget(m_modelPath, 1);
     modelRow->addWidget(modelBrowse);
-    llamaForm->addRow(new DesignLabel(QStringLiteral("llama-server.exe"), this), serverRow);
+    llamaForm->addRow(new DesignLabel(QStringLiteral("llama-server"), this), serverRow);
     llamaForm->addRow(new DesignLabel(QStringLiteral("GGUF 模型"), this), modelRow);
     m_host = new DesignLineEdit(this);
     m_host->setText(values.llama.host);
@@ -1225,7 +1260,7 @@ void TranslationSettingsPage::updateCommandPreview()
     if (!m_commandPreview) return;
     const QString executable = m_serverExecutable->text().trimmed();
     m_commandPreview->setPlainText(executable.isEmpty()
-        ? QStringLiteral("请先选择 llama-server.exe 路径。")
+        ? QStringLiteral("请先选择 llama-server 路径。")
         : QStringLiteral("\"") + executable + QStringLiteral("\" ") + llamaArguments().join(u' '));
 }
 
@@ -1333,8 +1368,8 @@ void TranslationSettingsPage::testTranslation()
 void TranslationSettingsPage::browseServerExecutable()
 {
     const QString path = QFileDialog::getOpenFileName(
-        this, QStringLiteral("选择 llama-server.exe"), QString{},
-        QStringLiteral("可执行文件 (*.exe);;所有文件 (*.*)"));
+        this, QStringLiteral("选择 llama-server"), QString{},
+        executableFileFilter());
     if (!path.isEmpty()) { m_serverExecutable->setText(path); save(); updateCommandPreview(); }
 }
 
@@ -1629,7 +1664,7 @@ void SettingsPage::lazyLoad()
         {QStringLiteral("翻译"), new TranslationSettingsPage(this)},
         {QStringLiteral("数据库"), new DatabaseSettingsPage(m_publicDatabase, m_privateDatabase, m_paths, this)},
         {QStringLiteral("快捷键"), new ShortcutSettingsPage(m_shortcutsFile, this)},
-        {QStringLiteral("关于软件"), new AboutSettingsPage(m_themeService, this)},
+        {QStringLiteral("关于软件"), new AboutSettingsPage(m_themeService, this, m_paths)},
     };
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(new ModernScrollMenu(sections, this));

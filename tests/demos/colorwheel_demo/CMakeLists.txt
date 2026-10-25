@@ -3,4 +3,4 @@ qt_add_executable(darkeye_colorwheel_demo WIN32
 )
 target_link_libraries(darkeye_colorwheel_demo PRIVATE darkeye::colorwheel)
 darkeye_apply_compiler_options(darkeye_colorwheel_demo)
-darkeye_configure_packaging(darkeye_colorwheel_demo)
+darkeye_configure_packaging(darkeye_colorwheel_demo NO_INSTALL)

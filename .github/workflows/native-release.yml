@@ -1,0 +1,88 @@
+name: Native Release validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2022
+            platform: windows-x64
+            qt_arch: win64_msvc2022_64
+            preset: windows-msvc-release-tests
+          - runner: ubuntu-24.04
+            platform: linux-x64
+            qt_arch: linux_gcc_64
+            preset: linux-x64-release-tests
+          - runner: macos-15
+            platform: macos-arm64
+            qt_arch: clang_64
+            preset: macos-arm64-release-tests
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Linux build and desktop dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build pkg-config libsecret-1-dev libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev libxcb-cursor0 xvfb unzip dpkg-dev fonts-noto-cjk
+      - name: Install Windows packaging tools
+        if: runner.os == 'Windows'
+        run: choco install innosetup 7zip --yes --no-progress
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.12.0'
+          arch: ${{ matrix.qt_arch }}
+          modules: 'qthttpserver qtwebsockets qtshadertools qtsvg'
+          cache: true
+      - name: Prepare reproducible dependencies
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git "$env:RUNNER_TEMP/darkeye-vcpkg"
+          $manifest = Get-Content vcpkg.json | ConvertFrom-Json
+          git -C "$env:RUNNER_TEMP/darkeye-vcpkg" checkout $manifest.'builtin-baseline'
+          "VCPKG_ROOT=$env:RUNNER_TEMP/darkeye-vcpkg" >> $env:GITHUB_ENV
+          "Qt6_DIR=$env:QT_ROOT_DIR/lib/cmake/Qt6" >> $env:GITHUB_ENV
+      - name: Test release tooling
+        run: python tools/test_packaging.py
+      - name: Native Release build and tests
+        if: runner.os != 'Linux'
+        run: python tools/build.py --config Release --test
+      - name: Native Linux Release build and tests
+        if: runner.os == 'Linux'
+        run: dbus-run-session -- xvfb-run -a python tools/build.py --config Release --test
+      - name: Package portable and installer artifacts
+        run: python tools/package.py --skip-build --build-dir build/${{ matrix.preset }}
+      - name: Upload packages and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: Darkeye-${{ matrix.platform }}
+          path: |
+            out/*-portable.7z
+            out/*-portable.zip
+            out/*-portable.tar.gz
+            out/*-setup.exe
+            out/*-setup.pkg
+            out/*-setup.deb
+            out/*.sha256
+          if-no-files-found: error
+      - name: Upload test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostics-${{ matrix.platform }}
+          path: build/${{ matrix.preset }}/Testing/
+          if-no-files-found: ignore

@@ -284,7 +284,7 @@ void MainWindowSmokeTest::homeShowsThreeRandomRows()
 void MainWindowSmokeTest::backgroundChangesRefreshOpenPages()
 {
     QTemporaryDir directory;
-    darkeye::settings::Paths paths(directory.path());
+    darkeye::settings::Paths paths(directory.path(), QDir(directory.path()).filePath(QStringLiteral("data")));
     QVERIFY(paths.ensureRuntimeDirectories());
     darkeye::SqliteConnection publicConnection, privateConnection;
     QString error;
@@ -424,7 +424,7 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QVERIFY(temporaryDirectory.isValid());
 
     const QString applicationDirectory = temporaryDirectory.path();
-    const darkeye::settings::Paths paths(applicationDirectory);
+    const darkeye::settings::Paths paths(applicationDirectory, QDir(applicationDirectory).filePath(QStringLiteral("data")));
     QVERIFY(paths.ensureRuntimeDirectories());
 
     auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());

@@ -15,9 +15,9 @@
 
 ## 在 Visual Studio 中调试
 
-用 VS 2022 打开仓库文件夹，选择 `windows-msvc-release-data`（构建 preset 名为 `release-data`）。该配置已开启 `DARKEYE_BUILD_RENDER3D_DEMO=ON`。保存并重新生成 CMake 缓存，等配置完成后，在启动项下拉框选择 **`darkeye_dvd_scene_demo.exe`**，按 F5。
+用 VS 2022 打开仓库文件夹，选择 `windows-msvc-release`（构建 preset 为 `release`），并在 CMake 缓存中开启 `DARKEYE_BUILD_RENDER3D_DEMO=ON`。保存并重新生成 CMake 缓存，等配置完成后，在启动项下拉框选择 **`darkeye_dvd_scene_demo.exe`**，按 F5。
 
-程序位于 `build/windows-msvc-release-data/darkeye_dvd_scene_demo.exe`，源码入口为本目录 `dvd_demo.cpp`。若启动项仍旧，使用 VS 的“项目 → 配置缓存”重新配置；确认打开的是本仓库根目录。也可在 CMake 目标视图右键该 target，选择“设为启动项”。不要切到主程序 target。
+程序位于 `build/windows-msvc-release/darkeye_dvd_scene_demo.exe`，源码入口为本目录 `dvd_demo.cpp`。若启动项仍旧，使用 VS 的“项目 → 配置缓存”重新配置；确认打开的是本仓库根目录。也可在 CMake 目标视图右键该 target，选择“设为启动项”。不要切到主程序 target。
 
 Release 有编译优化，单步和局部变量可能不完整。完整断点调试可在 VS 单独打开本目录，使用下面的 Debug 构建，或在仓库 Debug 配置中开启同一选项。
 
@@ -27,14 +27,14 @@ Release 有编译优化，单步和局部变量可能不完整。完整断点调
 
 ```powershell
 cmake -S apps/render3d_demo -B build/render3d-debug -G Ninja `
-  -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=C:/Qt/6.10.3/msvc2022_64 `
+  -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=C:/Qt/6.12.0/msvc2022_64 `
   -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
 cmake --build build/render3d-debug --parallel 4
 ./build/render3d-debug/darkeye_dvd_scene_demo.exe
 ctest --test-dir build/render3d-debug --output-on-failure
 ```
 
-Release 把目录改为 `build/render3d-release`、构建类型改为 `Release`。`Embedded` 使用 `/Z7` 保留调试信息，避免共享编译 PDB 服务的环境错误。此独立入口只需 Qt 6.10 Core/Gui/Widgets/GuiPrivate/ShaderTools，测试另需 Test；不需 vcpkg、数据库、Quick 或 QML。`-DBUILD_TESTING=OFF` 可关闭测试。Windows 自动运行 `windeployqt`，模型及 qsb 已嵌入程序，无需复制原始 shader。
+Release 把目录改为 `build/render3d-release`、构建类型改为 `Release`。`Embedded` 使用 `/Z7` 保留调试信息，避免共享编译 PDB 服务的环境错误。此独立入口只需 Qt 6.12.0 Core/Gui/Widgets/GuiPrivate/ShaderTools，测试另需 Test；不需 vcpkg、数据库、Quick 或 QML。`-DBUILD_TESTING=OFF` 可关闭测试。Windows 自动运行 `windeployqt`，模型及 qsb 已嵌入程序，无需复制原始 shader。
 
 完整仓库的其他配置可设置 `DARKEYE_BUILD_RENDER3D_DEMO=ON`；`DARKEYE_BUILD_TESTS=ON` 也包含新库和测试。该开关默认 OFF，仅决定独立调试程序是否构建；渲染库现在由主程序书架使用。
 
@@ -74,12 +74,12 @@ Smoke 会聚焦/开盒、读回 framebuffer、关盒返回并校验错误、退�
 
 ```powershell
 cmake -S apps/render3d_demo -B build/render3d-release -G Ninja `
-  -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/Qt/6.10.3/msvc2022_64 `
+  -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/Qt/6.12.0/msvc2022_64 `
   -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded -DDARKEYE_RENDER3D_BASELINE=ON
 cmake --build build/render3d-release --parallel 4
-$env:PATH = 'C:/Qt/6.10.3/msvc2022_64/bin;' + $env:PATH
-$env:QML_IMPORT_PATH = 'C:/Qt/6.10.3/msvc2022_64/qml'
-$env:QT_QPA_PLATFORM_PLUGIN_PATH = 'C:/Qt/6.10.3/msvc2022_64/plugins'
+$env:PATH = 'C:/Qt/6.12.0/msvc2022_64/bin;' + $env:PATH
+$env:QML_IMPORT_PATH = 'C:/Qt/6.12.0/msvc2022_64/qml'
+$env:QT_QPA_PLATFORM_PLUGIN_PATH = 'C:/Qt/6.12.0/msvc2022_64/plugins'
 ./build/render3d-release/darkeye_dvd_baseline.exe --output build/qrhi3d-baseline
 python tools/qrhi3d_baseline_animation.py build/qrhi3d-baseline
 python tools/qrhi3d_performance_report.py --old build/qrhi3d-baseline/baseline.json `

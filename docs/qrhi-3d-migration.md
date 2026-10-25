@@ -4,7 +4,7 @@ DarkEye 自研 QRhiWidget 3D 场景替代方案
 建议仓库位置：docs/architecture/qrhi-3d-migration.md
 项目：gty5678/darkeye-cpp
 编写日期：2026-10-15
-目标技术栈：C++20 / Qt 6.10+ / Qt Widgets / QRhiWidget / QRhi / CMake
+目标技术栈：C++20 / Qt 6.12.0 / Qt Widgets / QRhiWidget / QRhi / CMake
 状态：待实施；文中所有新类、新目录均为建议设计，非现有代码已实现的声明。
 
 0. 执行摘要
@@ -67,7 +67,7 @@ libs/ui/CMakeLists.txt
 
 按使用点逐个迁移后移除依赖
 
-cmake/Dependencies.cmake 使用 find_package(Qt6 6.10 ...)，包含 ShaderTools 和上述 Quick 模块
+cmake/Dependencies.cmake 使用 find_package(Qt6 6.12.0 ...)，包含 ShaderTools 和上述 Quick 模块
 
 cmake/Dependencies.cmake
 

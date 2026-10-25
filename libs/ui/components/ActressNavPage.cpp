@@ -65,6 +65,8 @@ void ActressNavPage::loadButtons(QGridLayout *layout)
         // configuration file itself, instead of merely opening its directory.
         QProcess::startDetached(QStringLiteral("explorer.exe"),
                                 {QStringLiteral("/select,%1").arg(QDir::toNativeSeparators(m_configFile))});
+#elif defined(Q_OS_MACOS)
+        QProcess::startDetached(QStringLiteral("open"), {QStringLiteral("-R"), m_configFile});
 #else
         QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(m_configFile).absolutePath()));
 #endif

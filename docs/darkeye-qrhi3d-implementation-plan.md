@@ -4,7 +4,7 @@
 > **建议仓库位置**：`docs/architecture/qrhi-3d-migration.md`  
 > **项目**：[`gty5678/darkeye-cpp`](https://github.com/gty5678/darkeye-cpp)  
 > **编写日期**：2026-10-15  
-> **目标技术栈**：C++20 / Qt 6.10+ / Qt Widgets / QRhiWidget / QRhi / CMake  
+> **目标技术栈**：C++20 / Qt 6.12.0 / Qt Widgets / QRhiWidget / QRhi / CMake
 > **状态**：独立 DVD demo 已实现，Debug/Release 与 release-data 验证通过；生产页面迁移未执行。
 > **本轮范围（用户确认）**：先完成独立 DVD demo，暂不接入主程序。P3-02 的数据库对接、P3-07、P5 和主程序混合图形回归保留后续；接口草案以实际头文件为准。
 > **执行证据**：见 [执行记录](qrhi3d-progress.md)、[运行与调试](../apps/render3d_demo/README.md) 和 [性能记录](qrhi3d-performance.md)。未勾选条目不表示已经完成。
@@ -42,7 +42,7 @@
 | 主技术栈包含 C++20 / Qt 6，顶层有 `libs/`、`apps/`、`tests/` 和 `docs/` | 仓库 `README` 与目录 | 按现有多库布局扩展 |
 | `libs/graph_view` 为独立目标，使用 `Qt6::GuiPrivate`、`qt_add_shaders()` | `libs/graph_view/CMakeLists.txt` | 可参考 Shader/CMake/QRhi 构建方式，不直接复用图谱业务渲染实现 |
 | `libs/ui` 的 `darkeye_business_ui` 目标仍链接 `Qt6::Qml`、`Qt6::Quick`、`Qt6::Quick3D`、`Qt6::QuickWidgets` | `libs/ui/CMakeLists.txt` | 按使用点逐个迁移后移除依赖 |
-| `cmake/Dependencies.cmake` 使用 `find_package(Qt6 6.10 ...)`，包含 ShaderTools 和上述 Quick 模块 | `cmake/Dependencies.cmake` | 第一阶段沿用现有 Qt 环境，不提前删包 |
+| `cmake/Dependencies.cmake` 使用 `find_package(Qt6 6.12.0 ...)`，包含 ShaderTools 和上述 Quick 模块 | `cmake/Dependencies.cmake` | 第一阶段沿用现有 Qt 环境，不提前删包 |
 | 公开功能说明有拟物化 DVD 陈列、关系图谱，3D 场景目前还未完全适配明/暗主题 | `README` | 把场景视觉和主题兼容列入回归测试 |
 
 **尚未核实、必须在 P0 阶段确认：** DVD 页面现有 QML/GLB 的具体路径、资源复用方式、动画/交互状态、数据绑定入口、是否存在仍需要 Qt Quick 的其他页面。

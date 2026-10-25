@@ -9,6 +9,7 @@
 #include <QJsonObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QStandardPaths>
 #include <QUuid>
 
 namespace darkeye
@@ -170,8 +171,19 @@ void AvwikiUpdateService::extractPackage()
     if (!QDir().mkpath(m_extractDirectory)) {
         completeFailure(updateError(QStringLiteral("无法创建临时解压目录。"))); return;
     }
-    m_extractor.setProgram(QStringLiteral("tar"));
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+    const QString extractor = QStandardPaths::findExecutable(QStringLiteral("tar"));
     m_extractor.setArguments({QStringLiteral("-xf"), m_packageFile, QStringLiteral("-C"), m_extractDirectory});
+#else
+    // GNU tar cannot read ZIP archives.
+    const QString extractor = QStandardPaths::findExecutable(QStringLiteral("unzip"));
+    m_extractor.setArguments({QStringLiteral("-q"), m_packageFile, QStringLiteral("-d"), m_extractDirectory});
+#endif
+    if (extractor.isEmpty()) {
+        completeFailure(updateError(QStringLiteral("缺少 ZIP 解压工具，请安装 tar（Windows/macOS）或 unzip（Linux）。")));
+        return;
+    }
+    m_extractor.setProgram(extractor);
     m_extractor.start();
     if (!m_extractor.waitForStarted(1000)) {
         completeFailure(updateError(QStringLiteral("无法启动资源包解压工具。"))); return;

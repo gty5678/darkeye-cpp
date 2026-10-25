@@ -32,12 +32,14 @@ class AboutSettingsPage final : public LazyWidget
     Q_OBJECT
 
 public:
-    explicit AboutSettingsPage(ThemeService &themeService, QWidget *parent = nullptr);
+    explicit AboutSettingsPage(ThemeService &themeService, QWidget *parent = nullptr,
+                               settings::Paths paths = {});
 
 private:
     void lazyLoad() override;
 
     ThemeService &m_themeService;
+    settings::Paths m_runtimePaths;
 };
 
 class VideoSettingsPage final : public LazyWidget

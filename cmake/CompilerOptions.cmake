@@ -19,12 +19,25 @@ function(darkeye_apply_compiler_options target)
     # Executables and tests read editable configuration beside the binary.
     get_target_property(target_type ${target} TYPE)
     if(target_type STREQUAL "EXECUTABLE" AND EXISTS "${PROJECT_SOURCE_DIR}/config")
-        add_custom_command(TARGET ${target} POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E copy_directory
-                "${PROJECT_SOURCE_DIR}/config"
-                "$<TARGET_FILE_DIR:${target}>/config"
-            VERBATIM
-        )
+        # Many tests share one output directory. Copy once before linking,
+        # instead of racing concurrent POST_BUILD copies into the same files.
+        get_target_property(config_output_dir ${target} RUNTIME_OUTPUT_DIRECTORY)
+        if(NOT config_output_dir)
+            if(CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+                set(config_output_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+            else()
+                set(config_output_dir "${CMAKE_CURRENT_BINARY_DIR}")
+            endif()
+        endif()
+        string(SHA256 config_output_id "${config_output_dir}")
+        set(config_copy_target "darkeye_config_${config_output_id}")
+        if(NOT TARGET ${config_copy_target})
+            add_custom_target(${config_copy_target}
+                COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                    "${PROJECT_SOURCE_DIR}/config" "${config_output_dir}/config"
+                VERBATIM)
+        endif()
+        add_dependencies(${target} ${config_copy_target})
     endif()
 
     if(MSVC)

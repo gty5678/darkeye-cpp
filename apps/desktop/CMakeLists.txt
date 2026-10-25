@@ -23,10 +23,32 @@ qt_add_executable(Darkeye WIN32
     Application.h
     main.cpp
 )
+if(APPLE)
+    set_target_properties(Darkeye PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_GUI_IDENTIFIER "win.darkeye.desktop"
+        MACOSX_BUNDLE_BUNDLE_NAME "Darkeye"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    )
+endif()
 if(WIN32)
     target_sources(Darkeye PRIVATE "${PROJECT_SOURCE_DIR}/resources/logo.rc")
 endif()
 target_link_libraries(Darkeye PRIVATE darkeye::desktop_ui)
 darkeye_apply_compiler_options(Darkeye)
 darkeye_configure_packaging(Darkeye)
+
+# Visual Studio project generators: arguments apply to the build executable only.
+set_property(TARGET Darkeye PROPERTY VS_DEBUGGER_COMMAND_ARGUMENTS
+    "--config-dir \"${PROJECT_SOURCE_DIR}/config\" --avwiki-dir \"${PROJECT_SOURCE_DIR}/avwiki\" --data-dir \"${PROJECT_SOURCE_DIR}/data\"")
+set_property(TARGET Darkeye PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
+
+# Visual Studio's Open Folder workflow uses launch.vs.json with Ninja presets.
+# Bootstrap a fresh checkout from the shared template; preserve local overrides.
+if(WIN32 AND MSVC AND NOT EXISTS "${PROJECT_SOURCE_DIR}/.vs/launch.vs.json")
+    file(MAKE_DIRECTORY "${PROJECT_SOURCE_DIR}/.vs")
+    configure_file("${PROJECT_SOURCE_DIR}/tools/launch.vs.json"
+        "${PROJECT_SOURCE_DIR}/.vs/launch.vs.json" COPYONLY)
+endif()
 

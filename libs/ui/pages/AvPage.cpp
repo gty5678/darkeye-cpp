@@ -174,16 +174,7 @@ QString AvPage::resolveWikiDirectory() const
     if (!m_requestedWikiDirectory.trimmed().isEmpty())
         return normalizedPath(m_requestedWikiDirectory);
 
-    const QString installed = QDir(settings::Paths().applicationDirectory())
-                                  .filePath(QStringLiteral("avwiki"));
-    if (QFileInfo::exists(installed)) return normalizedPath(installed);
-
-#ifdef DARKEYE_SOURCE_DIR
-    const QString source = QDir(QStringLiteral(DARKEYE_SOURCE_DIR))
-                               .filePath(QStringLiteral("avwiki"));
-    if (QFileInfo::exists(source)) return normalizedPath(source);
-#endif
-    return normalizedPath(installed);
+    return normalizedPath(settings::Paths().wikiDirectory());
 }
 
 void AvPage::rebuildTree()

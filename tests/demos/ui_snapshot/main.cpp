@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
     QDir().mkpath(outputDirectory);
 
     const QString applicationDirectory = QFileInfo(dataDirectory).absoluteDir().absolutePath();
-    const darkeye::settings::Paths paths(applicationDirectory);
+    const darkeye::settings::Paths paths(applicationDirectory, dataDirectory);
     darkeye::SqliteConnection publicConnection;
     darkeye::SqliteConnection privateConnection;
     QString errorMessage;

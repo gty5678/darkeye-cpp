@@ -48,7 +48,6 @@
 #include <QPushButton>
 #include <QSet>
 #include <QShowEvent>
-#include <QStandardPaths>
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QSpinBox>
@@ -1465,8 +1464,7 @@ void AddWorkTabPage3::fetchNextCrawledCover()
     if (m_crawlSerial.isEmpty() || m_crawlCoverIndex < 0
         || m_crawlCoverIndex >= m_crawlCoverUrls.size())
         return;
-    const QString cacheRoot = QStandardPaths::writableLocation(
-        QStandardPaths::CacheLocation);
+    const QString cacheRoot = settings::Paths().cacheDirectory();
     const QString crawlDirectory = QDir(cacheRoot).filePath(QStringLiteral("crawler-covers"));
     QDir().mkpath(crawlDirectory);
     const QString destination = QDir(crawlDirectory).filePath(
@@ -1493,8 +1491,7 @@ void AddWorkTabPage3::fetchHighQualityCover()
     const QString fanzaId = serial::convertFanza(serialNumber.toUpper());
     const QUrl sourceUrl(QStringLiteral("https://awsimgsrc.dmm.co.jp/pics_dig/digital/video/%1/%1pl.jpg")
                              .arg(fanzaId));
-    const QString cacheRoot = QStandardPaths::writableLocation(
-        QStandardPaths::CacheLocation);
+    const QString cacheRoot = settings::Paths().cacheDirectory();
     const QString highQualityDirectory = QDir(cacheRoot).filePath(
         QStringLiteral("high-quality-covers"));
     if (!QDir().mkpath(highQualityDirectory))
