@@ -169,7 +169,23 @@ void StatisticsRepositoryTest::rendersPersonalDataPage()
     QVERIFY(page.findChild<QWidget *>(QStringLiteral("RecordYearButtonList")));
     const QPixmap snapshot = page.grab();
     QVERIFY(!snapshot.isNull());
-    QCOMPARE(snapshot.size(), page.size());
+    QCOMPARE(snapshot.deviceIndependentSize().toSize(), page.size());
+    const auto cards = page.findChildren<QWidget *>(QStringLiteral("PersonalSummaryCard"));
+    QCOMPARE(cards.size(), 4);
+    for (auto *card : cards) {
+        QVERIFY(card->graphicsEffect() == nullptr);
+        QCOMPARE(card->size(), QSize(186, 266));
+        const qreal dpr = card->devicePixelRatioF();
+        // The shadow must extend into the reserved margin without painting
+        // opaque corner pixels or capturing the child labels and avatars.
+        QTRY_VERIFY_WITH_TIMEOUT(card->grab().toImage().pixelColor(
+            qRound(card->width() * dpr / 2), qRound(7 * dpr)).alpha() > 0, 2000);
+        const QImage image = card->grab().toImage();
+        QCOMPARE(image.pixelColor(0, 0).alpha(), 0);
+        QVERIFY(image.pixelColor(qRound(card->width() * dpr / 2), qRound(7 * dpr)).alpha() < 80);
+    }
+    const QString previewPath = qEnvironmentVariable("DARKEYE_TEST_SNAPSHOT_PATH");
+    if (!previewPath.isEmpty()) QVERIFY(page.grab().save(previewPath));
 }
 
 QTEST_MAIN(StatisticsRepositoryTest)

@@ -6,6 +6,7 @@
 #include "darkeye_ui/components/DesignButton.h"
 #include "darkeye_ui/components/DesignLabel.h"
 #include "darkeye_ui/components/IconButton.h"
+#include "darkeye_ui/components/SoftShadow.h"
 #include "ui/components/PersonCard.h"
 #include "ui/components/StatsOverviewCards.h"
 #include "darkeye_ui/theme/ThemeService.h"
@@ -14,14 +15,16 @@
 #include <QDate>
 #include <QDir>
 #include <QFrame>
-#include <QGraphicsDropShadowEffect>
+#include <QEvent>
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPointer>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStackedWidget>
 #include <QTimer>
+#include <QThreadPool>
 #include <QVBoxLayout>
 
 namespace darkeye
@@ -34,34 +37,53 @@ public:
                 QWidget *parent = nullptr)
         : QWidget(parent), m_themeService(themeService), m_drawBorder(drawBorder)
     {
-        setFixedSize(170, 250);
-        setAttribute(Qt::WA_StyledBackground, true);
+        setObjectName(QStringLiteral("PersonalSummaryCard"));
+        // Preserve the 170x250 card body and give the shadow its own space.
+        setFixedSize(170 + 2 * kShadowMargin, 250 + 2 * kShadowMargin);
         setAttribute(Qt::WA_TranslucentBackground);
         setAutoFillBackground(false);
 
-        auto *shadow = new QGraphicsDropShadowEffect(this);
-        shadow->setBlurRadius(10);
-        shadow->setOffset(0, 2);
-        shadow->setColor(QColor(0, 0, 0, 80));
-        setGraphicsEffect(shadow);
-
         m_layout = new QVBoxLayout(this);
-        m_layout->setContentsMargins(margins);
+        m_layout->setContentsMargins(margins + QMargins(kShadowMargin, kShadowMargin,
+                                                       kShadowMargin, kShadowMargin));
         connect(&m_themeService, &ThemeService::themeChanged, this,
                 [this] { update(); });
+        requestShadow();
     }
 
 public:
     QVBoxLayout *contentLayout() const { return m_layout; }
 
 protected:
+    bool event(QEvent *event) override
+    {
+        const bool handled = QWidget::event(event);
+        if (event->type() == QEvent::DevicePixelRatioChange)
+            requestShadow();
+        return handled;
+    }
+
     void paintEvent(QPaintEvent *event) override
     {
         Q_UNUSED(event);
         const ThemeTokens tokens = m_themeService.currentTokens();
-        constexpr int chamfer = 20;
-        const QRect rectangle = rect();
+        QPainter painter(this);
+        if (!m_shadow.isNull()) painter.drawPixmap(0, 0, m_shadow);
+        painter.setRenderHint(QPainter::Antialiasing);
+        if (m_drawBorder)
+            painter.setPen(QPen(QColor(tokens.border), 1));
+        else
+            painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(tokens.background));
+        painter.drawPath(cardPath());
+    }
 
+private:
+    QPainterPath cardPath() const
+    {
+        constexpr int chamfer = 20;
+        const QRectF rectangle = QRectF(rect()).adjusted(kShadowMargin, kShadowMargin,
+                                                        -kShadowMargin, -kShadowMargin);
         QPainterPath path;
         path.moveTo(rectangle.left() + chamfer, rectangle.top());
         path.lineTo(rectangle.right() - chamfer, rectangle.top());
@@ -73,20 +95,33 @@ protected:
         path.lineTo(rectangle.left(), rectangle.top() + chamfer);
         path.closeSubpath();
 
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing);
-        if (m_drawBorder)
-            painter.setPen(QPen(QColor(tokens.border), 1));
-        else
-            painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(tokens.background));
-        painter.drawPath(path);
+        return path;
     }
 
-private:
+    void requestShadow()
+    {
+        const quint64 request = ++m_shadowRequest;
+        const qreal dpr = devicePixelRatioF();
+        const QSize pixels(qCeil(width() * dpr), qCeil(height() * dpr));
+        const auto path = cardPath();
+        QPointer<OctagonCard> guard(this);
+        QThreadPool::globalInstance()->start([guard, request, dpr, pixels, path] {
+            const QImage image = renderSoftShadow(pixels, path, dpr);
+            if (!guard) return;
+            QMetaObject::invokeMethod(guard, [guard, request, image] {
+                if (!guard || guard->m_shadowRequest != request) return;
+                guard->m_shadow = QPixmap::fromImage(image);
+                guard->update();
+            }, Qt::QueuedConnection);
+        });
+    }
+
+    static constexpr int kShadowMargin = 8;
     ThemeService &m_themeService;
     bool m_drawBorder = true;
     QVBoxLayout *m_layout = nullptr;
+    QPixmap m_shadow;
+    quint64 m_shadowRequest = 0;
 };
 
 class TopActressCard final : public OctagonCard
