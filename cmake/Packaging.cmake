@@ -47,7 +47,7 @@ function(darkeye_configure_packaging target)
         )
     endif()
 
-    # Test demos need build-tree runtime deployment, but are not product payloads.
+    # Development tools need build-tree runtime deployment, but no install payload.
     if("${ARGV1}" STREQUAL "NO_INSTALL")
         return()
     endif()

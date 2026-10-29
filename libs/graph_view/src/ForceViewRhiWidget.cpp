@@ -1,10 +1,16 @@
 #include "ForceViewRhiWidget.h"
 
 #include "Forces.h"
+#include "GpuSimulation.h"
+#include "ForcePerformanceOverlay.h"
 
 #include <QByteArray>
+#include <QAction>
 #include <QFile>
 #include <QFileInfo>
+#include <QContextMenuEvent>
+#include <QMenu>
+#include <QSignalBlocker>
 #include <QMatrix4x4>
 #include <QMetaObject>
 #include <QPointer>
@@ -20,6 +26,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <random>
 
 namespace {
@@ -66,6 +73,11 @@ public:
     void detachOwner() { m_owner = nullptr; }
 
 protected:
+    void contextMenuEvent(QContextMenuEvent* event) override
+    {
+        if (m_owner) m_owner->contextMenuEvent(event);
+        else QRhiWidget::contextMenuEvent(event);
+    }
     // QRhiWidget 初始化回调，转交给外层创建基础 QRhi 资源。
     void initialize(QRhiCommandBuffer* cb) override
     {
@@ -157,10 +169,20 @@ ForceViewRhiWidget::ForceViewRhiWidget(QWidget* parent)
     updateFactor();
     connect(m_canvas, &QRhiWidget::frameSubmitted,
             this, &ForceViewRhiWidget::onFrameSubmitted);
+    m_gpuTimer.setInterval(kSimTickIntervalMs);
+    connect(&m_gpuTimer, &QTimer::timeout, this, [this]() {
+        if (m_activeSimulationBackend == QStringLiteral("gpu")
+            && ((m_simulation && m_simulation->isActive())
+                || (m_gpuSimulation && m_gpuSimulation->hasPendingStep())))
+            m_canvas->update();
+    });
+    m_gpuTimer.start();
 }
 
 ForceViewRhiWidget::~ForceViewRhiWidget()
 {
+    // Child hide events may arrive during QWidget teardown, after our members.
+    if (m_performanceOverlay) disconnect(m_performanceOverlay, nullptr, this, nullptr);
     stopSimThread();
     releaseRhiResources();
     if (m_canvas) {
@@ -179,6 +201,77 @@ void ForceViewRhiWidget::setupLayout()
     layout->setSpacing(0);
     m_canvas = new ForceRhiCanvas(this);
     layout->addWidget(m_canvas);
+}
+
+void ForceViewRhiWidget::enablePerformanceDiagnostics()
+{
+    if (!m_performanceOverlay) setupPerformanceOverlay();
+}
+
+void ForceViewRhiWidget::setupPerformanceOverlay()
+{
+    m_performanceOverlay = new ForcePerformanceOverlay(this);
+    connect(this, &ForceViewRhiWidget::fpsUpdated, m_performanceOverlay, &ForcePerformanceOverlay::setFps);
+    connect(this, &ForceViewRhiWidget::tickTimeUpdated, m_performanceOverlay, &ForcePerformanceOverlay::setTickTime);
+    connect(this, &ForceViewRhiWidget::paintTimeUpdated, m_performanceOverlay, &ForcePerformanceOverlay::setPaintTime);
+    connect(this, &ForceViewRhiWidget::scaleChanged, m_performanceOverlay, &ForcePerformanceOverlay::setScale);
+    connect(this, &ForceViewRhiWidget::alphaUpdated, m_performanceOverlay, &ForcePerformanceOverlay::setAlpha);
+    connect(this, &ForceViewRhiWidget::simulationBackendChanged, m_performanceOverlay, &ForcePerformanceOverlay::setBackend);
+    connect(this, &ForceViewRhiWidget::simulationBackendModeChanged, m_performanceOverlay, &ForcePerformanceOverlay::setBackendMode);
+    connect(this, &ForceViewRhiWidget::performanceDetailsUpdated, m_performanceOverlay, &ForcePerformanceOverlay::setDetails);
+    connect(m_performanceOverlay, &ForcePerformanceOverlay::backendModeChanged, this, &ForceViewRhiWidget::setSimulationBackendMode);
+    connect(m_performanceOverlay, &ForcePerformanceOverlay::profilingChanged, this, &ForceViewRhiWidget::setGpuProfilingEnabled);
+    connect(m_performanceOverlay, &ForcePerformanceOverlay::closeRequested, this, [this]() { setPerformanceOverlayVisible(false); });
+    m_performanceOverlay->setBackend(m_activeSimulationBackend);
+    m_performanceOverlay->setBackendMode(m_simulationBackendMode);
+    m_graphContextMenu = new QMenu(this);
+    m_graphContextMenu->setObjectName(QStringLiteral("forceViewContextMenu"));
+    m_performanceAction = m_graphContextMenu->addAction(QStringLiteral("性能表"));
+    m_performanceAction->setObjectName(QStringLiteral("togglePerformanceOverlayAction"));
+    m_performanceAction->setCheckable(true);
+    connect(m_performanceAction, &QAction::toggled, this, &ForceViewRhiWidget::setPerformanceOverlayVisible);
+    positionPerformanceOverlay();
+}
+
+void ForceViewRhiWidget::positionPerformanceOverlay()
+{
+    if (!m_performanceOverlay) return;
+    m_performanceOverlay->setGeometry(12, 12, std::min(320, std::max(1, width() - 24)), std::min(450, std::max(1, height() - 24)));
+    if (isPerformanceOverlayVisible()) m_performanceOverlay->raise();
+}
+
+bool ForceViewRhiWidget::isPerformanceOverlayVisible() const
+{
+    return m_performanceOverlay && !m_performanceOverlay->isHidden();
+}
+
+void ForceViewRhiWidget::setPerformanceOverlayVisible(bool visible)
+{
+    if (!m_performanceOverlay && visible) setupPerformanceOverlay();
+    if (!m_performanceOverlay) return;
+    positionPerformanceOverlay();
+    m_performanceOverlay->setVisible(visible);
+    if (visible) m_performanceOverlay->raise();
+    if (m_performanceAction) {
+        const QSignalBlocker block(m_performanceAction);
+        m_performanceAction->setChecked(visible);
+    }
+}
+
+void ForceViewRhiWidget::contextMenuEvent(QContextMenuEvent* event)
+{
+    // Windows sends this after release, when panning/dragging has already ended.
+    // Keep the gesture result until the next right press, including drags that
+    // return to their starting point. Accept to prevent parent menus appearing.
+    if (event->reason() == QContextMenuEvent::Mouse && m_rightGestureMoved) {
+        event->accept();
+        return;
+    }
+    enablePerformanceDiagnostics();
+    const QSignalBlocker block(m_performanceAction);
+    m_performanceAction->setChecked(isPerformanceOverlayVisible());
+    m_graphContextMenu->popup(event->reason() == QContextMenuEvent::Keyboard ? mapToGlobal(QPoint(16, 16)) : event->globalPos());
+    event->accept();
 }
 
 QString ForceViewRhiWidget::detectDefaultFontPath()
@@ -240,10 +333,13 @@ void ForceViewRhiWidget::initializeRhi(QRhiCommandBuffer* cb)
     m_rhiReady = false;
     m_pipelineDirty = true;
     ensureRhiResources();
+    applySimulationBackendPreference();
 }
 
 void ForceViewRhiWidget::releaseRhiResources()
 {
+    m_gpuGeometry.reset();
+    m_gpuSimulation.reset();
     releaseTextRhiResources();
     m_pipeline.reset();
     m_srb.reset();
@@ -251,6 +347,7 @@ void ForceViewRhiWidget::releaseRhiResources()
     m_vertexBuffer.reset();
     m_vertexBufferSize = 0;
     m_rhiReady = false;
+    m_rhi = nullptr;
 }
 
 bool ForceViewRhiWidget::ensureRhiResources()
@@ -261,7 +358,7 @@ bool ForceViewRhiWidget::ensureRhiResources()
 
     if (!m_uniformBuffer) {
         m_uniformBuffer.reset(
-            m_rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 64));
+            m_rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 80));
         if (!m_uniformBuffer->create()) {
             qWarning("ForceViewRhiWidget: failed to create uniform buffer");
             m_uniformBuffer.reset();
@@ -317,7 +414,7 @@ void ForceViewRhiWidget::rebuildPipeline()
         return;
     }
 
-    QShader vs = loadShader(QStringLiteral("force_rhi_color.vert"));
+    QShader vs = loadShader(m_usingGpuGeometry ? QStringLiteral("force_rhi_instance.vert") : QStringLiteral("force_rhi_color.vert"));
     QShader fs = loadShader(QStringLiteral("force_rhi_color.frag"));
     if (!vs.isValid() || !fs.isValid()) {
         qWarning("ForceViewRhiWidget: invalid QRhi shaders");
@@ -325,15 +422,19 @@ void ForceViewRhiWidget::rebuildPipeline()
     }
 
     QRhiVertexInputLayout inputLayout;
-    inputLayout.setBindings({
-        QRhiVertexInputBinding(9 * sizeof(float))
-    });
+    inputLayout.setBindings({QRhiVertexInputBinding(sizeof(Vertex))});
     inputLayout.setAttributes({
         QRhiVertexInputAttribute(0, 0, QRhiVertexInputAttribute::Float2, 0),
         QRhiVertexInputAttribute(0, 1, QRhiVertexInputAttribute::Float2, 2 * sizeof(float)),
         QRhiVertexInputAttribute(0, 2, QRhiVertexInputAttribute::Float, 4 * sizeof(float)),
         QRhiVertexInputAttribute(0, 3, QRhiVertexInputAttribute::Float4, 5 * sizeof(float))
     });
+    if (m_usingGpuGeometry) {
+        inputLayout.setBindings({QRhiVertexInputBinding(48, QRhiVertexInputBinding::PerInstance)});
+        inputLayout.setAttributes({QRhiVertexInputAttribute(0, 0, QRhiVertexInputAttribute::Float4, 0),
+            QRhiVertexInputAttribute(0, 1, QRhiVertexInputAttribute::Float4, 16),
+            QRhiVertexInputAttribute(0, 2, QRhiVertexInputAttribute::Float4, 32)});
+    }
 
     QRhiGraphicsPipeline::TargetBlend blend;
     blend.enable = true;
@@ -505,9 +606,7 @@ void ForceViewRhiWidget::rebuildTextPipeline()
     }
 
     QRhiVertexInputLayout inputLayout;
-    inputLayout.setBindings({
-        QRhiVertexInputBinding(9 * sizeof(float))
-    });
+    inputLayout.setBindings({QRhiVertexInputBinding(sizeof(TextVertex))});
     inputLayout.setAttributes({
         QRhiVertexInputAttribute(0, 0, QRhiVertexInputAttribute::Float2, 0),
         QRhiVertexInputAttribute(0, 1, QRhiVertexInputAttribute::Float2, 2 * sizeof(float)),
@@ -555,6 +654,7 @@ void ForceViewRhiWidget::renderRhi(QRhiCommandBuffer* cb)
     }
 
     const double paintStart = nowSec();
+    advanceGpuSimulation(cb);
     applyMsdfAtlasResultIfReady();
     advanceHover();
     if (m_physicsState) {
@@ -562,8 +662,31 @@ void ForceViewRhiWidget::renderRhi(QRhiCommandBuffer* cb)
     } else {
         m_renderPosSnapshot.clear();
     }
-    prepareFrameVertices();
+    const bool wasGpuGeometry = m_usingGpuGeometry;
+    const double geometryStart = nowSec();
+    m_usingGpuGeometry = prepareGpuGeometry(cb);
+    if (!m_usingGpuGeometry) { prepareFrameVertices(); m_gpuDescriptionsDirty = true; }
+    if (wasGpuGeometry != m_usingGpuGeometry) m_pipelineDirty = true;
+    const double geometryMs = (nowSec() - geometryStart) * 1000.0;
+    const double textStart = nowSec();
     prepareTextVertices();
+    const QSize textPixelSize = m_canvas->currentRenderTarget()->pixelSize();
+    const float textScreen[] = {std::max(m_zoom * textPixelSize.width() / std::max(1, m_viewportW), 1e-6f),
+                                std::max(m_zoom * textPixelSize.height() / std::max(1, m_viewportH), 1e-6f),
+                                m_panX, m_panY, textPixelSize.width() * 0.5f, textPixelSize.height() * 0.5f};
+    m_usingGpuText = m_usingGpuGeometry && !m_textVertices.empty()
+        && m_gpuGeometry->recordText(cb, m_gpuSimulation->stateBuffer(), reinterpret_cast<const float*>(m_textVertices.data()), static_cast<quint32>(m_textVertices.size()), textScreen);
+    if (m_usingGpuGeometry && !m_usingGpuText) {
+        // Resource failure still uses the CPU text path with absolute vertices.
+        for (auto& vertex : m_textVertices) {
+            const int i = int(vertex.node);
+            const float anchorX = m_renderPosSnapshot[2 * i] + vertex.anchorX;
+            const float anchorY = m_renderPosSnapshot[2 * i + 1] + vertex.anchorY;
+            vertex.x += (std::floor((anchorX - m_panX) * textScreen[0] + textScreen[4] + 0.5f) - textScreen[4]) / textScreen[0] + m_panX;
+            vertex.y += (std::floor((anchorY - m_panY) * textScreen[1] + textScreen[5] + 0.5f) - textScreen[5]) / textScreen[1] + m_panY;
+        }
+    }
+    const double textMs = (nowSec() - textStart) * 1000.0;
 
     QRhiRenderTarget* rt = m_canvas->currentRenderTarget();
     if (!m_pipeline
@@ -584,11 +707,16 @@ void ForceViewRhiWidget::renderRhi(QRhiCommandBuffer* cb)
     mvp *= proj;
 
     QRhiResourceUpdateBatch* updates = m_rhi->nextResourceUpdateBatch();
-    updates->updateDynamicBuffer(m_uniformBuffer.get(), 0, 64, mvp.constData());
+    float transform[20] = {};
+    std::memcpy(transform, mvp.constData(), 64);
+    transform[16] = std::max(0.5f, 0.5f * m_sideWidth);
+    transform[17] = m_arrowScale;
+    transform[18] = m_arrowEnabled ? 1.0f : 0.0f;
+    updates->updateDynamicBuffer(m_uniformBuffer.get(), 0, 80, transform);
 
     const quint32 vertexBytes = static_cast<quint32>(m_frameVertices.size() * sizeof(Vertex));
-    const bool hasVertices = vertexBytes > 0 && ensureVertexBuffer(vertexBytes);
-    if (hasVertices) {
+    const bool hasVertices = m_usingGpuGeometry || (vertexBytes > 0 && ensureVertexBuffer(vertexBytes));
+    if (hasVertices && !m_usingGpuGeometry) {
         updates->updateDynamicBuffer(
             m_vertexBuffer.get(),
             0,
@@ -597,7 +725,7 @@ void ForceViewRhiWidget::renderRhi(QRhiCommandBuffer* cb)
     }
 
     const quint32 textBytes = static_cast<quint32>(m_textVertices.size() * sizeof(TextVertex));
-    const bool hasTextVertices = textBytes > 0 && ensureTextVertexBuffer(textBytes);
+    const bool hasTextVertices = m_usingGpuText || (textBytes > 0 && ensureTextVertexBuffer(textBytes));
     const bool hasTextResources = hasTextVertices && ensureTextResources(updates);
     if (hasTextResources) {
         float textUniforms[20] = {};
@@ -610,7 +738,7 @@ void ForceViewRhiWidget::renderRhi(QRhiCommandBuffer* cb)
             1.0f,
             m_fontAtlas ? m_fontAtlas->pxRange() * screenGlyphSize / atlasGlyphSize : 1.0f);
         updates->updateDynamicBuffer(m_textUniformBuffer.get(), 0, sizeof(textUniforms), textUniforms);
-        updates->updateDynamicBuffer(
+        if (!m_usingGpuText) updates->updateDynamicBuffer(
             m_textVertexBuffer.get(),
             0,
             textBytes,
@@ -625,6 +753,18 @@ void ForceViewRhiWidget::renderRhi(QRhiCommandBuffer* cb)
     }
 
     cb->beginPass(rt, m_backgroundColor, QRhiDepthStencilClearValue(), updates);
+    auto drawGeometry = [&](quint32 first, quint32 count) {
+        if (!count) return;
+        if (m_usingGpuGeometry) {
+            const QRhiCommandBuffer::VertexInput input(m_gpuGeometry->instanceBuffer(), first / 9 * 48);
+            cb->setVertexInput(0, 1, &input);
+            cb->draw(9, count / 9);
+        } else {
+            const QRhiCommandBuffer::VertexInput input(m_vertexBuffer.get(), 0);
+            cb->setVertexInput(0, 1, &input);
+            cb->draw(count, 1, first);
+        }
+    };
     const QSize pixelSize = rt->pixelSize();
     const QRhiViewport viewport(
         0.0f,
@@ -638,17 +778,15 @@ void ForceViewRhiWidget::renderRhi(QRhiCommandBuffer* cb)
         cb->setGraphicsPipeline(m_pipeline.get());
         cb->setViewport(viewport);
         cb->setShaderResources(m_srb.get());
-        const QRhiCommandBuffer::VertexInput vertexInput(m_vertexBuffer.get(), 0);
-        cb->setVertexInput(0, 1, &vertexInput);
         if (m_geometryDimCount > 0) {
-            cb->draw(m_geometryDimCount, 1, m_geometryDimFirst);
+            drawGeometry(m_geometryDimFirst, m_geometryDimCount);
         }
     }
     if (hasTextResources && m_textPipeline && m_textSrb) {
         cb->setGraphicsPipeline(m_textPipeline.get());
         cb->setViewport(viewport);
         cb->setShaderResources(m_textSrb.get());
-        const QRhiCommandBuffer::VertexInput vertexInput(m_textVertexBuffer.get(), 0);
+        const QRhiCommandBuffer::VertexInput vertexInput(m_usingGpuText ? m_gpuGeometry->textBuffer() : m_textVertexBuffer.get(), 0);
         cb->setVertexInput(0, 1, &vertexInput);
         if (m_textDimCount > 0) {
             cb->draw(m_textDimCount, 1, m_textDimFirst);
@@ -659,13 +797,11 @@ void ForceViewRhiWidget::renderRhi(QRhiCommandBuffer* cb)
         cb->setGraphicsPipeline(m_pipeline.get());
         cb->setViewport(viewport);
         cb->setShaderResources(m_srb.get());
-        const QRhiCommandBuffer::VertexInput vertexInput(m_vertexBuffer.get(), 0);
-        cb->setVertexInput(0, 1, &vertexInput);
         if (m_geometryHighlightCount > 0) {
-            cb->draw(m_geometryHighlightCount, 1, m_geometryHighlightFirst);
+            drawGeometry(m_geometryHighlightFirst, m_geometryHighlightCount);
         }
         if (m_geometryRestCount > 0) {
-            cb->draw(m_geometryRestCount, 1, m_geometryRestFirst);
+            drawGeometry(m_geometryRestFirst, m_geometryRestCount);
         }
     }
     if (hasTextResources && m_textPipeline && m_textSrb
@@ -673,7 +809,7 @@ void ForceViewRhiWidget::renderRhi(QRhiCommandBuffer* cb)
         cb->setGraphicsPipeline(m_textPipeline.get());
         cb->setViewport(viewport);
         cb->setShaderResources(m_textSrb.get());
-        const QRhiCommandBuffer::VertexInput vertexInput(m_textVertexBuffer.get(), 0);
+        const QRhiCommandBuffer::VertexInput vertexInput(m_usingGpuText ? m_gpuGeometry->textBuffer() : m_textVertexBuffer.get(), 0);
         cb->setVertexInput(0, 1, &vertexInput);
         if (m_textRestCount > 0) {
             cb->draw(m_textRestCount, 1, m_textRestFirst);
@@ -683,6 +819,20 @@ void ForceViewRhiWidget::renderRhi(QRhiCommandBuffer* cb)
         }
     }
     cb->endPass();
+
+    if (nowSec() - m_lastPerformanceReport >= 0.25) {
+        QVariantMap details{{"geometryCpuMs", geometryMs}, {"textCpuMs", textMs}, {"gpuInstances", m_usingGpuGeometry}, {"gpuText", m_usingGpuText},
+                            {"textVertices", int(m_textVertices.size())}, {"instances", int(m_gpuDescriptions.size())}};
+        if (m_gpuSimulation) {
+            const auto t = m_gpuSimulation->timings();
+            details.insert("recordCpuMs", t.cpuRecordMs);
+            details.insert("gpuBoundsMs", t.gpuBoundsMs); details.insert("gpuSortMs", t.gpuSortMs);
+            details.insert("gpuTreeMs", t.gpuTreeMs); details.insert("gpuForceMs", t.gpuForceMs);
+            details.insert("readbackMs", t.readbackLatencyMs); details.insert("dispatches", t.dispatches);
+        }
+        emit performanceDetailsUpdated(details);
+        m_lastPerformanceReport = nowSec();
+    }
 
     emit paintTimeUpdated(static_cast<float>((nowSec() - paintStart) * 1000.0));
 }
@@ -723,6 +873,8 @@ void ForceViewRhiWidget::setGraph(int nNodes,
     }
 
     stopSimThread();
+    m_gpuSimulation.reset();
+    m_retainedLabels.clear();
     if (nNodes <= 0) {
         m_physicsState.reset();
         m_simulation.reset();
@@ -836,7 +988,10 @@ void ForceViewRhiWidget::setGraph(int nNodes,
     m_lastDimEdges.clear();
     m_lastHighlightEdges.clear();
     m_allowWarmup.store(true, std::memory_order_release);
-    switchToCpuSimulation();
+    rebuildSimulation();
+    m_simulation->start();
+    applySimulationBackendPreference();
+    emit simulationStarted();
 
     QTimer::singleShot(kFitViewDelayMs, this, [this]() {
         fitViewToContent();
@@ -845,6 +1000,8 @@ void ForceViewRhiWidget::setGraph(int nNodes,
 
 void ForceViewRhiWidget::rebuildSimulation()
 {
+    m_gpuDescriptionsDirty = true;
+    m_gpuSimulation.reset();
     if (!m_physicsState) {
         m_simulation.reset();
         return;
@@ -983,39 +1140,129 @@ void ForceViewRhiWidget::simLoop()
 
 void ForceViewRhiWidget::applySimulationBackendPreference()
 {
-    if (m_activeSimulationBackend != QStringLiteral("cpu")) {
-        m_activeSimulationBackend = QStringLiteral("cpu");
-        emit simulationBackendChanged(QStringLiteral("cpu"));
+    stopSimThread();
+    m_gpuSimulation.reset();
+    const bool gpu = m_simulationBackendMode != QStringLiteral("cpu") && m_rhi
+        && m_rhi->isFeatureSupported(QRhi::Compute)
+        && m_rhi->isFeatureSupported(QRhi::ReadBackNonUniformBuffer);
+    const QString backend = gpu ? QStringLiteral("gpu") : QStringLiteral("cpu");
+    if (m_activeSimulationBackend != backend) {
+        m_activeSimulationBackend = backend;
+        emit simulationBackendChanged(backend);
     }
-    if (m_physicsState) {
-        switchToCpuSimulation();
+    if (m_simulation && m_simulation->isActive()) {
+        m_simActive.store(true, std::memory_order_release);
+        if (!gpu) startSimThread();
+        requestCanvasUpdate();
     }
 }
 
-void ForceViewRhiWidget::switchToCpuSimulation()
+void ForceViewRhiWidget::advanceGpuSimulation(QRhiCommandBuffer* cb)
 {
-    stopSimThread();
-    bool active = false;
-    if (m_activeSimulationBackend != QStringLiteral("cpu")) {
+    if (m_activeSimulationBackend != QStringLiteral("gpu") || !m_physicsState || !m_simulation)
+        return;
+    auto fallback = [this](const QString& reason) {
+        qWarning() << "GPU layout: falling back to CPU:" << reason;
+        m_gpuSimulation.reset();
         m_activeSimulationBackend = QStringLiteral("cpu");
-        emit simulationBackendChanged(QStringLiteral("cpu"));
-    }
-    {
-        std::lock_guard<std::mutex> lock(m_simMutex);
-        rebuildSimulation();
-        if (m_simulation) {
-            m_simulation->start();
-            active = m_simulation->isActive();
+        emit simulationBackendChanged(m_activeSimulationBackend);
+        if (m_simulation->isActive()) startSimThread();
+    };
+    if (!m_gpuSimulation) {
+        auto engine = std::make_unique<GpuSimulation>();
+        QString error;
+        if (!engine->initialize(m_rhi, *m_physicsState, &error)) {
+            fallback(error);
+            return;
+        }
+        m_gpuSimulation = std::move(engine);
+        if (!m_simulation->isActive()) {
+            m_gpuSimulation->recordInitialState(cb);
+            return;
         }
     }
-    if (active) {
-        startSimThread();
-        m_simActive.store(true, std::memory_order_release);
-        requestCanvasUpdate();
-        emit simulationStarted();
-    } else {
-        m_simActive.store(false, std::memory_order_release);
+    std::vector<float> result;
+    double latency = 0.0;
+    float speed = 0.0f;
+    if (m_gpuSimulation->takeResult(result, &latency, &speed)) {
+        for (int i = 0; i < m_physicsState->nNodes; ++i) {
+            // A newer pointer target takes precedence over an in-flight result.
+            const bool dragging = m_physicsState->dragging[i] != 0;
+            m_physicsState->pos[2 * i] = dragging ? m_physicsState->dragPos[2 * i] : result[4 * i];
+            m_physicsState->pos[2 * i + 1] = dragging ? m_physicsState->dragPos[2 * i + 1] : result[4 * i + 1];
+            m_physicsState->vel[2 * i] = result[4 * i + 2];
+            m_physicsState->vel[2 * i + 1] = result[4 * i + 3];
+        }
+        m_physicsState->publishRenderPos();
+        m_simulation->considerGpuConvergence(speed);
+        emit tickTimeUpdated(static_cast<float>(latency));
+        emit alphaUpdated(m_simulation->alpha());
+        if (!m_simulation->isActive()) {
+            m_simActive.store(false, std::memory_order_release);
+            emit simulationStopped();
+        }
     }
+    if (m_gpuSimulation->failed()) {
+        fallback(m_gpuSimulation->errorString());
+        return;
+    }
+    if (!m_simulation->isActive()) {
+        if (!m_gpuSimulation->hasPendingStep() && m_gpuSimulation->submittedSteps() > m_gpuSimulation->snapshotSteps()) {
+            m_gpuSimulation->recordSnapshot(cb);
+        }
+        return;
+    }
+    const int outstanding = m_gpuSimulation->submittedSteps() - m_gpuSimulation->snapshotSteps();
+    const bool dragging = std::any_of(m_physicsState->dragging.begin(), m_physicsState->dragging.end(), [](uint8_t v) { return v != 0; });
+    const int queueLimit = dragging ? 2 : kGpuQueueStepLimit;
+    if (outstanding < queueLimit && m_simulation->prepareGpuTick()) {
+        m_simActive.store(true, std::memory_order_release);
+        GpuSimulation::Parameters parameters;
+        parameters.alpha = m_simulation->alpha();
+        parameters.manyBody = m_manyBodyStrength;
+        parameters.center = m_centerStrength;
+        parameters.link = m_linkStrength;
+        parameters.linkDistance = m_linkDistance;
+        parameters.collisionRadius = m_collisionRadius;
+        parameters.collisionStrength = m_collisionStrength;
+        parameters.maxDisplacement = kGpuMaxStepDisplacement;
+        const int n = m_physicsState->nNodes;
+        const int warmupTicks = static_cast<int>(n * std::log(float(std::max(2, n))) * 0.2f + 10.0f);
+        const bool warmup = m_allowWarmup.load(std::memory_order_acquire)
+            && m_simulation->tickCount() < warmupTicks;
+        if (!warmup) m_allowWarmup.store(false, std::memory_order_release);
+        const auto alphas = m_simulation->gpuTickAlphas(std::min(warmup && !dragging ? 4 : 1, queueLimit - outstanding));
+        std::vector<GpuSimulation::Parameters> steps;
+        for (float alpha : alphas) {
+            parameters.alpha = alpha;
+            steps.push_back(parameters);
+        }
+        const bool snapshot = !m_gpuSimulation->hasPendingStep()
+            && (dragging || nowSec() - m_lastGpuSnapshot >= 0.033);
+        m_gpuSimulation->setProfilingEnabled(m_gpuProfiling);
+        if (m_gpuSimulation->recordSteps(cb, *m_physicsState, steps, snapshot)) {
+            for (size_t i = 0; i < steps.size(); ++i) m_simulation->completeGpuTick(std::numeric_limits<float>::max());
+            if (snapshot) {
+                m_lastGpuSnapshot = nowSec();
+            }
+        }
+    } else if (!m_simulation->isActive() && m_simActive.exchange(false, std::memory_order_acq_rel)) {
+        emit simulationStopped();
+    }
+    // Drain the final resident state, or unblock the bounded queue when the
+    // preceding frame intentionally skipped a snapshot.
+    if (!m_gpuSimulation->hasPendingStep() && m_gpuSimulation->submittedSteps() > m_gpuSimulation->snapshotSteps()
+        && (!m_simulation->isActive() || outstanding >= queueLimit)) {
+        m_gpuSimulation->recordSnapshot(cb);
+        m_lastGpuSnapshot = nowSec();
+    }
+}
+
+void ForceViewRhiWidget::setGpuProfilingEnabled(bool enabled)
+{
+    m_gpuProfiling = enabled;
+    if (m_performanceOverlay) m_performanceOverlay->setProfilingEnabled(enabled);
+    if (m_gpuSimulation) m_gpuSimulation->setProfilingEnabled(enabled);
 }
 
 void ForceViewRhiWidget::requestCanvasUpdate()
@@ -1029,6 +1276,7 @@ void ForceViewRhiWidget::requestCanvasUpdate()
 
 void ForceViewRhiWidget::pauseSimulation()
 {
+    m_gpuSimulation.reset(); // discard the in-flight generation
     {
         std::lock_guard<std::mutex> lock(m_simMutex);
         if (m_simulation) {
@@ -1036,6 +1284,7 @@ void ForceViewRhiWidget::pauseSimulation()
         }
     }
     m_simActive.store(false, std::memory_order_release);
+    requestCanvasUpdate();
     emit simulationStopped();
 }
 
@@ -1050,7 +1299,7 @@ void ForceViewRhiWidget::resumeSimulation()
         }
     }
     if (active) {
-        startSimThread();
+        if (m_activeSimulationBackend == QStringLiteral("cpu")) startSimThread();
         m_simCv.notify_all();
         requestCanvasUpdate();
         emit simulationStarted();
@@ -1059,6 +1308,7 @@ void ForceViewRhiWidget::resumeSimulation()
 
 void ForceViewRhiWidget::restartSimulation()
 {
+    m_gpuSimulation.reset();
     m_allowWarmup.store(false, std::memory_order_release);
     {
         std::lock_guard<std::mutex> lock(m_simMutex);
@@ -1066,7 +1316,7 @@ void ForceViewRhiWidget::restartSimulation()
             m_simulation->restart();
         }
     }
-    startSimThread();
+    if (m_activeSimulationBackend == QStringLiteral("cpu")) startSimThread();
     m_simCv.notify_all();
     requestCanvasUpdate();
     emit alphaUpdated(1.0f);
@@ -1083,6 +1333,7 @@ void ForceViewRhiWidget::setSimulationBackendMode(const QString& mode)
     }
     const QString normalized = mode.trimmed().toLower();
     if (normalized != QStringLiteral("cpu")
+        && normalized != QStringLiteral("gpu")
         && normalized != QStringLiteral("auto")) {
         qWarning() << "ForceViewRhiWidget: unsupported simulation backend mode:" << mode;
         return;
@@ -1092,7 +1343,7 @@ void ForceViewRhiWidget::setSimulationBackendMode(const QString& mode)
     if (modeChanged) {
         emit simulationBackendModeChanged(normalized);
     }
-    if (!modeChanged && m_activeSimulationBackend == QStringLiteral("cpu")) {
+    if (!modeChanged) {
         return;
     }
     applySimulationBackendPreference();
@@ -1194,6 +1445,7 @@ void ForceViewRhiWidget::setCollisionStrength(float value)
 
 void ForceViewRhiWidget::updateFactor()
 {
+    m_gpuDescriptionsDirty = true;
     m_sideWidth = m_sideWidthBase * m_sideWidthFactor;
     const int n = m_showRadiiBase.size();
     m_showRadii.resize(n);
@@ -1228,6 +1480,7 @@ void ForceViewRhiWidget::setNodeColors(const QVector<QColor>& colors)
         return;
     }
     m_nodeColors = colors;
+    m_gpuDescriptionsDirty = true;
     update();
 }
 
@@ -1265,11 +1518,11 @@ void ForceViewRhiWidget::setBackgroundColor(const QColor& color)
     }
 }
 
-void ForceViewRhiWidget::setEdgeColor(const QColor& c) { m_edgeColor = c; update(); }
+void ForceViewRhiWidget::setEdgeColor(const QColor& c) { m_edgeColor = c; m_gpuDescriptionsDirty = true; update(); }
 QColor ForceViewRhiWidget::edgeColor() const { return m_edgeColor; }
 void ForceViewRhiWidget::setEdgeDimColor(const QColor& c) { m_edgeDimColor = c; update(); }
 QColor ForceViewRhiWidget::edgeDimColor() const { return m_edgeDimColor; }
-void ForceViewRhiWidget::setBaseColor(const QColor& c) { m_baseColor = c; update(); }
+void ForceViewRhiWidget::setBaseColor(const QColor& c) { m_baseColor = c; m_gpuDescriptionsDirty = true; update(); }
 QColor ForceViewRhiWidget::baseColor() const { return m_baseColor; }
 void ForceViewRhiWidget::setDimColor(const QColor& c) { m_dimColor = c; update(); }
 QColor ForceViewRhiWidget::dimColor() const { return m_dimColor; }
@@ -1440,6 +1693,7 @@ void ForceViewRhiWidget::rebuildNeighborsFromEdges()
 
 void ForceViewRhiWidget::updateNeighborMaskForHover(int hoverIndex)
 {
+    m_gpuDescriptionsDirty = true;
     const int n = m_physicsState ? m_physicsState->nNodes : 0;
     m_neighborMask.assign(static_cast<size_t>(std::max(0, n)), 0);
     if (hoverIndex < 0 || hoverIndex >= n) {
@@ -1537,6 +1791,11 @@ void ForceViewRhiWidget::wheelEvent(QWheelEvent* event)
 
 void ForceViewRhiWidget::mousePressEvent(QMouseEvent* event)
 {
+    if (event->button() == Qt::RightButton) {
+        m_rightPressPosition = event->position();
+        m_rightButtonHeld = true;
+        m_rightGestureMoved = false;
+    }
     if (!m_physicsState || m_physicsState->nNodes == 0) {
         QWidget::mousePressEvent(event);
         return;
@@ -1581,6 +1840,8 @@ void ForceViewRhiWidget::mousePressEvent(QMouseEvent* event)
 
 void ForceViewRhiWidget::mouseMoveEvent(QMouseEvent* event)
 {
+    if (m_rightButtonHeld && event->position() != m_rightPressPosition)
+        m_rightGestureMoved = true;
     const float ex = static_cast<float>(event->position().x());
     const float ey = static_cast<float>(event->position().y());
     float sx = 0.0f;
@@ -1660,6 +1921,10 @@ void ForceViewRhiWidget::mouseMoveEvent(QMouseEvent* event)
 
 void ForceViewRhiWidget::mouseReleaseEvent(QMouseEvent* event)
 {
+    if (event->button() == Qt::RightButton && m_rightButtonHeld) {
+        if (event->position() != m_rightPressPosition) m_rightGestureMoved = true;
+        m_rightButtonHeld = false;
+    }
     if (m_selectedIndex >= 0) {
         const int idx = m_selectedIndex;
         const bool wasDragging = m_dragging;
@@ -1711,6 +1976,7 @@ void ForceViewRhiWidget::resizeEvent(QResizeEvent* event)
     m_viewportH = std::max(1, event->size().height());
     m_pipelineDirty = true;
     QWidget::resizeEvent(event);
+    positionPerformanceOverlay();
     requestCanvasUpdate();
 }
 
@@ -1723,6 +1989,9 @@ void ForceViewRhiWidget::setDragging(int nodeId, bool dragging)
             return;
         }
         m_physicsState->dragging[static_cast<size_t>(nodeId)] = dragging ? 1 : 0;
+        // Release starts a new GPU generation from the latest pointer position.
+        // A pending step may still carry an earlier drag target.
+        if (!dragging) m_gpuSimulation.reset();
         if (dragging) {
             std::vector<float> snapshot;
             m_physicsState->copyRenderPos(snapshot);
@@ -1817,6 +2086,7 @@ void ForceViewRhiWidget::applyMsdfAtlasResultIfReady()
 
 void ForceViewRhiWidget::invalidateTextLayoutForLabels()
 {
+    m_retainedLabels.clear();
     m_labelLayoutCache.clear();
     m_labelLayoutByIndex.clear();
     m_textVertices.clear();
@@ -2089,21 +2359,25 @@ void ForceViewRhiWidget::appendTextLabel(
     const float fontSize = m_msdfFontSize * fontScale;
     const float descent = m_fontAtlas ? static_cast<float>(m_fontAtlas->descender()) : 0.0f;
     const float labelW = layout->totalWidth * fontSize;
-    float baseX = nodeX - labelW * 0.5f;
-    float baseY = nodeY + radius - descent * fontSize + fontSize * 1.25f;
+    const float offsetX = -labelW * 0.5f;
+    const float offsetY = radius - descent * fontSize + fontSize * 1.25f;
+    float baseX = 0.0f, baseY = 0.0f;
 
-    const float dpr = m_canvas ? static_cast<float>(m_canvas->devicePixelRatioF())
-                               : static_cast<float>(devicePixelRatioF());
-    const float invZoomDpr = 1.0f / (std::max(m_zoom, 1e-6f) * dpr);
-    baseX = std::round(baseX * m_zoom * dpr) * invZoomDpr;
-    baseY = std::round(baseY * m_zoom * dpr) * invZoomDpr;
+    if (!m_usingGpuGeometry) {
+        const QSize pixels = m_canvas->currentRenderTarget()->pixelSize();
+        const float scaleX = std::max(m_zoom * pixels.width() / std::max(1, m_viewportW), 1e-6f);
+        const float scaleY = std::max(m_zoom * pixels.height() / std::max(1, m_viewportH), 1e-6f);
+        const float centerX = pixels.width() * 0.5f, centerY = pixels.height() * 0.5f;
+        baseX = (std::floor((nodeX + offsetX - m_panX) * scaleX + centerX + 0.5f) - centerX) / scaleX + m_panX;
+        baseY = (std::floor((nodeY + offsetY - m_panY) * scaleY + centerY + 0.5f) - centerY) / scaleY + m_panY;
+    }
 
     const float cr = color.redF();
     const float cg = color.greenF();
     const float cb = color.blueF();
     const float ca = color.alphaF() * alpha;
-    auto push = [&out, cr, cg, cb, ca, fontScale](float x, float y, float u, float v) {
-        out.push_back(TextVertex{x, y, u, v, cr, cg, cb, ca, fontScale});
+    auto push = [&out, cr, cg, cb, ca, fontScale, index, offsetX, offsetY](float x, float y, float u, float v) {
+        out.push_back(TextVertex{x, y, u, v, cr, cg, cb, ca, fontScale, float(index), offsetX, offsetY});
     };
 
     for (const GlyphQuad& q : layout->quads) {
@@ -2156,28 +2430,55 @@ void ForceViewRhiWidget::prepareTextVertices()
 
     const float halfW = (m_viewportW / 2.0f) / std::max(m_zoom, 1e-6f);
     const float halfH = (m_viewportH / 2.0f) / std::max(m_zoom, 1e-6f);
-    const float left = m_panX - halfW - kViewPadding;
-    const float right = m_panX + halfW + kViewPadding;
-    const float top = m_panY - halfH - kViewPadding;
-    const float bottom = m_panY + halfH + kViewPadding;
+    // GPU glyphs use current resident positions, while this snapshot may lag
+    // by a bounded queue of physics steps. It cannot be used for exact culling.
+    const float padding = kViewPadding + (m_usingGpuGeometry ? kGpuQueueStepLimit * kGpuMaxStepDisplacement : 0.0f);
+    const float left = m_panX - halfW - padding;
+    const float right = m_panX + halfW + padding;
+    const float top = m_panY - halfH - padding;
+    const float bottom = m_panY + halfH + padding;
 
     std::vector<TextVertex> dimText;
     std::vector<TextVertex> restText;
     std::vector<TextVertex> hoverText;
-    dimText.reserve(static_cast<size_t>(n) * 18);
-    restText.reserve(static_cast<size_t>(n) * 18);
+    dimText.reserve(static_cast<size_t>(std::min(n, 2000)) * 18);
+    restText.reserve(static_cast<size_t>(std::min(n, 2000)) * 18);
     hoverText.reserve(36);
     const float hoverT = std::clamp(m_hoverGlobal, 0.0f, 1.0f);
     const bool hasCurrentHover = m_hoverIndex >= 0;
     const int displayHover = hasCurrentHover ? m_hoverIndex : ((hoverT > 0.0f) ? m_lastHoverIndex : -1);
     const std::vector<uint8_t>& displayMask = hasCurrentHover ? m_neighborMask : m_lastNeighborMask;
-    for (int i = 0; i < n; ++i) {
+    std::unordered_map<quint64, bool> occupied;
+    int labelCount = 0;
+    const float dpr = m_canvas ? float(m_canvas->devicePixelRatioF()) : 1.0f;
+    if (m_retainedLabels.size() != size_t(n)) {
+        m_retainedLabels.assign(size_t(n), 0);
+    }
+    std::vector<uint8_t> retained(size_t(n), 0);
+    // Keep visible labels across simulation AND camera changes. Rebuilding the
+    // selection on each pan/zoom makes neighbors alternate at cell boundaries.
+    // Labels leaving the padded view release their slots for new candidates.
+    for (int pass = 0; pass < (n >= 2000 ? 2 : 1); ++pass) for (int i = 0; i < n; ++i) {
+        if (n >= 2000 && bool(m_retainedLabels[i]) != (pass == 0)) continue;
         const float radius = (i < m_showRadii.size()) ? m_showRadii[i] : kDefaultNodeRadius;
         const float x = pos[2 * i];
         const float y = pos[2 * i + 1];
-        if (x + radius < left || x - radius > right || y + radius < top || y - radius > bottom) {
+        if ((!m_usingGpuGeometry || n >= 2000)
+            && (x + radius < left || x - radius > right || y + radius < top || y - radius > bottom)) {
             continue;
         }
+        if (n >= 2000 && i != displayHover) {
+            if (m_msdfFontSize * m_zoom * dpr < 6.0f || labelCount >= 2000) continue;
+            // Anchor density cells to the scene, so panning does not change
+            // which new candidates compete for an otherwise empty cell.
+            const qint32 column = static_cast<qint32>(std::floor(x * m_zoom * dpr / 80.0f));
+            const qint32 row = static_cast<qint32>(std::floor(y * m_zoom * dpr / 24.0f));
+            const quint64 cell = (quint64(quint32(column)) << 32) | quint32(row);
+            if (pass == 0) occupied.emplace(cell, true);
+            else if (!occupied.emplace(cell, true).second) continue;
+        }
+        ++labelCount;
+        retained[i] = 1;
 
         QColor color = m_textColor;
         float alpha = baseAlpha;
@@ -2198,6 +2499,7 @@ void ForceViewRhiWidget::prepareTextVertices()
         }
         appendTextLabel(*target, i, color, alpha, fontScale, pos);
     }
+    m_retainedLabels = std::move(retained);
 
     m_textVertices.reserve(dimText.size() + restText.size() + hoverText.size());
     auto appendBatch = [this](const std::vector<TextVertex>& batch,
@@ -2212,6 +2514,72 @@ void ForceViewRhiWidget::prepareTextVertices()
     appendBatch(dimText, m_textDimFirst, m_textDimCount);
     appendBatch(restText, m_textRestFirst, m_textRestCount);
     appendBatch(hoverText, m_textHoverFirst, m_textHoverCount);
+}
+
+bool ForceViewRhiWidget::prepareGpuGeometry(QRhiCommandBuffer* cb)
+{
+    if (!m_gpuSimulation || !m_gpuSimulation->stateBuffer() || !m_physicsState
+        || !m_rhi->isFeatureSupported(QRhi::Instancing)) return false;
+    if (!m_gpuGeometry) m_gpuGeometry = std::make_unique<GpuGraphGeometry>();
+    const float t = std::clamp(m_hoverGlobal, 0.0f, 1.0f);
+    const bool hasHover = m_hoverIndex >= 0;
+    const int hover = hasHover ? m_hoverIndex : (t > 0 ? m_lastHoverIndex : -1);
+    const auto& mask = hasHover ? m_neighborMask : m_lastNeighborMask;
+    const bool fading = hover >= 0 && t > 0;
+    // Repartition only on target/style/topology changes or fade boundaries.
+    // Animation frames retain base colors and upload only the small uniform.
+    if (m_gpuDescriptionsDirty || m_gpuDescriptionHoverActive != fading) {
+        std::vector<GpuGraphGeometry::Instance> dim, highlight, rest;
+        auto neighbor = [&](int i) { return i == hover || (i < int(mask.size()) && mask[i]); };
+        auto radius = [&](int i) { return i < m_showRadii.size() ? m_showRadii[i] : kDefaultNodeRadius; };
+        auto description = [&](int a, int b, float type, const QColor& color, quint32 flags) {
+            GpuGraphGeometry::Instance item;
+            item.nodes[0] = a; item.nodes[1] = b;
+            item.nodes[2] = flags;
+            item.shape[0] = radius(a); item.shape[1] = radius(b); item.shape[2] = type;
+            item.color[0] = color.redF(); item.color[1] = color.greenF();
+            item.color[2] = color.blueF(); item.color[3] = color.alphaF();
+            return item;
+        };
+        for (int e = 0; e < m_physicsState->edgeCount(); ++e) {
+            const int a = m_physicsState->edges[2 * e], b = m_physicsState->edges[2 * e + 1];
+            const bool lit = fading && (a == hover || b == hover || (neighbor(a) && neighbor(b)));
+            (lit ? highlight : dim).push_back(description(a, b, 1.0f, m_edgeColor, lit ? GpuGraphGeometry::Highlighted : 0));
+        }
+        for (int i = 0; i < m_physicsState->nNodes; ++i) {
+            const bool lit = fading && neighbor(i);
+            const quint32 flags = (lit ? GpuGraphGeometry::Highlighted : 0)
+                | (fading && i == hover ? GpuGraphGeometry::Hovered : 0);
+            (lit ? rest : dim).push_back(description(i, i, 2.0f, nodeColorFor(i), flags));
+        }
+        m_gpuDescriptions.clear();
+        auto append = [&](const auto& items, quint32& first, quint32& count) {
+            first = static_cast<quint32>(m_gpuDescriptions.size()) * 9;
+            count = static_cast<quint32>(items.size()) * 9;
+            m_gpuDescriptions.insert(m_gpuDescriptions.end(), items.begin(), items.end());
+        };
+        append(dim, m_geometryDimFirst, m_geometryDimCount);
+        append(highlight, m_geometryHighlightFirst, m_geometryHighlightCount);
+        append(rest, m_geometryRestFirst, m_geometryRestCount);
+        m_gpuDescriptionsDirty = false;
+        ++m_gpuDescriptionRevision;
+        m_gpuDescriptionHoverActive = fading;
+    }
+    const float halfW = m_viewportW * 0.5f / std::max(m_zoom, 1e-6f);
+    const float halfH = m_viewportH * 0.5f / std::max(m_zoom, 1e-6f);
+    const float viewport[] = {m_panX - halfW - kViewPadding, m_panY - halfH - kViewPadding,
+                              m_panX + halfW + kViewPadding, m_panY + halfH + kViewPadding};
+    GpuGraphGeometry::HoverStyle style;
+    style.amount = fading ? t : 0.0f;
+    style.radiusScale = kHoverRadiusScale;
+    auto rgba = [](const QColor& color, float* output) {
+        output[0] = color.redF(); output[1] = color.greenF();
+        output[2] = color.blueF(); output[3] = color.alphaF();
+    };
+    rgba(m_dimColor, style.dimColor);
+    rgba(m_edgeDimColor, style.edgeDimColor);
+    rgba(m_hoverColor, style.highlightColor);
+    return m_gpuGeometry->record(m_rhi, cb, m_gpuSimulation->stateBuffer(), m_gpuDescriptions, viewport, m_gpuDescriptionRevision, &style);
 }
 
 void ForceViewRhiWidget::prepareFrameVertices()
@@ -2439,6 +2807,7 @@ void ForceViewRhiWidget::update_node_runtime(const QString& nodeId,
     if (!m_physicsState || index < 0) {
         return;
     }
+    m_gpuDescriptionsDirty = true;
 
     bool labelsChanged = false;
     bool radiiChanged = false;
@@ -2764,6 +3133,7 @@ void ForceViewRhiWidget::apply_diff_runtime(const QVariantList& diffList)
     if (!changed) {
         return;
     }
+    m_gpuDescriptionsDirty = true;
 
     if (labelsChanged) {
         invalidateTextLayoutForLabels();

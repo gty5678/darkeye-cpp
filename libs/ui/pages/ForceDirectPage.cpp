@@ -9,17 +9,10 @@
 #include "ui/pages/ForceViewSettingsPanel.h"
 
 #include <QColor>
-#include <QComboBox>
-#include <QDialog>
-#include <QDialogButtonBox>
-#include <QFormLayout>
-#include <QInputDialog>
 #include <QLabel>
-#include <QLineEdit>
 #include <QPalette>
 #include <QShowEvent>
 #include <QResizeEvent>
-#include <QMessageBox>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -102,35 +95,6 @@ ForceDirectPage::ForceDirectPage(ThemeService &themeService, graph::GraphManager
             view, &ForceViewRhiWidget::setArrowScale);
     connect(m_settingsPanel, &ForceViewSettingsPanel::nodeColorChanged,
             m_graphView, &graph_view::GraphViewWidget::setNodeColor);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::fitInViewRequested,
-            view, &ForceViewRhiWidget::fitViewToContent);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::restartRequested,
-            view, &ForceViewRhiWidget::restartSimulation);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::pauseRequested,
-            view, &ForceViewRhiWidget::pauseSimulation);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::resumeRequested,
-            view, &ForceViewRhiWidget::resumeSimulation);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::addNodeRequested,
-            this, &ForceDirectPage::addRuntimeNode);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::editNodeRequested,
-            this, &ForceDirectPage::editRuntimeNode);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::removeNodeRequested,
-            this, &ForceDirectPage::removeRuntimeNode);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::addEdgeRequested,
-            this, &ForceDirectPage::addRuntimeEdge);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::removeEdgeRequested,
-            this, &ForceDirectPage::removeRuntimeEdge);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::graphModeChanged, this,
-            [this](const QString &mode) {
-                if (mode == QStringLiteral("all")) m_graphView->showAll();
-                else if (mode == QStringLiteral("ego")) m_graphView->showEgoGraph(2);
-                else if (mode == QStringLiteral("test")) m_graphView->showTestGraph();
-            });
-    connect(view, &ForceViewRhiWidget::fpsUpdated, m_settingsPanel, &ForceViewSettingsPanel::setFps);
-    connect(view, &ForceViewRhiWidget::tickTimeUpdated, m_settingsPanel, &ForceViewSettingsPanel::setTickTime);
-    connect(view, &ForceViewRhiWidget::paintTimeUpdated, m_settingsPanel, &ForceViewSettingsPanel::setPaintTime);
-    connect(view, &ForceViewRhiWidget::scaleChanged, m_settingsPanel, &ForceViewSettingsPanel::setScale);
-    connect(view, &ForceViewRhiWidget::alphaUpdated, m_settingsPanel, &ForceViewSettingsPanel::setAlpha);
     connect(m_graphView, &graph_view::GraphViewWidget::nodeLeftClicked, this,
             [this](const QString &nodeId) {
                 bool ok = false;
@@ -247,122 +211,6 @@ void ForceDirectPage::applyTheme()
     overlayPalette.setColor(QPalette::Window, color(tokens.background, Qt::white));
     overlayPalette.setColor(QPalette::WindowText, color(tokens.text, Qt::black));
     m_loadingOverlay->setPalette(overlayPalette);
-}
-
-QStringList ForceDirectPage::graphNodeIds() const
-{
-    QStringList ids;
-    const QVector<graph::GraphNode> nodes = m_graphManager.store().nodes();
-    ids.reserve(nodes.size());
-    for (const graph::GraphNode &node : nodes) ids.append(node.id);
-    ids.sort();
-    return ids;
-}
-
-void ForceDirectPage::addRuntimeNode()
-{
-    QDialog dialog(this);
-    dialog.setWindowTitle(QStringLiteral("添加关系图节点"));
-    auto *form = new QFormLayout(&dialog);
-    auto *id = new QLineEdit(&dialog);
-    auto *label = new QLineEdit(&dialog);
-    auto *group = new QComboBox(&dialog);
-    group->addItems({QStringLiteral("work"), QStringLiteral("actress"),
-                     QStringLiteral("custom")});
-    form->addRow(QStringLiteral("节点 ID"), id);
-    form->addRow(QStringLiteral("显示名称"), label);
-    form->addRow(QStringLiteral("类型"), group);
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
-                                         &dialog);
-    form->addRow(buttons);
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    if (dialog.exec() != QDialog::Accepted) return;
-    const QString nodeId = id->text().trimmed();
-    if (nodeId.isEmpty() || m_graphManager.store().containsNode(nodeId)) {
-        QMessageBox::warning(this, QStringLiteral("无法添加节点"),
-                             QStringLiteral("节点 ID 不能为空，且必须与现有节点不同。"));
-        return;
-    }
-    if (!m_graphManager.upsertRuntimeNode(
-            {nodeId, label->text().trimmed(), group->currentText()})) {
-        QMessageBox::warning(this, QStringLiteral("无法添加节点"), QStringLiteral("添加节点失败。"));
-    }
-}
-
-void ForceDirectPage::editRuntimeNode()
-{
-    const QStringList ids = graphNodeIds();
-    if (ids.isEmpty()) return;
-    bool accepted = false;
-    const QString nodeId = QInputDialog::getItem(this, QStringLiteral("编辑关系图节点"),
-                                                  QStringLiteral("节点"), ids, 0, false,
-                                                  &accepted);
-    if (!accepted) return;
-    const auto index = m_graphManager.store().indexOf(nodeId);
-    const graph::GraphNode *node = index ? m_graphManager.store().nodeAt(*index) : nullptr;
-    if (node == nullptr) return;
-    QString label = QInputDialog::getText(this, QStringLiteral("编辑关系图节点"),
-                                          QStringLiteral("显示名称"), QLineEdit::Normal,
-                                          node->label, &accepted);
-    if (!accepted) return;
-    (void)m_graphManager.upsertRuntimeNode({node->id, label.trimmed(), node->group});
-}
-
-void ForceDirectPage::removeRuntimeNode()
-{
-    const QStringList ids = graphNodeIds();
-    if (ids.isEmpty()) return;
-    bool accepted = false;
-    const QString nodeId = QInputDialog::getItem(this, QStringLiteral("删除关系图节点"),
-                                                  QStringLiteral("节点"), ids, 0, false,
-                                                  &accepted);
-    if (accepted && !m_graphManager.removeRuntimeNode(nodeId)) {
-        QMessageBox::warning(this, QStringLiteral("无法删除节点"), QStringLiteral("该节点不存在。"));
-    }
-}
-
-void ForceDirectPage::addRuntimeEdge()
-{
-    const QStringList ids = graphNodeIds();
-    if (ids.size() < 2) return;
-    bool accepted = false;
-    const QString source = QInputDialog::getItem(this, QStringLiteral("添加关系图边"),
-                                                  QStringLiteral("起点"), ids, 0, false,
-                                                  &accepted);
-    if (!accepted) return;
-    const QString target = QInputDialog::getItem(this, QStringLiteral("添加关系图边"),
-                                                  QStringLiteral("终点"), ids, 0, false,
-                                                  &accepted);
-    if (!accepted) return;
-    const QString type = QInputDialog::getText(this, QStringLiteral("添加关系图边"),
-                                               QStringLiteral("关系类型"), QLineEdit::Normal,
-                                               QStringLiteral("custom"), &accepted);
-    if (!accepted) return;
-    if (!m_graphManager.upsertRuntimeEdge({source, target, type.trimmed()})) {
-        QMessageBox::warning(this, QStringLiteral("无法添加边"),
-                             QStringLiteral("起点与终点必须不同。"));
-    }
-}
-
-void ForceDirectPage::removeRuntimeEdge()
-{
-    const QVector<graph::GraphEdge> edges = m_graphManager.store().edges();
-    if (edges.isEmpty()) return;
-    QStringList choices;
-    choices.reserve(edges.size());
-    for (const graph::GraphEdge &edge : edges)
-        choices.append(QStringLiteral("%1 — %2").arg(edge.sourceId, edge.targetId));
-    bool accepted = false;
-    const QString selected = QInputDialog::getItem(this, QStringLiteral("删除关系图边"),
-                                                    QStringLiteral("边"), choices, 0, false,
-                                                    &accepted);
-    if (!accepted) return;
-    const int choice = choices.indexOf(selected);
-    if (choice < 0 || !m_graphManager.removeRuntimeEdge(edges[choice].sourceId,
-                                                         edges[choice].targetId)) {
-        QMessageBox::warning(this, QStringLiteral("无法删除边"), QStringLiteral("该边不存在。"));
-    }
 }
 
 } // namespace darkeye

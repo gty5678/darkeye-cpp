@@ -7,6 +7,7 @@
 #include <string>
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
 /**
  * Simulation — force-directed graph simulation engine.
@@ -26,6 +27,11 @@ public:
 
     // Single simulation step
     void tick();
+    // GPU execution shares the same cooling/lifecycle without running CPU forces.
+    bool prepareGpuTick();
+    std::vector<float> gpuTickAlphas(int maximumTicks) const;
+    void completeGpuTick(float totalSpeed);
+    void considerGpuConvergence(float totalSpeed);
 
     // Lifecycle
     void start();

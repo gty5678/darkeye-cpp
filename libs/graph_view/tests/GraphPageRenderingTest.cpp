@@ -4,11 +4,16 @@
 #include "graph_view/ForceViewRhiWidget.h"
 #include "graph_view/GraphViewWidget.h"
 #include "ui/pages/ForceDirectPage.h"
+#include "ui/pages/ForceViewSettingsPanel.h"
 
 #include <QApplication>
+#include <QAction>
+#include <QContextMenuEvent>
 #include <QEventLoop>
 #include <QLabel>
 #include <QMainWindow>
+#include <QMenu>
+#include <QPushButton>
 #include <QSignalSpy>
 #include <QSqlDatabase>
 #include <QSqlError>
@@ -101,6 +106,16 @@ void GraphPageRenderingTest::rendersWhenRendererExistsBeforeWindowShow()
         stack->setCurrentIndex(0);
         auto *view = page->findChild<ForceViewRhiWidget *>();
         QVERIFY(view != nullptr);
+        QVERIFY(page->findChild<darkeye::ForceViewSettingsPanel *>());
+        QVERIFY(!view->findChild<QWidget *>(QStringLiteral("forcePerformanceOverlay")));
+        QVERIFY(!view->findChild<QMenu *>(QStringLiteral("forceViewContextMenu")));
+        const QStringList testControls = {
+            QStringLiteral("测试"), QStringLiteral("适配视图"), QStringLiteral("重启"),
+            QStringLiteral("暂停"), QStringLiteral("继续"), QStringLiteral("加点"),
+            QStringLiteral("编辑点"), QStringLiteral("减点"), QStringLiteral("加边"),
+            QStringLiteral("减边"), QStringLiteral("2000 点图")};
+        for (const auto *button : page->findChildren<QAbstractButton *>())
+            QVERIFY2(!testControls.contains(button->text()), qPrintable(button->text()));
         auto *loadingOverlay = page->findChild<QLabel *>(QStringLiteral("graphLoadingOverlay"));
         QVERIFY(loadingOverlay != nullptr);
         QSignalSpy paintSpy(view, &ForceViewRhiWidget::paintTimeUpdated);
@@ -129,6 +144,21 @@ void GraphPageRenderingTest::rendersWhenRendererExistsBeforeWindowShow()
         auto *graphWidget = page->findChild<darkeye::graph_view::GraphViewWidget *>();
         QVERIFY(graphWidget != nullptr);
         QTRY_COMPARE(graphWidget->geometry(), page->contentsRect());
+
+        // Statistics remain available on the real application page even though
+        // simulation and graph-editing test buttons belong to the demo.
+        QContextMenuEvent context(QContextMenuEvent::Mouse, QPoint(20, 20),
+                                  view->mapToGlobal(QPoint(20, 20)));
+        QApplication::sendEvent(view, &context);
+        auto *menu = view->findChild<QMenu *>(QStringLiteral("forceViewContextMenu"));
+        auto *action = view->findChild<QAction *>(QStringLiteral("togglePerformanceOverlayAction"));
+        QVERIFY(menu && menu->isVisible());
+        QVERIFY(action);
+        action->trigger();
+        menu->hide();
+        QVERIFY(view->isPerformanceOverlayVisible());
+        action->trigger();
+        QVERIFY(!view->isPerformanceOverlayVisible());
     }
     QSqlDatabase::removeDatabase(publicConnectionName);
     QSqlDatabase::removeDatabase(privateConnectionName);

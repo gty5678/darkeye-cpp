@@ -86,12 +86,52 @@ void Simulation::tick()
     // Integrate velocities -> positions
     float totalSpeed = integrate();
 
+    completeGpuTick(totalSpeed);
+}
+
+bool Simulation::prepareGpuTick()
+{
+    const bool dragging = std::any_of(m_state->dragging.begin(), m_state->dragging.end(),
+                                      [](uint8_t d) { return d != 0; });
+    if (dragging) {
+        m_alpha = 1.0f;
+        m_active = true;
+    }
+    if (m_alpha <= m_alphaMin) m_active = false;
+    return m_active;
+}
+
+std::vector<float> Simulation::gpuTickAlphas(int maximumTicks) const
+{
+    std::vector<float> alphas;
+    const bool dragging = std::any_of(m_state->dragging.begin(), m_state->dragging.end(),
+                                      [](uint8_t d) { return d != 0; });
+    float alpha = dragging ? 1.0f : m_alpha;
+    for (int step = 0; step < maximumTicks && alpha > m_alphaMin; ++step) {
+        alphas.push_back(alpha);
+        if (!dragging && m_firstStarted && m_tickCount + step + 1 >= m_cooldownDelay)
+            alpha *= 1.0f - m_alphaDecay;
+    }
+    return alphas;
+}
+
+void Simulation::completeGpuTick(float totalSpeed)
+{
+    const bool anyDragging = std::any_of(m_state->dragging.begin(), m_state->dragging.end(),
+                                         [](uint8_t d) { return d != 0; });
     // Cooling
     ++m_tickCount;
     if (!anyDragging && m_firstStarted && m_tickCount >= m_cooldownDelay) {
         m_alpha *= (1.0f - m_alphaDecay);
     }
 
+    considerGpuConvergence(totalSpeed);
+}
+
+void Simulation::considerGpuConvergence(float totalSpeed)
+{
+    const bool anyDragging = std::any_of(m_state->dragging.begin(), m_state->dragging.end(),
+                                         [](uint8_t d) { return d != 0; });
     // Early stop when almost settled
     float avgSpeed = totalSpeed / std::max(1, m_state->nNodes);
     if (!anyDragging && avgSpeed < 0.01f && m_alpha < 0.01f) {

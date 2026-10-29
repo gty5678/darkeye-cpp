@@ -71,7 +71,6 @@ void GraphViewWidget::setFavoriteOnly(bool enabled)
 void GraphViewWidget::setEgoGraph(const QString &centerId, int radius, bool prepareWhileHidden)
 {
     m_prepareWhileHidden = prepareWhileHidden;
-    m_showingTestGraph = false;
     m_session.setFilterMode(graph::GraphFilterMode::Ego);
     m_session.setEgoCenter(centerId);
     m_session.setEgoRadius(radius);
@@ -95,7 +94,6 @@ void GraphViewWidget::showEgoGraph(int radius)
 
 void GraphViewWidget::showAll()
 {
-    m_showingTestGraph = false;
     m_session.setFilterMode(graph::GraphFilterMode::All);
     m_style.centerId.clear();
     reloadView();
@@ -103,50 +101,16 @@ void GraphViewWidget::showAll()
 
 void GraphViewWidget::showEmpty()
 {
-    m_showingTestGraph = false;
     m_session.setFilterMode(graph::GraphFilterMode::Empty);
     m_style.centerId.clear();
     reloadView();
-}
-
-void GraphViewWidget::showTestGraph()
-{
-    constexpr int nodeCount = 2000;
-    QVector<int> edges;
-    QStringList ids;
-    QStringList labels;
-    QVector<float> radii;
-    QVector<QColor> colors;
-    edges.reserve(nodeCount * 4);
-    ids.reserve(nodeCount);
-    labels.reserve(nodeCount);
-    radii.reserve(nodeCount);
-    colors.reserve(nodeCount);
-    for (int index = 0; index < nodeCount; ++index) {
-        ids.append(QStringLiteral("test%1").arg(index));
-        labels.append(QStringLiteral("%1").arg(index));
-        radii.append(5.0F);
-        colors.append(index % 2 == 0 ? m_style.actressColor : m_style.workColor);
-        if (index > 0) {
-            edges.append(index - 1);
-            edges.append(index);
-        }
-        if (index >= 25) {
-            edges.append(index - 25);
-            edges.append(index);
-        }
-    }
-    m_showingTestGraph = true;
-    m_style.centerId.clear();
-    m_view->setGraph(nodeCount, edges, {}, ids, labels, radii, colors);
-    QTimer::singleShot(0, m_view, [view = m_view] { view->fitViewToContent(); });
 }
 
 void GraphViewWidget::setEgoRadius(int radius)
 {
     m_egoRadius = radius;
     m_session.setEgoRadius(radius);
-    if (!m_showingTestGraph) reloadView();
+    reloadView();
 }
 
 void GraphViewWidget::setNodeColor(const QString &group, const QColor &color)
@@ -156,7 +120,7 @@ void GraphViewWidget::setNodeColor(const QString &group, const QColor &color)
     else if (group == QStringLiteral("center")) m_style.centerColor = color;
     else if (group == QStringLiteral("default")) m_style.defaultColor = color;
     else return;
-    if (!m_showingTestGraph) reloadView();
+    reloadView();
 }
 
 void GraphViewWidget::setImageOverlayEnabled(bool enabled)
@@ -212,7 +176,6 @@ void GraphViewWidget::reloadView()
 void GraphViewWidget::applyManagerChange()
 {
     hideNodeImage();
-    if (m_showingTestGraph) return;
     if (m_session.filterMode() == graph::GraphFilterMode::FavoriteWorks) {
         QString error;
         m_session.setFavoriteWorkIds(m_manager.favoriteWorkNodeIds(&error));
@@ -309,7 +272,6 @@ void GraphViewWidget::hideNodeImage()
 
 void GraphViewWidget::loadVisibleSnapshot()
 {
-    if (m_showingTestGraph) return;
     if ((!isVisible() && !m_prepareWhileHidden) || width() <= 0 || height() <= 0) {
         m_pendingVisibleLoad = true;
         return;

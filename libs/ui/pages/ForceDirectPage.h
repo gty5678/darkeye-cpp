@@ -42,12 +42,6 @@ private:
     void resizeEvent(QResizeEvent *event) override;
     void applyTheme();
     void updateOverlayGeometry();
-    void addRuntimeNode();
-    void editRuntimeNode();
-    void removeRuntimeNode();
-    void addRuntimeEdge();
-    void removeRuntimeEdge();
-    [[nodiscard]] QStringList graphNodeIds() const;
 
     ThemeService &m_themeService;
     graph::GraphManager &m_graphManager;

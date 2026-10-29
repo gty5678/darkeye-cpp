@@ -15,10 +15,19 @@ qt_add_shaders(darkeye_graph_view forceview_rhi_shaders
     PREFIX "/forceview/shaders"
     FILES
         shaders/force_rhi_color.vert
+        shaders/force_rhi_instance.vert
         shaders/force_rhi_color.frag
         shaders/force_rhi_text.vert
         shaders/force_rhi_text.frag
 )
+qt_add_shaders(darkeye_graph_view forceview_compute_shaders
+    PREFIX "/forceview/shaders"
+    GLSL "430,310es"
+    HLSL 50
+    MSL 12
+    FILES shaders/force_simulation.comp shaders/force_instances.comp shaders/force_text_positions.comp
+)
+
 target_link_libraries(darkeye_graph_view
     PUBLIC
         darkeye::graph

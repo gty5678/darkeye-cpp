@@ -23,6 +23,7 @@
 #include "PhysicsState.h"
 #include "Simulation.h"
 #include "MsdfFontAtlas.h"
+#include "GpuGraphGeometry.h"
 
 class ForceRhiCanvas;
 class QRhi;
@@ -32,6 +33,10 @@ class QRhiGraphicsPipeline;
 class QRhiShaderResourceBindings;
 class QRhiSampler;
 class QRhiTexture;
+class GpuSimulation;
+class ForcePerformanceOverlay;
+class QMenu;
+class QAction;
 
 class ForceViewRhiWidget : public QWidget
 {
@@ -58,12 +63,19 @@ public:
     void resumeSimulation();
     // 重启当前图的力导向仿真。
     void restartSimulation();
-    // 设置仿真后端模式；QRhi 当前保持 CPU 仿真。
+    // 设置仿真后端：auto / gpu / cpu；设备不支持时回退 CPU。
     void setSimulationBackendMode(const QString& mode);
     // 返回用户请求的仿真后端模式。
     QString simulationBackendMode() const;
     // 返回当前实际生效的仿真后端。
     QString activeSimulationBackend() const;
+    void setGpuProfilingEnabled(bool enabled);
+    // 创建默认隐藏的性能表及右键菜单；首次右键时自动调用。
+    void enablePerformanceDiagnostics();
+    // 显示或隐藏性能统计；正式界面和 Demo 均支持右键切换。
+    void setPerformanceOverlayVisible(bool visible);
+    // 返回当前图请求的性能表可见状态。
+    bool isPerformanceOverlayVisible() const;
 
     // 设置多体斥力强度。
     void setManyBodyStrength(float value);
@@ -203,8 +215,10 @@ signals:
     void simulationBackendModeChanged(const QString& mode);
     // 实际生效的仿真后端变化时发出。
     void simulationBackendChanged(const QString& backend);
+    void performanceDetailsUpdated(const QVariantMap& details);
 
 protected:
+    void contextMenuEvent(QContextMenuEvent* event) override;
     // 处理滚轮缩放，并保持鼠标下方场景点稳定。
     void wheelEvent(QWheelEvent* event) override;
     // 处理鼠标按下，用于节点选择、拖拽或视图平移。
@@ -224,6 +238,7 @@ private slots:
 
 private:
     friend class ForceRhiCanvas;
+    friend class GpuSimulationTest;
 
     struct Vertex {
         float x = 0.0f;
@@ -247,6 +262,8 @@ private:
         float b = 1.0f;
         float a = 1.0f;
         float rangeScale = 1.0f;
+        float node = -1.0f;
+        float anchorX = 0.0f, anchorY = 0.0f;
     };
 
     struct GlyphQuad {
@@ -273,6 +290,8 @@ private:
     };
 
     static constexpr int kSimTickIntervalMs = 16;
+    static constexpr int kGpuQueueStepLimit = 8;
+    static constexpr float kGpuMaxStepDisplacement = 15.0f;
     static constexpr int kFitViewDelayMs = 100;
     static constexpr int kCircleSegments = 24;
     static constexpr float kInitialLayoutScaleFactor = 25.0f;
@@ -317,20 +336,21 @@ private:
 
     // 创建内部 QRhiWidget 画布并加入布局。
     void setupLayout();
+    void setupPerformanceOverlay();
+    void positionPerformanceOverlay();
     // 启动 CPU 仿真线程。
     void startSimThread();
     // 停止 CPU 仿真线程并等待退出。
     void stopSimThread();
     // CPU 仿真循环，推进物理状态并请求重绘。
     void simLoop();
+    void advanceGpuSimulation(QRhiCommandBuffer* cb);
     // 按当前参数重新创建 Simulation 力模型。
     void rebuildSimulation();
     // 以线程安全方式请求 QRhi 画布更新。
     void requestCanvasUpdate();
     // 应用用户选择的仿真后端模式。
     void applySimulationBackendPreference();
-    // 切换到 CPU 仿真后端并发出后端变化信号。
-    void switchToCpuSimulation();
 
     // 根据半径/边宽因子更新实际显示半径和边宽。
     void updateFactor();
@@ -351,6 +371,7 @@ private:
 
     // 构建当前帧的边、箭头和节点顶点批次。
     void prepareFrameVertices();
+    bool prepareGpuGeometry(QRhiCommandBuffer* cb);
     // 追加一条带 shader 抗锯齿局部坐标的边四边形。
     void appendLineQuad(std::vector<Vertex>& out, int s, int d, const QColor& color, const float* pos);
     // 追加一条边末端箭头三角形。
@@ -387,6 +408,9 @@ private:
     MsdfFontAtlas::Config makeFontConfig() const;
 
     ForceRhiCanvas* m_canvas = nullptr;
+    ForcePerformanceOverlay* m_performanceOverlay = nullptr;
+    QMenu* m_graphContextMenu = nullptr;
+    QAction* m_performanceAction = nullptr;
 
     std::unique_ptr<PhysicsState> m_physicsState;
     std::unique_ptr<Simulation> m_simulation;
@@ -396,7 +420,18 @@ private:
     std::condition_variable m_simCv;
     std::atomic<bool> m_simActive{false};
     std::atomic<bool> m_allowWarmup{false};
-    QString m_simulationBackendMode = QStringLiteral("cpu");
+    std::unique_ptr<GpuSimulation> m_gpuSimulation;
+    std::unique_ptr<GpuGraphGeometry> m_gpuGeometry;
+    std::vector<GpuGraphGeometry::Instance> m_gpuDescriptions;
+    bool m_usingGpuGeometry = false;
+    bool m_usingGpuText = false;
+    bool m_gpuDescriptionsDirty = true;
+    quint64 m_gpuDescriptionRevision = 0;
+    bool m_gpuDescriptionHoverActive = false;
+    bool m_gpuProfiling = false;
+    double m_lastGpuSnapshot = 0, m_lastPerformanceReport = 0;
+    QTimer m_gpuTimer;
+    QString m_simulationBackendMode = QStringLiteral("auto");
     QString m_activeSimulationBackend = QStringLiteral("cpu");
 
     QStringList m_ids;
@@ -442,6 +477,9 @@ private:
     int m_selectedIndex = -1;
     bool m_dragging = false;
     Qt::MouseButton m_pressedButton = Qt::NoButton;
+    QPointF m_rightPressPosition;
+    bool m_rightButtonHeld = false;
+    bool m_rightGestureMoved = false;
     float m_dragOffsetX = 0.0f;
     float m_dragOffsetY = 0.0f;
 
@@ -491,6 +529,7 @@ private:
     std::unordered_map<std::string, LabelLayoutEntry> m_labelLayoutCache;
     std::vector<const LabelLayoutEntry*> m_labelLayoutByIndex;
     std::vector<TextVertex> m_textVertices;
+    std::vector<uint8_t> m_retainedLabels;
     // m_textVertices 内的绘制区间：dim 文字在高亮图形下方，普通文字在节点上方，
     // hover 文字在所有内容上方。
     quint32 m_textDimFirst = 0;

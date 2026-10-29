@@ -20,12 +20,14 @@ get_filename_component(_dvd_demo_root "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLU
 qt_add_resources(darkeye_render3d_demo dvd_demo_assets
     PREFIX "/dvd_demo" BASE "${_dvd_demo_root}/libs/dvd"
     FILES "${_dvd_demo_root}/libs/dvd/dvd.glb")
-set_target_properties(darkeye_render3d_demo PROPERTIES WIN32_EXECUTABLE FALSE)
+set_target_properties(darkeye_render3d_demo PROPERTIES
+    WIN32_EXECUTABLE FALSE RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 target_link_libraries(darkeye_render3d_demo PRIVATE darkeye::render3d darkeye::dvd_scene)
 darkeye_apply_compiler_options(darkeye_render3d_demo)
 
 qt_add_executable(darkeye_dvd_scene_demo dvd_demo.cpp)
-set_target_properties(darkeye_dvd_scene_demo PROPERTIES WIN32_EXECUTABLE FALSE)
+set_target_properties(darkeye_dvd_scene_demo PROPERTIES
+    WIN32_EXECUTABLE FALSE RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 qt_add_resources(darkeye_dvd_scene_demo dvd_scene_demo_assets
     PREFIX "/dvd_scene_demo" BASE "${_dvd_demo_root}/libs/dvd"
     FILES "${_dvd_demo_root}/libs/dvd/dvd.glb")

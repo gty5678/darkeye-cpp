@@ -1,14 +1,12 @@
 #include "ui/pages/ForceViewSettingsPanel.h"
 
 #include "darkeye_ui/components/CollapsibleSection.h"
-#include "darkeye_ui/components/DesignButton.h"
 #include "darkeye_ui/components/DesignLabel.h"
 #include "darkeye_ui/components/InteractionEffects.h"
 #include "darkeye_ui/components/AnimatedIndicators.h"
 #include "darkeye_ui/components/TokenControls.h"
 #include "darkeye_ui/theme/ThemeService.h"
 
-#include <QButtonGroup>
 #include <QColorDialog>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -148,70 +146,8 @@ ForceViewSettingsPanel::ForceViewSettingsPanel(ThemeService &themeService, QWidg
     connect(graphNeighborDepth, &QSlider::valueChanged, this,
             &ForceViewSettingsPanel::graphNeighborDepthChanged);
 
-    auto *testing = new TokenCollapsibleSection(QStringLiteral("测试"), &themeService, content);
-    const auto addButton = [this, testing, content](const QString &text, auto signal) {
-        auto *button = new DesignButton(text, content);
-        button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        testing->addWidget(button);
-        connect(button, &QPushButton::clicked, this, signal);
-    };
-    addButton(QStringLiteral("适配视图"), &ForceViewSettingsPanel::fitInViewRequested);
-    addButton(QStringLiteral("重启"), &ForceViewSettingsPanel::restartRequested);
-    addButton(QStringLiteral("暂停"), &ForceViewSettingsPanel::pauseRequested);
-    addButton(QStringLiteral("继续"), &ForceViewSettingsPanel::resumeRequested);
-    const auto addEditButton = [this, testing, content](const QString &text, auto signal) {
-        auto *button = new DesignButton(text, content);
-        button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        testing->addWidget(button);
-        connect(button, &QPushButton::clicked, this, signal);
-    };
-    addEditButton(QStringLiteral("加点"), &ForceViewSettingsPanel::addNodeRequested);
-    addEditButton(QStringLiteral("编辑点"), &ForceViewSettingsPanel::editNodeRequested);
-    addEditButton(QStringLiteral("减点"), &ForceViewSettingsPanel::removeNodeRequested);
-    addEditButton(QStringLiteral("加边"), &ForceViewSettingsPanel::addEdgeRequested);
-    addEditButton(QStringLiteral("减边"), &ForceViewSettingsPanel::removeEdgeRequested);
-    auto *modes = new QHBoxLayout;
-    auto *modeGroup = new QButtonGroup(content);
-    const auto addMode = [this, modes, modeGroup, content](const QString &text, const QString &mode,
-                                                            bool checked = false) {
-        auto *button = new TokenRadioButton(text, content);
-        button->setChecked(checked);
-        modeGroup->addButton(button);
-        modes->addWidget(button);
-        connect(button, &QRadioButton::toggled, this, [this, mode](bool on) {
-            if (on) emit graphModeChanged(mode);
-        });
-    };
-    addMode(QStringLiteral("总图"), QStringLiteral("all"), true);
-    addMode(QStringLiteral("中心图"), QStringLiteral("ego"));
-    addMode(QStringLiteral("2000 点图"), QStringLiteral("test"));
-    auto *stats = new QFormLayout;
-    auto makeStat = [content] { return new DesignLabel(QStringLiteral("--"), content); };
-    m_tick = makeStat();
-    m_paint = makeStat();
-    m_scale = makeStat();
-    m_fps = makeStat();
-    m_alpha = makeStat();
-    auto *backend = new QHBoxLayout;
-    auto *cpu = new TokenRadioButton(QStringLiteral("CPU"), content);
-    cpu->setChecked(true);
-    cpu->setEnabled(false);
-    backend->addWidget(cpu);
-    stats->addRow(new DesignLabel(QStringLiteral("Layout Backend"), content), backend);
-    stats->addRow(new DesignLabel(QStringLiteral("Active Layout"), content), new DesignLabel(QStringLiteral("CPU Layout"), content));
-    stats->addRow(new DesignLabel(QStringLiteral("图类型"), content), modes);
-    stats->addRow(new DesignLabel(QStringLiteral("tick消耗"), content), m_tick);
-    stats->addRow(new DesignLabel(QStringLiteral("paint消耗"), content), m_paint);
-    stats->addRow(new DesignLabel(QStringLiteral("当前缩放"), content), m_scale);
-    stats->addRow(new DesignLabel(QStringLiteral("当前帧率"), content), m_fps);
-    stats->addRow(new DesignLabel(QStringLiteral("当前模拟热度"), content), m_alpha);
-    auto *statsContent = new QWidget(content);
-    statsContent->setLayout(stats);
-    testing->addWidget(statsContent);
-
     layout->addWidget(effects);
     layout->addWidget(display);
-    layout->addWidget(testing);
     layout->addStretch();
     setWidget(content);
     updateContentWidth();
@@ -229,8 +165,6 @@ ForceViewSettingsPanel::ForceViewSettingsPanel(ThemeService &themeService, QWidg
     connect(effects, &TokenCollapsibleSection::toggled, this,
             [notifyContentSizeChanged](bool) { notifyContentSizeChanged(); });
     connect(display, &TokenCollapsibleSection::toggled, this,
-            [notifyContentSizeChanged](bool) { notifyContentSizeChanged(); });
-    connect(testing, &TokenCollapsibleSection::toggled, this,
             [notifyContentSizeChanged](bool) { notifyContentSizeChanged(); });
 }
 
@@ -269,11 +203,5 @@ int ForceViewSettingsPanel::preferredHeight() const
     // still has a viewport large enough for all folded/expanded content.
     return content->sizeHint().height() + frameWidth() * 2;
 }
-
-void ForceViewSettingsPanel::setFps(float value) { m_fps->setText(QString::number(value, 'f', 2)); }
-void ForceViewSettingsPanel::setTickTime(float value) { m_tick->setText(QStringLiteral("%1 ms").arg(value, 0, 'f', 3)); }
-void ForceViewSettingsPanel::setPaintTime(float value) { m_paint->setText(QStringLiteral("%1 ms").arg(value, 0, 'f', 3)); }
-void ForceViewSettingsPanel::setScale(float value) { m_scale->setText(QString::number(value, 'f', 2)); }
-void ForceViewSettingsPanel::setAlpha(float value) { m_alpha->setText(QString::number(value, 'f', 2)); }
 
 } // namespace darkeye

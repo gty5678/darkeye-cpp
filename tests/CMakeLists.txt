@@ -110,7 +110,23 @@ set_tests_properties(darkeye_myads_demo_smoke PROPERTIES
 )
 add_test(NAME darkeye_graph_view_demo_smoke
     COMMAND $<TARGET_FILE:darkeye_graph_view_demo> --smoke-test)
-set_tests_properties(darkeye_graph_view_demo_smoke PROPERTIES
+add_test(NAME darkeye_graph_view_demo_motion_smoke
+    COMMAND $<TARGET_FILE:darkeye_graph_view_demo> --backend gpu --nodes 400 --text-motion-smoke)
+foreach(scenario IN ITEMS baseline communities hubs lattice star islands overlap)
+    add_test(NAME darkeye_graph_view_demo_scenario_${scenario}
+        COMMAND $<TARGET_FILE:darkeye_graph_view_demo> --backend gpu --nodes 127 --preset ${scenario} --seed 42 --smoke-test)
+    set_tests_properties(darkeye_graph_view_demo_scenario_${scenario} PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}" TIMEOUT 15)
+endforeach()
+qt_add_executable(darkeye_graph_demo_data_tests unit/GraphDemoDataTest.cpp ../apps/graph_view_demo/GraphScenarios.cpp)
+target_include_directories(darkeye_graph_demo_data_tests PRIVATE ../apps/graph_view_demo)
+target_link_libraries(darkeye_graph_demo_data_tests PRIVATE Qt6::Gui Qt6::Test)
+darkeye_apply_compiler_options(darkeye_graph_demo_data_tests)
+add_test(NAME darkeye_graph_demo_data_tests COMMAND darkeye_graph_demo_data_tests)
+set_tests_properties(darkeye_graph_demo_data_tests PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}" TIMEOUT 30)
+set_tests_properties(darkeye_graph_view_demo_smoke darkeye_graph_view_demo_motion_smoke PROPERTIES
     ENVIRONMENT
         "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
     ENVIRONMENT_MODIFICATION
@@ -195,6 +211,19 @@ qt_add_executable(darkeye_graph_view_physics_tests
 target_link_libraries(darkeye_graph_view_physics_tests PRIVATE darkeye::graph_view)
 darkeye_apply_compiler_options(darkeye_graph_view_physics_tests)
 add_test(NAME darkeye_graph_view_physics_tests COMMAND darkeye_graph_view_physics_tests)
+
+qt_add_executable(darkeye_gpu_simulation_tests
+    ../libs/graph_view/tests/GpuSimulationTest.cpp
+)
+target_link_libraries(darkeye_gpu_simulation_tests PRIVATE darkeye::graph_view Qt6::GuiPrivate Qt6::Test)
+darkeye_apply_compiler_options(darkeye_gpu_simulation_tests)
+add_test(NAME darkeye_gpu_simulation_tests COMMAND darkeye_gpu_simulation_tests
+    -o "${CMAKE_CURRENT_BINARY_DIR}/gpu-simulation-results.txt,txt")
+set_tests_properties(darkeye_gpu_simulation_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}"
+    TIMEOUT 120
+)
 
 qt_add_executable(darkeye_msdf_font_atlas_tests
     ../libs/graph_view/tests/MsdfFontAtlasTest.cpp
