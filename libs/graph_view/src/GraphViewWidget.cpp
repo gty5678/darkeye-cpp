@@ -120,7 +120,9 @@ void GraphViewWidget::setNodeColor(const QString &group, const QColor &color)
     else if (group == QStringLiteral("center")) m_style.centerColor = color;
     else if (group == QStringLiteral("default")) m_style.defaultColor = color;
     else return;
-    reloadView();
+    // Appearance changes must preserve positions, camera and simulation state.
+    // A pending initial/full load will pick up m_style when it runs.
+    if (m_loaded) m_presenter.updateColors(m_session.snapshot(), m_style);
 }
 
 void GraphViewWidget::setImageOverlayEnabled(bool enabled)

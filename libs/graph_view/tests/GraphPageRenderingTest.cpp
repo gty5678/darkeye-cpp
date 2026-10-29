@@ -32,7 +32,36 @@ private slots:
     void rendersWhenRendererExistsBeforeWindowShow();
     void loadsFirstGraphSnapshotAfterAnInitiallyEmptyView();
     void preparesLatestEgoGraphWhileHidden();
+    void changingNodeColorsPreservesLayout();
 };
+
+void GraphPageRenderingTest::changingNodeColorsPreservesLayout()
+{
+    darkeye::graph::GraphManager manager({}, {});
+    QVERIFY(manager.upsertRuntimeNode(
+        {QStringLiteral("a1"), QStringLiteral("Actress"), QStringLiteral("actress")}));
+    darkeye::graph_view::GraphViewWidget graph(manager);
+    graph.resize(480, 400);
+    graph.setEgoGraph(QStringLiteral("a1"), 1, true);
+    auto *view = graph.view();
+    view->setSimulationBackendMode(QStringLiteral("cpu"));
+    view->setGraph(1, {}, {123.0f, 456.0f}, {QStringLiteral("a1")},
+                   {QStringLiteral("Actress")}, {7.0f});
+    view->pauseSimulation();
+    const QPointF position = view->getNodePosition(QStringLiteral("a1"));
+    const float zoom = view->getZoom();
+    const float panX = view->getPanX();
+    const float panY = view->getPanY();
+
+    for (const auto &group : {"actress", "work", "center", "default"}) {
+        graph.setNodeColor(QLatin1String(group), QColor(Qt::green));
+        QCOMPARE(view->getNodePosition(QStringLiteral("a1")), position);
+        QCOMPARE(view->getZoom(), zoom);
+        QCOMPARE(view->getPanX(), panX);
+        QCOMPARE(view->getPanY(), panY);
+        QCOMPARE(view->getNodeIds(), QStringList{QStringLiteral("a1")});
+    }
+}
 
 void GraphPageRenderingTest::coveredRendererSubmitsFrame()
 {

@@ -1,51 +1,32 @@
 #include "ui/pages/ForceViewSettingsPanel.h"
 
 #include "darkeye_ui/components/CollapsibleSection.h"
+#include "darkeye_ui/components/ColorPicker.h"
 #include "darkeye_ui/components/DesignLabel.h"
 #include "darkeye_ui/components/InteractionEffects.h"
 #include "darkeye_ui/components/AnimatedIndicators.h"
 #include "darkeye_ui/components/TokenControls.h"
 #include "darkeye_ui/theme/ThemeService.h"
 
-#include <QColorDialog>
 #include <QFormLayout>
 #include <QHBoxLayout>
-#include <QPushButton>
 #include <QSlider>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 
-#include <memory>
-
 namespace darkeye {
 
 namespace {
 
-QPushButton *makeColorButton(const QString &group, const QColor &initial,
-                             ThemeService &themes, ForceViewSettingsPanel *panel)
+ColorPicker *makeColorPicker(const QString &group, const QColor &initial,
+                             ForceViewSettingsPanel *panel)
 {
-    auto *button = new QPushButton(panel);
-    button->setFixedSize(56, 24);
-    button->setCursor(Qt::PointingHandCursor);
-    auto color = std::make_shared<QColor>(initial);
-    const auto applyStyle = [button, color, &themes] {
-        const ThemeTokens tokens = themes.currentTokens();
-        button->setStyleSheet(QStringLiteral("background-color:%1; border:1px solid %2; "
-                                             "border-radius:3px;")
-                                  .arg(color->name(), tokens.border));
-    };
-    applyStyle();
-    QObject::connect(&themes, &ThemeService::themeChanged, button, applyStyle);
-    QObject::connect(button, &QPushButton::clicked, panel, [panel, button, group, color, applyStyle] {
-        const QColor selected = QColorDialog::getColor(*color, button, QStringLiteral("选择颜色"),
-                                                        QColorDialog::ShowAlphaChannel);
-        if (!selected.isValid()) return;
-        *color = selected;
-        applyStyle();
-        emit panel->nodeColorChanged(group, selected);
+    auto *picker = new ColorPicker(initial, false, ColorPicker::Shape::Circle, panel);
+    QObject::connect(picker, &ColorPicker::colorChanged, panel, [panel, group](const QString &color) {
+        emit panel->nodeColorChanged(group, QColor(color));
     });
-    return button;
+    return picker;
 }
 
 } // namespace
@@ -112,13 +93,13 @@ ForceViewSettingsPanel::ForceViewSettingsPanel(ThemeService &themeService, QWidg
     auto *colorColumn = new QVBoxLayout;
     colorColumn->setContentsMargins(0, 0, 0, 0);
     colorColumn->setSpacing(6);
-    const auto addColor = [colorColumn, content, &themeService, this](const QString &name,
+    const auto addColor = [colorColumn, content, this](const QString &name,
                                                                         const QString &group,
                                                                         const QColor &initial) {
         auto *row = new QHBoxLayout;
         row->setContentsMargins(0, 0, 0, 0);
         row->addWidget(new DesignLabel(name, content));
-        row->addWidget(makeColorButton(group, initial, themeService, this));
+        row->addWidget(makeColorPicker(group, initial, this));
         row->addStretch();
         colorColumn->addLayout(row);
     };
