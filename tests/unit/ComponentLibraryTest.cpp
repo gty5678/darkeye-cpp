@@ -21,6 +21,7 @@
 #include "darkeye_ui/components/ModalDialog.h"
 #include "darkeye_ui/components/ModernScrollMenu.h"
 #include "darkeye_ui/components/OctImage.h"
+#include "darkeye_ui/components/SoftShadow.h"
 #include "ui/components/PathManagement.h"
 #include "darkeye_ui/components/MakerSelector.h"
 #include "darkeye_ui/components/MakerComboDelegate.h"
@@ -39,6 +40,7 @@
 #include <QContextMenuEvent>
 #include <QFile>
 #include <QFileDialog>
+#include <QElapsedTimer>
 #include <QFrame>
 #include <QGraphicsScene>
 #include <QHeaderView>
@@ -51,6 +53,9 @@
 #include <QtTest>
 
 #include <algorithm>
+#include <memory>
+#include <future>
+#include <vector>
 
 namespace
 {
@@ -89,6 +94,8 @@ private slots:
     void navigationComponentsKeepSelectionContract();
     void sidebarResolvesExternalIconBasePath();
     void linkImageAndVerticalComponentsKeepContract();
+    void avatarBatchRendering();
+    void softShadowCacheSeparatesContours();
     void makerSelectorKeepsIdAliasAndReloadContract();
     void makerComboDelegateKeepsTableEditContract();
     void paginationKeepsDynamicPageSizeContract();
@@ -683,7 +690,20 @@ void ComponentLibraryTest::linkImageAndVerticalComponentsKeepContract()
     QSignalSpy loaded(&oct, &darkeye::OctImage::imageLoaded);
     QTRY_COMPARE_WITH_TIMEOUT(loaded.count(), 1, 1000);
     QVERIFY(!oct.pixmap().isNull());
-    QVERIFY(!oct.mask().isEmpty());
+    QVERIFY(oct.mask().isEmpty());
+    QVERIFY(!oct.containsAvatarPoint(QPointF(0, 0)));
+    QVERIFY(oct.containsAvatarPoint(QPointF(40, 40)));
+    const auto rendered = oct.grab().toImage();
+    QCOMPARE(rendered.pixelColor(0, 0).alpha(), 0);
+    QCOMPARE(rendered.pixelColor(rendered.width() / 2, rendered.height() / 2), QColor(Qt::magenta));
+    darkeye::OctImage shadowed(imagePath, {}, 80, true);
+    QSignalSpy shadowLoaded(&shadowed, &darkeye::OctImage::imageLoaded);
+    QTRY_COMPARE_WITH_TIMEOUT(shadowLoaded.count(), 1, 1000);
+    const auto shadowRender = shadowed.grab().toImage();
+    const qreal scale = shadowRender.devicePixelRatio();
+    const int shadowAlpha = shadowRender.pixelColor(qRound(40 * scale), qRound(6 * scale)).alpha();
+    QVERIFY(shadowAlpha > 0 && shadowAlpha < 80);
+    QCOMPARE(shadowRender.pixelColor(0, 0).alpha(), 0);
     oct.updateImage({});
     QTRY_VERIFY_WITH_TIMEOUT(!oct.pixmap().isNull(), 1000);
     QCOMPARE(oct.source(), QStringLiteral(":/icons/anonymous.jpg"));
@@ -706,6 +726,60 @@ void ComponentLibraryTest::linkImageAndVerticalComponentsKeepContract()
     tabs.addTab(QStringLiteral("人物AB"));
     QCOMPARE(tabs.objectName(), QStringLiteral("VerticalTabBar"));
     QVERIFY(tabs.tabSizeHint(1).height() > 40);
+}
+
+void ComponentLibraryTest::softShadowCacheSeparatesContours()
+{
+    const auto images = std::async(std::launch::async, [] {
+        QPainterPath rectangle;
+        rectangle.addRect(QRectF(8, 8, 64, 64));
+        QPainterPath triangle;
+        triangle.moveTo(40, 8);
+        triangle.lineTo(72, 72);
+        triangle.lineTo(8, 72);
+        triangle.closeSubpath();
+        return QList<QImage>{darkeye::renderSoftShadow(QSize(80, 80), rectangle, 1),
+                             darkeye::renderSoftShadow(QSize(80, 80), triangle, 1),
+                             darkeye::renderSoftShadow(QSize(80, 80), rectangle, 1)};
+    }).get();
+    QCOMPARE(images.at(0).cacheKey(), images.at(2).cacheKey());
+    QVERIFY(images.at(0).pixelColor(12, 40).alpha() > 60);
+    QVERIFY(images.at(1).pixelColor(12, 40).alpha() < 10);
+}
+
+void ComponentLibraryTest::avatarBatchRendering()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString imagePath = directory.filePath(QStringLiteral("large-avatar.png"));
+    QImage source(1000, 1000, QImage::Format_RGB32);
+    source.fill(Qt::magenta);
+    QVERIFY(source.save(imagePath));
+    std::vector<std::unique_ptr<darkeye::OctImage>> avatars;
+    int loaded = 0;
+    for (int i = 0; i < 48; ++i) {
+        auto avatar = std::make_unique<darkeye::OctImage>(imagePath, QString(), 150, true);
+        connect(avatar.get(), &darkeye::OctImage::imageLoaded, this, [&loaded] { ++loaded; });
+        avatars.push_back(std::move(avatar));
+    }
+    QTRY_COMPARE_WITH_TIMEOUT(loaded, 48, 10000);
+    QElapsedTimer timer;
+    timer.start();
+    for (const auto &avatar : avatars) {
+        // Keep only a screen-sized source bitmap, rather than the full photo.
+        QCOMPARE(avatar->pixmap().size(),
+                 QSize(qCeil(150 * avatar->devicePixelRatioF()),
+                       qCeil(150 * avatar->devicePixelRatioF())));
+        const auto image = avatar->grab().toImage();
+        QCOMPARE(image.pixelColor(image.width() / 2, image.height() / 2), QColor(Qt::magenta));
+    }
+    qInfo() << "48 avatar first paints (ms):" << timer.nsecsElapsed() / 1000000.0;
+    // A screen change must prepare a new cache asynchronously, while retaining
+    // the old bitmap for immediate paints during the transition.
+    QEvent dprChange(QEvent::DevicePixelRatioChange);
+    QCoreApplication::sendEvent(avatars.front().get(), &dprChange);
+    QVERIFY(!avatars.front()->pixmap().isNull());
+    QTRY_COMPARE_WITH_TIMEOUT(loaded, 49, 10000);
 }
 
 void ComponentLibraryTest::makerSelectorKeepsIdAliasAndReloadContract()
@@ -828,8 +902,11 @@ void ComponentLibraryTest::personCardKeepsAvatarInteractionContract()
     QCOMPARE(card.name(), QStringLiteral("示例演员"));
     QSignalSpy activated(&card, &darkeye::PersonCard::activated);
     QSignalSpy edited(&card, &darkeye::PersonCard::editRequested);
-    QVERIFY(!card.avatar()->mask().contains(QPoint(0, 0)));
-    QVERIFY(card.avatar()->mask().contains(QPoint(75, 75)));
+    QVERIFY(!card.avatar()->containsAvatarPoint(QPointF(0, 0)));
+    QVERIFY(card.avatar()->containsAvatarPoint(QPointF(75, 75)));
+    QVERIFY(card.avatar()->graphicsEffect() == nullptr);
+    QTest::mouseClick(card.avatar(), Qt::LeftButton, Qt::NoModifier, QPoint(1, 1));
+    QCOMPARE(activated.count(), 0);
     QTest::mouseClick(card.avatar(), Qt::LeftButton);
     QTest::mouseClick(card.avatar(), Qt::RightButton);
     QCOMPARE(activated.count(), 1);

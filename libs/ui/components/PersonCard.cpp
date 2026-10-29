@@ -79,6 +79,8 @@ bool PersonCard::eventFilter(QObject *watched, QEvent *event)
     if (watched == m_avatar && event->type() == QEvent::MouseButtonRelease)
     {
         const auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if (!m_avatar->containsAvatarPoint(mouseEvent->position()))
+            return true;
         if (mouseEvent->button() == Qt::LeftButton)
         {
             emit activated(m_personId);

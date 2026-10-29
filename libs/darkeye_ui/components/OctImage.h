@@ -2,6 +2,7 @@
 
 #include <QImage>
 #include <QLabel>
+#include <QPainterPath>
 
 namespace darkeye {
 
@@ -15,21 +16,29 @@ public:
                       QWidget *parent = nullptr);
     QString source() const;
     void updateImage(const QString &imagePath);
+    bool containsAvatarPoint(const QPointF &point) const;
 
 signals:
     void imageReady(const QImage &image);
     void imageLoaded(const QString &path);
 
+protected:
+    bool event(QEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
+
 private:
     QString resolvedPath(const QString &imagePath) const;
-    void applyOctagonMask();
+    QPainterPath avatarPath() const;
     void startLoad();
-    void applyImage(quint64 request, const QString &path, const QImage &image);
+    void applyImage(quint64 request, const QString &path, const QImage &image,
+                    const QImage &rendered);
 
     int m_diameter = 150;
     QString m_basePath;
     QString m_source;
     quint64 m_request = 0;
+    bool m_shadow = true;
+    QPixmap m_renderCache;
 };
 
 } // namespace darkeye

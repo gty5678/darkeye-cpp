@@ -52,7 +52,7 @@ void PersonPage::buildUi()
     root->setSpacing(6);
 
     auto *filterBar = new QWidget(this);
-    filterBar->setFixedHeight(44);
+    filterBar->setFixedHeight(32);
     auto *filters = new QHBoxLayout(filterBar);
     filters->setContentsMargins(10, 0, 10, 0);
     filters->setSpacing(6);
