@@ -27,6 +27,8 @@ public:
               const GraphViewStyle &style = {});
     void apply(const graph::GraphDelta &delta,
                const GraphViewStyle &style = {});
+    void updateColors(const graph::GraphViewSnapshot &snapshot,
+                      const GraphViewStyle &style);
 
 private:
     [[nodiscard]] QColor colorFor(const graph::GraphNode &node,

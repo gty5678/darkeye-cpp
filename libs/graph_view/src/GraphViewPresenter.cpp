@@ -94,6 +94,26 @@ void GraphViewPresenter::apply(const graph::GraphDelta &delta,
     m_view.apply_diff_runtime(operations);
 }
 
+void GraphViewPresenter::updateColors(const graph::GraphViewSnapshot &snapshot,
+                                      const GraphViewStyle &style)
+{
+    QHash<QString, QColor> colorsById;
+    colorsById.reserve(snapshot.nodes.size());
+    for (const auto &node : snapshot.nodes) {
+        colorsById.insert(node.node.id, colorFor(node.node, style));
+    }
+
+    // Runtime additions/removals can change renderer order independently of
+    // snapshot order. Upload colors in the renderer's current node order.
+    const QStringList ids = m_view.getNodeIds();
+    QVector<QColor> colors;
+    colors.reserve(ids.size());
+    for (const QString &id : ids) {
+        colors.append(colorsById.value(id, style.defaultColor));
+    }
+    m_view.setNodeColors(colors);
+}
+
 QColor GraphViewPresenter::colorFor(const graph::GraphNode &node,
                                     const GraphViewStyle &style) const
 {
