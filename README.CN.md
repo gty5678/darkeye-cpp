@@ -233,6 +233,8 @@
 
 Windows 安装版与便携版的生成步骤见 [Windows 打包与发布](docs/windows-packaging.md)。
 
+macOS（Apple Silicon）需要安装的工具、Qt/vcpkg 配置、编译与启动命令，以及便携 ZIP 和安装 PKG 的生成步骤见 [macOS 安装依赖、编译、运行与打包](docs/macos-packaging.md)。已有本机环境可直接使用文档第 0 节的命令。
+
 ---
 
 <a id="community"></a>

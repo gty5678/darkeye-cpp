@@ -10,6 +10,7 @@ namespace darkeye {
 DesignComboBox::DesignComboBox(QWidget *parent) : QComboBox(parent)
 {
     setObjectName(QStringLiteral("DesignComboBox"));
+    setProperty("darkeyeStyle", QStringLiteral("DesignComboBox"));
     view()->setObjectName(QStringLiteral("DesignComboBoxPopup"));
 }
 

@@ -233,6 +233,8 @@
 
 👉 [開發文件](https://gty5678.github.io/darkeye/development/)
 
+macOS（Apple Silicon）所需工具、Qt/vcpkg 設定、編譯與啟動命令，以及便攜 ZIP 與安裝 PKG 的產生步驟，請參閱 [macOS 安裝依賴、編譯、執行與打包](docs/macos-packaging.md)。
+
 ---
 
 <a id="community"></a>

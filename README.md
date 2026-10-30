@@ -236,6 +236,8 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 
 👉 [開発ドキュメント](https://gty5678.github.io/darkeye/development/)
 
+macOS（Apple Silicon）の依存ツール、Qt/vcpkg 設定、ビルド・起動コマンド、ポータブル ZIP とインストーラー PKG の作成手順は [macOS ビルド・実行・パッケージガイド（中国語）](docs/macos-packaging.md) を参照してください。
+
 ---
 
 <a id="community"></a>

@@ -58,6 +58,10 @@
 #define NOMINMAX
 #include <Windows.h>
 #include <psapi.h>
+#elif defined(Q_OS_MACOS)
+#include <mach/mach.h>
+#include <sys/resource.h>
+#include <QThread>
 #endif
 
 namespace darkeye
@@ -90,6 +94,19 @@ ProcessMemoryUsage processMemoryUsage()
         const qint64 sharedWorkingSet = qMax<qint64>(
             0, static_cast<qint64>(counters.WorkingSetSize) - privateWorkingSet);
         return {formatMemory(sharedWorkingSet), formatMemory(privateWorkingSet)};
+    }
+#elif defined(Q_OS_MACOS)
+    task_vm_info_data_t counters{};
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    if (task_info(mach_task_self(), TASK_VM_INFO,
+                  reinterpret_cast<task_info_t>(&counters), &count) == KERN_SUCCESS)
+    {
+        // Darwin splits resident pages into anonymous (internal) and file-backed
+        // (external) memory. Use these for the private/shared display; external
+        // pages can be shared but are not necessarily mapped by another process.
+        // Compressed and swapped-out pages are excluded, as with a working set.
+        return {formatMemory(static_cast<qint64>(counters.external)),
+                formatMemory(static_cast<qint64>(counters.internal))};
     }
 #endif
     return {QStringLiteral("N/A"), QStringLiteral("N/A")};
@@ -138,6 +155,39 @@ QString processCpuUsage()
     GetSystemInfo(&systemInfo);
     const DWORD processorCount = qMax<DWORD>(systemInfo.dwNumberOfProcessors, 1);
     const double usage = qBound(0.0, static_cast<double>(cpuTimeDelta) * 10000.0 /
+        static_cast<double>(elapsedNanoseconds) / processorCount, 100.0);
+    return QStringLiteral("%1%").arg(usage, 5, 'f', 1, QLatin1Char('0'));
+#elif defined(Q_OS_MACOS)
+    rusage counters{};
+    if (getrusage(RUSAGE_SELF, &counters) != 0)
+        return QStringLiteral("N/A");
+
+    // RUSAGE_SELF includes all process threads, including terminated threads.
+    // timeval uses microseconds on both Apple Silicon and Intel Macs.
+    const auto toMicroseconds = [](const timeval &time) -> qint64
+    {
+        return static_cast<qint64>(time.tv_sec) * 1000000 + time.tv_usec;
+    };
+    const qint64 currentCpuTime = toMicroseconds(counters.ru_utime)
+        + toMicroseconds(counters.ru_stime);
+    static QElapsedTimer elapsed;
+    static qint64 previousCpuTime = 0;
+    if (!elapsed.isValid())
+    {
+        previousCpuTime = currentCpuTime;
+        elapsed.start();
+        return QStringLiteral("0.0%");
+    }
+
+    const qint64 elapsedNanoseconds = elapsed.nsecsElapsed();
+    elapsed.restart();
+    const qint64 cpuTimeDelta = qMax<qint64>(0, currentCpuTime - previousCpuTime);
+    previousCpuTime = currentCpuTime;
+    if (elapsedNanoseconds <= 0)
+        return QStringLiteral("0.0%");
+
+    const int processorCount = qMax(QThread::idealThreadCount(), 1);
+    const double usage = qBound(0.0, static_cast<double>(cpuTimeDelta) * 100000.0 /
         static_cast<double>(elapsedNanoseconds) / processorCount, 100.0);
     return QStringLiteral("%1%").arg(usage, 5, 'f', 1, QLatin1Char('0'));
 #else

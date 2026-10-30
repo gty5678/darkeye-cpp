@@ -102,6 +102,7 @@ class MainWindowSmokeTest final : public QObject
     Q_OBJECT
 
 private slots:
+    void resourceUsageAppearsInWindowTitle();
     void referenceManagementMatchesPython_data();
     void referenceManagementMatchesPython();
     void makerManagementAddsAndSavesDraftRows();
@@ -113,6 +114,31 @@ private slots:
     void summarySearchKeyboardNavigation_data();
     void summarySearchKeyboardNavigation();
 };
+
+void MainWindowSmokeTest::resourceUsageAppearsInWindowTitle()
+{
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    darkeye::MainWindow window(themes);
+    const QRegularExpression metrics(QStringLiteral(
+        "CPU ([0-9]+\\.[0-9]+)% \\| 公共内存 ([0-9]+\\.[0-9]+) MiB \\| 私有内存 ([0-9]+\\.[0-9]+) MiB"));
+    QTRY_VERIFY_WITH_TIMEOUT(metrics.match(window.windowTitle()).hasMatch(), 3000);
+    auto sample = metrics.match(window.windowTitle());
+    QVERIFY(sample.captured(2).toDouble() + sample.captured(3).toDouble() > 0.0);
+
+    // Accumulate CPU time between timer samples to catch unit conversion and
+    // sampling bugs, rather than accepting a permanently hard-coded zero.
+    QElapsedTimer work;
+    work.start();
+    while (work.elapsed() < 250) {}
+    QTRY_VERIFY_WITH_TIMEOUT(
+        metrics.match(window.windowTitle()).captured(1).toDouble() > 0.0, 3000);
+    sample = metrics.match(window.windowTitle());
+    QVERIFY(sample.captured(1).toDouble() <= 100.0);
+#else
+    QSKIP("Process resource metrics are implemented for Windows and macOS");
+#endif
+}
 
 void MainWindowSmokeTest::referenceManagementMatchesPython_data()
 {

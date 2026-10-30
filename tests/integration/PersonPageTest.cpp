@@ -51,11 +51,89 @@ private slots:
     void pageSwitchDoesNotFocusNameFilter_data();
     void pageSwitchDoesNotFocusNameFilter();
     void filtersActressesAndRespectsFavoriteScope();
+    void filterBarsShareGeometry();
     void detailAndEditorCompletePersonRoundTrip();
     void actressTimelineSupportsPreviewAndMiddleButtonPan();
     void actressTimelineFitsAfterLayout();
     void actressTimelineZoomKeepsPointerAnchor();
 };
+
+void PersonPageTest::filterBarsShareGeometry()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    darkeye::SqliteConnection publicConnection;
+    darkeye::SqliteConnection privateConnection;
+    QString errorMessage;
+    QVERIFY2(publicConnection.open(QDir(temporaryDirectory.path()).filePath("public.db"),
+                                   false, &errorMessage), qPrintable(errorMessage));
+    QVERIFY2(privateConnection.open(QDir(temporaryDirectory.path()).filePath("private.db"),
+                                    false, &errorMessage), qPrintable(errorMessage));
+    QVERIFY2(darkeye::SchemaManager::initializeEmptyDatabase(
+                 publicConnection, darkeye::DatabaseKind::Public, &errorMessage),
+             qPrintable(errorMessage));
+    QVERIFY2(darkeye::SchemaManager::initializeEmptyDatabase(
+                 privateConnection, darkeye::DatabaseKind::Private, &errorMessage),
+             qPrintable(errorMessage));
+
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    darkeye::ThemeService themes(*application);
+    for (const auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Dark}) {
+        QVERIFY(themes.setTheme(theme));
+        darkeye::PersonPage actress(darkeye::PersonKind::Actress,
+            publicConnection.database(), privateConnection.database(), themes);
+        darkeye::PersonPage actor(darkeye::PersonKind::Actor,
+            publicConnection.database(), privateConnection.database(), themes);
+        for (auto *page : {&actress, &actor}) {
+            page->initialize();
+            page->resize(1200, 600);
+            page->show();
+        }
+        QApplication::processEvents();
+        const auto rect = [](QWidget *control, QWidget *page) {
+            return QRect(control->mapTo(page, QPoint()), control->size());
+        };
+        auto *femaleInput = actress.findChild<darkeye::CompleterLineEdit *>();
+        auto *maleInput = actor.findChild<darkeye::CompleterLineEdit *>();
+        QVERIFY(femaleInput && maleInput);
+        QCOMPARE(rect(femaleInput, &actress), rect(maleInput, &actor));
+        for (auto *page : {&actress, &actor}) {
+            auto *bar = page->findChild<QWidget *>(QStringLiteral("PersonFilterBar"));
+            QVERIFY(bar);
+            QCOMPARE(bar->height(), 44);
+            auto *input = page->findChild<darkeye::CompleterLineEdit *>();
+            const auto inputRect = rect(input, bar);
+            QVERIFY(inputRect.top() > 0);
+            QVERIFY(inputRect.bottom() < bar->height() - 1);
+            QCOMPARE(input->height(), input->sizeHint().height());
+            for (auto *combo : page->findChildren<QComboBox *>()) {
+                if (combo->isHidden()) continue;
+                const auto comboRect = rect(combo, bar);
+                QVERIFY(comboRect.top() > 0);
+                QVERIFY(comboRect.bottom() < bar->height() - 1);
+                QCOMPARE(combo->height(), combo->sizeHint().height());
+            }
+            const auto preview = qEnvironmentVariable("DARKEYE_PERSON_BAR_PREVIEW");
+            if (!preview.isEmpty()) {
+                const auto name = page->kind() == darkeye::PersonKind::Actress ? "actress" : "actor";
+                const auto mode = theme == darkeye::ThemeId::Light ? "light" : "dark";
+                QVERIFY(bar->grab().save(preview + '/' + name + '-' + mode + ".png"));
+            }
+        }
+        const auto femaleCombos = actress.findChildren<QComboBox *>();
+        const auto maleCombos = actor.findChildren<QComboBox *>();
+        QCOMPARE(femaleCombos.size(), 3);
+        QCOMPARE(maleCombos.size(), 3);
+        for (int i = 0; i < 3; ++i) {
+            QCOMPARE(rect(femaleCombos[i], &actress), rect(maleCombos[i], &actor));
+            QVERIFY(femaleCombos[i]->height() >= femaleCombos[i]->minimumSizeHint().height());
+        }
+        auto *femaleArea = actress.findChild<QScrollArea *>(QStringLiteral("DesignLazyScrollArea"));
+        auto *maleArea = actor.findChild<QScrollArea *>(QStringLiteral("DesignLazyScrollArea"));
+        QVERIFY(femaleArea && maleArea);
+        QCOMPARE(rect(femaleArea, &actress), rect(maleArea, &actor));
+    }
+}
 
 void PersonPageTest::pageSwitchDoesNotFocusNameFilter_data()
 {

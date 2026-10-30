@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QHash>
 #include <QResource>
+#include <QRegularExpression>
 
 #include <mutex>
 
@@ -170,6 +171,28 @@ bool ThemeService::setTheme(ThemeId theme, const QString &customPrimary)
     for (auto iterator = replacements.cbegin(); iterator != replacements.cend(); ++iterator) {
         styleSheet.replace(iterator.key(), iterator.value());
     }
+    // Business widgets may change objectName for lookup/testing. Keep the original
+    // ID selectors (and their priority), and add stable component selectors.
+    const QRegularExpression componentId(QStringLiteral(
+        "#(DesignButton|DesignInput|DesignTextEdit|DesignPlainTextEdit|DesignComboBox)(?![A-Za-z0-9_])"));
+    QStringList rules = styleSheet.split(QLatin1Char('}'));
+    for (QString &rule : rules) {
+        const qsizetype brace = rule.indexOf(QLatin1Char('{'));
+        if (brace < 0) continue;
+        QString selectors = rule.left(brace);
+        selectors.remove(QRegularExpression(QStringLiteral("/\\*.*?\\*/"),
+                         QRegularExpression::DotMatchesEverythingOption));
+        QStringList aliases;
+        for (QString selector : selectors.split(QLatin1Char(','))) {
+            if (!selector.contains(componentId)) continue;
+            selector.replace(componentId, QStringLiteral("[darkeyeStyle=\"\\1\"]"));
+            aliases.append(selector);
+        }
+        if (!aliases.isEmpty()) {
+            rule.insert(brace, QLatin1Char(',') + aliases.join(QLatin1Char(',')));
+        }
+    }
+    styleSheet = rules.join(QLatin1Char('}'));
     m_application.setStyleSheet(styleSheet);
     const QColor requested(customPrimary.trimmed());
     const QString nextPrimary = requested.isValid()

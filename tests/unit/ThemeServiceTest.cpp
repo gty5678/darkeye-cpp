@@ -10,6 +10,7 @@
 
 #include <QApplication>
 #include <QSignalSpy>
+#include <QStyle>
 #include <QtTest>
 
 class ThemeServiceTest final : public QObject
@@ -22,6 +23,7 @@ private slots:
     void derivesCustomLightAndDarkTokens();
     void appliesThemeWithoutUnresolvedTokens();
     void initializesCommonComponents();
+    void renamedComponentsKeepStyle();
     void confirmsColorWhenPickerPopupCloses();
     void exposesCompletePythonTokenMapAndLoader();
 };
@@ -93,6 +95,39 @@ void ThemeServiceTest::appliesThemeWithoutUnresolvedTokens()
     QCOMPARE(service.customPrimary(), QStringLiteral("#336699"));
     QVERIFY(application->styleSheet().contains(QStringLiteral("#336699")));
     QVERIFY(!application->styleSheet().contains(QLatin1Char('@')));
+}
+
+void ThemeServiceTest::renamedComponentsKeepStyle()
+{
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    darkeye::ThemeService service(*application);
+    for (const auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Dark}) {
+        QVERIFY(service.setTheme(theme));
+        darkeye::DesignButton button(QStringLiteral("Save"));
+        button.setVariant(QStringLiteral("primary"));
+        button.ensurePolished();
+        QCOMPARE(button.palette().color(QPalette::Button),
+                 QColor(service.currentTokens().primary));
+        darkeye::DesignLineEdit input;
+        darkeye::DesignTextEdit text;
+        darkeye::DesignPlainTextEdit plain;
+        darkeye::DesignComboBox combo;
+        combo.addItem(QStringLiteral("Item"));
+        const QList<QWidget *> widgets{&button, &input, &text, &plain, &combo};
+        for (QWidget *widget : widgets) {
+            widget->resize(180, 50);
+            widget->setAttribute(Qt::WA_DontShowOnScreen);
+            widget->show();
+            widget->clearFocus();
+            application->processEvents();
+            const QImage before = widget->grab().toImage();
+            widget->setObjectName(QStringLiteral("BusinessControl"));
+            widget->style()->unpolish(widget);
+            widget->style()->polish(widget);
+            application->processEvents();
+            QCOMPARE(widget->grab().toImage(), before);
+        }
+    }
 }
 
 void ThemeServiceTest::initializesCommonComponents()

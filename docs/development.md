@@ -110,7 +110,7 @@ python tools/build.py --dry-run             # 查看将执行的命令
 
 Windows 下脚本自动查找 Visual Studio、加载 x64 MSVC / Windows SDK 环境，
 并使用上面的 CMake 预设。Linux / macOS 下使用 PATH 中的 CMake，构建目录为
-`build/<系统>-<配置>`；需自行安装相应编译器、Qt 和依赖，项目在这些平台上的构建尚未验证。
+`build/<系统>-<配置>`；需自行安装相应编译器、Qt 和依赖。macOS arm64 已完成本机编译与 ZIP/PKG 打包验证，依赖清单、环境配置、编译运行命令和本机快捷操作见 [macOS 安装依赖、编译、运行与打包](macos-packaging.md)。Linux 的验证范围见其平台文档。
 
 Windows 安装版和便携版统一通过打包脚本生成：
 

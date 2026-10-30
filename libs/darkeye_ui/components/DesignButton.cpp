@@ -12,6 +12,7 @@ DesignButton::DesignButton(const QString &text, QWidget *parent)
     : QPushButton(text, parent)
 {
     setObjectName(QStringLiteral("DesignButton"));
+    setProperty("darkeyeStyle", QStringLiteral("DesignButton"));
     setVariant(QStringLiteral("default"));
 }
 

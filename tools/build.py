@@ -94,10 +94,47 @@ def clean_build_directory(build_dir, dry_run=False):
         shutil.rmtree(target)
 
 
+def macos_environment(env):
+    """Discover the default Qt kit and optional project-local vcpkg checkout."""
+    env = env.copy()
+    local_vcpkg = PROJECT_ROOT / "build/vcpkg"
+    if not env.get("VCPKG_ROOT") and (local_vcpkg / "scripts/buildsystems/vcpkg.cmake").is_file():
+        env["VCPKG_ROOT"] = str(local_vcpkg)
+    qt_dir = Path.home() / "Qt/6.12.0/macos/lib/cmake/Qt6"
+    if not env.get("Qt6_DIR") and (qt_dir / "Qt6Config.cmake").is_file():
+        env["Qt6_DIR"] = str(qt_dir)
+
+    # The pinned dependency ports require CMake 3.x. Prefer the Qt-bundled
+    # copy only when PATH does not already select a compatible CMake.
+    cmake = shutil.which("cmake", path=env.get("PATH"))
+    bundled_bin = Path.home() / "Qt/Tools/CMake/CMake.app/Contents/bin"
+    if (bundled_bin / "cmake").is_file():
+        version = subprocess.check_output([cmake, "--version"], text=True) if cmake else ""
+        if not version.startswith("cmake version 3."):
+            env["PATH"] = str(bundled_bin) + os.pathsep + env.get("PATH", "")
+
+    # A source archive has no Git registry. Reuse its explicitly installed
+    # dependencies, but never silently disable manifests for a normal checkout.
+    if (not env.get("CMAKE_TOOLCHAIN_FILE")
+            and Path(env.get("VCPKG_ROOT", "/")) == local_vcpkg
+            and not (local_vcpkg / ".git").exists()):
+        installed = local_vcpkg / "installed/arm64-osx/share"
+        if all((installed / name).is_file() for name in (
+                "msdfgen/msdfgenConfig.cmake", "freetype/freetype-config.cmake")):
+            env.setdefault("VCPKG_MANIFEST_MODE", "OFF")
+    return env
+
+
 def build_project(configuration="Release", run_tests=False, dry_run=False, clean=False, skip_build=False, build_directory=None):
     env = os.environ.copy()
     system = platform.system().lower()
     config = configuration.lower()
+    if system == "darwin":
+        env = macos_environment(env)
+        if not skip_build and not env.get("CMAKE_TOOLCHAIN_FILE"):
+            toolchain = Path(env.get("VCPKG_ROOT", "/")) / "scripts/buildsystems/vcpkg.cmake"
+            if not toolchain.is_file():
+                raise RuntimeError("找不到 vcpkg：请设置 VCPKG_ROOT 为 vcpkg 根目录，或设置 CMAKE_TOOLCHAIN_FILE。详见 docs/macos-packaging.md。")
 
     if system == "windows":
         root = visual_studio_root(env)
@@ -131,7 +168,7 @@ def build_project(configuration="Release", run_tests=False, dry_run=False, clean
         build = [cmake, "--build", "--preset", name]
 
     # Environment overrides keep committed presets independent of local Qt paths.
-    for variable in ("Qt6_DIR", "CMAKE_TOOLCHAIN_FILE", "VCPKG_TARGET_TRIPLET"):
+    for variable in ("Qt6_DIR", "CMAKE_TOOLCHAIN_FILE", "VCPKG_TARGET_TRIPLET", "VCPKG_MANIFEST_MODE"):
         if env.get(variable):
             configure.append(f"-D{variable}={env[variable]}")
     if build_directory is not None:

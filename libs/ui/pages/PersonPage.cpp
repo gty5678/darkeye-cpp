@@ -52,7 +52,9 @@ void PersonPage::buildUi()
     root->setSpacing(6);
 
     auto *filterBar = new QWidget(this);
-    filterBar->setFixedHeight(32);
+    filterBar->setObjectName(QStringLiteral("PersonFilterBar"));
+    // Match WorkPage: a 44px bar with naturally sized, centered controls.
+    filterBar->setFixedHeight(44);
     auto *filters = new QHBoxLayout(filterBar);
     filters->setContentsMargins(10, 0, 10, 0);
     filters->setSpacing(6);
@@ -68,14 +70,14 @@ void PersonPage::buildUi()
     m_cupSelector = new DesignComboBox(filterBar);
     m_cupSelector->addItem(QString());
     m_cupSelector->addItems(m_repository.cupOptions());
-    if (m_kind == PersonKind::Actress)
-    {
-        filters->addWidget(new DesignLabel(QStringLiteral("罩杯"), filterBar));
-        filters->addWidget(m_cupSelector);
-    }
-    else
-    {
-        m_cupSelector->hide();
+    auto *cupLabel = new DesignLabel(QStringLiteral("罩杯"), filterBar);
+    for (QWidget *control : {static_cast<QWidget *>(cupLabel),
+                            static_cast<QWidget *>(m_cupSelector)}) {
+        auto policy = control->sizePolicy();
+        policy.setRetainSizeWhenHidden(true);
+        control->setSizePolicy(policy);
+        filters->addWidget(control);
+        control->setVisible(m_kind == PersonKind::Actress);
     }
 
     // Keep secondary actions in one trailing group.  The Python pages place
@@ -87,13 +89,17 @@ void PersonPage::buildUi()
 
     auto *refreshButton =
         new RotateButton(QStringLiteral("refresh_cw"), &m_themeService, trailingControls);
+    refreshButton->setIconPixelSize(24);
+    refreshButton->setButtonPixelSize(24);
     refreshButton->setToolTip(QStringLiteral("刷新人物"));
     auto *clearButton =
         new ShakeButton(QStringLiteral("eraser"), &m_themeService, trailingControls);
+    clearButton->setIconPixelSize(24);
+    clearButton->setButtonPixelSize(24);
     clearButton->setToolTip(QStringLiteral("清空筛选"));
 
     m_countLabel = new DesignLabel({}, trailingControls);
-    m_countLabel->setFixedWidth(110);
+    m_countLabel->setFixedWidth(100);
     filters->addStretch();
     trailingLayout->addWidget(refreshButton);
     trailingLayout->addWidget(clearButton);
@@ -102,14 +108,11 @@ void PersonPage::buildUi()
     m_scopeSelector = new DesignComboBox(trailingControls);
     m_scopeSelector->addItem(QStringLiteral("公共库范围"), false);
     m_scopeSelector->addItem(QStringLiteral("收藏库范围"), true);
-    if (m_kind == PersonKind::Actress)
-    {
-        trailingLayout->addWidget(m_scopeSelector);
-    }
-    else
-    {
-        m_scopeSelector->hide();
-    }
+    auto scopePolicy = m_scopeSelector->sizePolicy();
+    scopePolicy.setRetainSizeWhenHidden(true);
+    m_scopeSelector->setSizePolicy(scopePolicy);
+    trailingLayout->addWidget(m_scopeSelector);
+    m_scopeSelector->setVisible(m_kind == PersonKind::Actress);
 
     m_sortSelector = new DesignComboBox(trailingControls);
     m_sortSelector->addItem(QStringLiteral("随机顺序"), static_cast<int>(PersonSortOrder::Random));
@@ -149,6 +152,10 @@ void PersonPage::buildUi()
         m_sortSelector->findData(static_cast<int>(PersonSortOrder::CreatedDescending)));
     trailingLayout->addWidget(m_sortSelector);
     filters->addWidget(trailingControls, 0, Qt::AlignRight | Qt::AlignVCenter);
+    m_sortSelector->setMinimumContentsLength(5);
+    m_sortSelector->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    filters->setAlignment(Qt::AlignVCenter);
+    trailingLayout->setAlignment(Qt::AlignVCenter);
     root->addWidget(filterBar);
 
     m_lazyArea = new LazyScrollArea(150, this);

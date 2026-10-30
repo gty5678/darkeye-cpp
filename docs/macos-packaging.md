@@ -1,8 +1,43 @@
-# macOS arm64 编译与打包
+# macOS arm64 安装依赖、编译、运行与打包
 
 本文从一台 Apple Silicon Mac 的环境准备开始，说明如何编译 Darkeye、运行测试，并生成便携 ZIP 与安装 PKG。命令在终端中执行；进入源码目录后，后续命令均以仓库根目录为工作目录。
 
-当前已提供 macOS 构建和打包实现，但尚未取得本项目在 Mac 上的完整原生验证结果。执行成功后仍需进行本文末尾的安装、启动与数据保留验收。
+主程序及演示程序已在 Apple Silicon、Apple Clang 21、macOS SDK 27、Qt 6.12.0 和 CMake 3.30.5 下完成 Release 原生编译。仓库中的 vcpkg overlay 修复了固定 baseline 内 zlib/libpng 对现代 macOS SDK 的兼容问题；Windows 保留原有编译分支。最低系统版本和干净机器运行仍需进行本文末尾的验收。
+
+`python3 tools/package.py` 的完整编译、部署、打包流程以及 `--skip-build --build-dir build/macos-arm64-release` 均已实测成功，生成便携 ZIP 和安装 PKG。验证包括 ZIP 完整性、便携标记与外部 data 目录、应用 ad-hoc 签名、PKG 内容清单和两份 SHA-256 校验；未执行系统安装或 Developer ID 公证。运行前需按下文设置 Qt、vcpkg 和 CMake 3.x 环境。
+
+该环境下全部测试目标可编译；原生 CTest 为 58/70 通过（含启动、UI 冒烟、3D/DVD 演示冒烟），12 项失败涉及数据库夹具、路径/界面断言及 GPU/DPR 检查，尚未全部通过。发布工具的 4 项测试通过。此次验证的依赖在本机默认系统部署目标下构建，因此不构成对 macOS 14.4 运行兼容性的验证。
+
+## 0. 当前电脑直接使用
+
+本节适用于已经完成依赖准备的这台电脑。新电脑请从第 1 节开始安装，不要直接复制本节的 vcpkg 路径。
+
+构建脚本现在会自动识别默认的 `$HOME/Qt/6.12.0/macos` 和项目 `build/vcpkg`；如果 PATH 中选中 CMake 4，会优先使用 Qt 附带的 CMake 3.x。已有本机依赖时，无需设置环境变量即可执行 `python3 tools/package.py`。显式设置的 Qt/vcpkg/toolchain 路径仍优先使用。下面的环境变量命令也适用于直接运行 CMake。
+
+每次新开终端，先执行：
+
+```sh
+cd /Users/yin/Desktop/darkeye
+export PATH="$HOME/Qt/Tools/CMake/CMake.app/Contents/bin:$PATH"
+export Qt6_DIR="$HOME/Qt/6.12.0/macos/lib/cmake/Qt6"
+export VCPKG_ROOT="$PWD/build/vcpkg"
+cmake --version
+```
+
+确认输出为 CMake 3.x。按需要选择下面的命令：
+
+| 目的 | 命令 |
+| --- | --- |
+| 编译 Release | `python3 tools/build.py --config Release` |
+| 运行编译后的应用 | `open build/macos-arm64-release/apps/desktop/Darkeye.app` |
+| 编译并同时打包便携版、安装版 | `python3 tools/package.py` |
+| 直接复用现有 Release 结果打包 | `python3 tools/package.py --skip-build --build-dir build/macos-arm64-release` |
+| 只生成便携 ZIP | `python3 tools/package.py --format portable` |
+| 只生成安装 PKG | `python3 tools/package.py --format installer` |
+
+当前版本 1.2.5 的产物为 `out/Darkeye-1.2.5-macos-arm64-portable.zip` 和 `out/Darkeye-1.2.5-macos-arm64-setup.pkg`，对应的 `.sha256` 文件也在 `out/`。便携版需完整解压后运行，见第 6 节。
+
+这台电脑因 GitHub 连接问题使用了固定版本的 vcpkg 源码归档，在其 `installed/` 中安装依赖。脚本只有在识别到本机 `build/vcpkg` 无 Git 元数据、且 FreeType/msdfgen 已安装时，才自动设置 `VCPKG_MANIFEST_MODE=OFF`，因此重新配置也能复用依赖。正常 Git 版 vcpkg 保留 manifest 模式。新电脑仍应按第 3 节准备完整 Git 版 vcpkg。无需把这个本机设置提交进公共预设。
 
 ## 1. 确认系统和工具链
 
@@ -10,9 +45,9 @@
 | --- | --- |
 | CPU | Apple Silicon，终端和 Python 均原生运行于 arm64 |
 | 应用最低运行系统 | 当前预设为 macOS 14.4 |
-| 构建工具链 | Xcode 16 或更新版本，并满足该 Xcode 对构建机系统的要求 |
+| 构建工具链 | Apple Clang 和 macOS SDK（本次使用 Command Line Tools）；也可使用完整 Xcode |
 | Qt | 6.12.0 或更新的 Qt 6，macOS Desktop kit 必须含 arm64 |
-| 构建工具 | CMake 3.25+、Ninja、Python 3.9+、Git |
+| 构建工具 | CMake 3.25–3.x、Ninja、Python 3.9+、Git |
 | 依赖管理 | vcpkg，目标 triplet 为 arm64-osx |
 | 打包工具 | ditto、codesign、lipo、pkgbuild，由系统及开发工具提供 |
 
@@ -25,7 +60,16 @@ python3 -c 'import platform; print(platform.machine())'
 
 两条命令均应显示 `arm64`。不要使用 Rosetta 下的 x86_64 终端或 Python；本项目不生成 Intel 包。
 
-安装 Xcode 并完成首次启动初始化。使用完整 Xcode 时，选择其工具链：
+先安装 Apple Command Line Tools，弹窗中完成安装后检查：
+
+```sh
+xcode-select --install
+xcode-select -p
+xcrun clang++ --version
+xcrun --show-sdk-path
+```
+
+已经安装时，无需重复安装。此次原生编译使用 `/Library/Developer/CommandLineTools` 工具链。若选择安装完整 Xcode，完成首次启动初始化，并选择其工具链：
 
 ```sh
 sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
@@ -39,13 +83,21 @@ xcrun clang++ --version
 已安装 Homebrew 时，可以用它准备通用工具：
 
 ```sh
-brew install cmake ninja python git pkg-config
-cmake --version
+brew install ninja python git pkg-config
 ninja --version
 python3 --version
+git --version
+pkg-config --version
 ```
 
 Homebrew 安装与支持系统要求见[官方说明](https://docs.brew.sh/Installation)。若当前系统不在其支持范围内，可分别从 CMake、Python 等工具的官方渠道安装。无需通过 Homebrew 安装 Qt；以下步骤使用明确版本的 Qt kit。
+
+另需安装 CMake 3.25–3.x：可在 Qt 安装器的 Tools 中选择 CMake（本次使用 3.30.5），或自行安装 CMake 3.x。当前 vcpkg baseline 包含旧版 Brotli，其 CMake 最低版本声明不兼容 CMake 4，因此不要直接使用 Homebrew 默认安装的 CMake 4。Qt 附带的 CMake 安装在默认位置时，先将它加入 PATH，再执行依赖安装和后续构建：
+
+```sh
+export PATH="$HOME/Qt/Tools/CMake/CMake.app/Contents/bin:$PATH"
+cmake --version
+```
 
 ## 2. 安装 Qt
 
@@ -90,11 +142,12 @@ test -f "$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
 
 首次配置时，CMake 根据 `vcpkg.json` 自动构建 FreeType、msdfgen 及其依赖，使用仓库固定的 baseline。无需手动执行 `vcpkg install`，也不需要用 vcpkg 再安装一套 Qt。首次构建需联网。[vcpkg 配置说明](https://learn.microsoft.com/vcpkg/get_started/get-started?pivots=shell-bash)
 
-`export` 只影响当前终端。若需要每次打开终端自动生效，将以下两行加入自己的 `~/.zshrc`，路径按实际情况填写：
+`export` 只影响当前终端。若需要每次打开终端自动生效，将以下三行加入自己的 `~/.zshrc`，路径按实际情况填写：
 
 ```sh
 export VCPKG_ROOT="$HOME/src/vcpkg"
 export Qt6_DIR="$HOME/Qt/6.12.0/macos/lib/cmake/Qt6"
+export PATH="$HOME/Qt/Tools/CMake/CMake.app/Contents/bin:$PATH"
 ```
 
 ## 4. 编译 Release 并运行测试
@@ -112,6 +165,23 @@ find build/macos-arm64-release -name Darkeye.app -type d
 ```
 
 构建目录中的应用用于开发，尚未经过完整发布依赖部署。分发与干净机器验证请使用打包产物。
+
+从终端打开开发构建：
+
+```sh
+open build/macos-arm64-release/apps/desktop/Darkeye.app
+```
+
+希望在终端中看到输出，或指定独立的开发数据目录时，直接运行内部可执行文件：
+
+```sh
+./build/macos-arm64-release/apps/desktop/Darkeye.app/Contents/MacOS/Darkeye \
+  --config-dir "$PWD/config" \
+  --avwiki-dir "$PWD/avwiki" \
+  --data-dir "$PWD/data"
+```
+
+该命令使用源码中的配置与知识库，并将数据库等用户数据写入项目 `data/`。不传参数时按应用正常路径规则选择资源和用户数据目录。Debug 构建使用 `python3 tools/build.py --config Debug`，运行路径相应替换为 `build/macos-arm64-debug/apps/desktop/Darkeye.app`。
 
 编译测试并运行全部 CTest：
 
@@ -136,6 +206,32 @@ cmake --build --preset macos-arm64-release
 
 这里生成的是 Ninja 构建目录，不是 `.xcodeproj`；Xcode 提供编译工具链。更换 Qt 或编译器后可使用 `python3 tools/build.py --config Release --clean` 重建；此操作会清理该预设的构建目录，用户数据不应放在那里。
 
+### 在 VS Code 中断点调试
+
+不必安装完整 Xcode：本机已有的 Command Line Tools 提供 Apple Clang、SDK 和 LLDB。完整 Xcode 只在需要其 IDE 或额外工具时安装。当前 CMake 预设使用 Ninja，不生成 Xcode 工程。
+
+VS Code 中安装 CodeLLDB（`vadimcn.vscode-lldb`）用于断点调试；可另外安装 CMake Tools（`ms-vscode.cmake-tools`）管理构建，以及 C/C++（`ms-vscode.cpptools`）提供代码导航。
+
+本机工作区已准备 `.vscode/launch.json`、`tasks.json` 和 `extensions.json`。在 VS Code 中打开整个项目目录 `/Users/yin/Desktop/darkeye`，在 `apps/desktop/main.cpp` 的 `main()` 内设置断点，进入“运行和调试”，选择 **Darkeye macOS Debug**，按 F5。首次会自动配置、编译 Debug 主程序，后续为增量构建；然后启动 `.app/Contents/MacOS/Darkeye` 内部可执行文件。F10 单步跳过，F11 单步进入，Shift+F5 停止。
+
+该本机配置使用 Qt 6.12.0、Qt 附带的 CMake 3.x，以及第 0 节的本机 vcpkg 已安装依赖（`VCPKG_MANIFEST_MODE=OFF`）。调试时显式使用项目 `config/`、`avwiki/` 和 `data/`。`.vscode/` 被 Git 忽略，不会改变 Windows 开发配置；新电脑需自行创建配置，并按实际 Qt、vcpkg 路径调整。
+
+手动构建本机 Debug 版本可执行：
+
+```sh
+cmake --preset macos-arm64-debug \
+  -DQt6_DIR="$Qt6_DIR" \
+  -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
+  -DVCPKG_MANIFEST_MODE=OFF
+cmake --build --preset macos-arm64-debug --target Darkeye --parallel 8
+```
+
+上述 `OFF` 仅适用于第 0 节已安装好依赖的本机环境。新电脑按第 3 节使用完整 vcpkg Git 仓库后，可直接用 `python3 tools/build.py --config Debug`，保留 manifest 自动安装依赖。
+
+调试对象应使用 Debug 构建；Release 优化可能导致变量无法查看、断点行跳动。无需先打包 ZIP/PKG 才能调试。若系统首次提示允许开发者工具调试，请按系统提示授权。
+
+配置参考：[VS Code 的 macOS C++ 开发说明](https://code.visualstudio.com/docs/cpp/config-clang-mac)、[CodeLLDB 启动配置](https://github.com/vadimcn/codelldb/blob/master/MANUAL.md)。
+
 ## 5. 生成便携版和安装版
 
 环境配置完成后，一条命令构建并打包两种格式：
@@ -150,7 +246,13 @@ python3 tools/package.py
 python3 tools/package.py --test
 ```
 
-如果第 4 节的 Release 测试构建已经通过，可复用该目录：
+代码未变化、只希望重新打包现有 Release 构建时：
+
+```sh
+python3 tools/package.py --skip-build --build-dir build/macos-arm64-release
+```
+
+如果第 4 节的 Release 测试构建已经通过，也可复用测试构建目录：
 
 ```sh
 python3 tools/package.py --skip-build --build-dir build/macos-arm64-release-tests
@@ -197,7 +299,22 @@ DarkEye/
 
 把整个 `DarkEye` 文件夹放在可写位置，再打开 `Darkeye.app`。`portable.ini` 的 `DataDirectory=data` 以标记文件所在目录为基准，因此数据在 `.app` 外。迁移时携带整个文件夹；升级时退出程序，替换 `.app` 并保留 `portable.ini`、`data/`。不要在已签名的 `.app` 内创建数据文件。
 
+例如将 ZIP 解压到一个新目录后启动（版本号按实际产物修改）：
+
+```sh
+ditto -x -k out/Darkeye-1.2.5-macos-arm64-portable.zip out/portable-run
+open out/portable-run/DarkEye/Darkeye.app
+```
+
 安装版双击 `.pkg`，将应用安装到 `/Applications/Darkeye.app`。它不带便携标记，使用 Qt 的系统用户数据目录；实际位置可在软件设置的运行路径中查看。初始知识库从 `.app/Contents/Resources/avwiki` 复制到数据目录后才编辑和更新，安装资源保持只读。
+
+也可从终端打开安装向导，完成安装后启动应用：
+
+```sh
+open out/Darkeye-1.2.5-macos-arm64-setup.pkg
+# 在安装向导中完成安装后再执行：
+open /Applications/Darkeye.app
+```
 
 可检查签名和架构；下面路径需按实际暂存目录替换：
 

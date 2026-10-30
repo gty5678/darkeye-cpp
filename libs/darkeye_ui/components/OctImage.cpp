@@ -13,13 +13,8 @@
 
 #include <cmath>
 
-namespace darkeye {
-
-namespace {
-
-constexpr auto kAnonymousImagePath = ":/icons/anonymous.jpg";
-
-void ensureFallbackImageResourceInitialized()
+// Q_INIT_RESOURCE must declare the generated symbol in the global namespace.
+static void ensureFallbackImageResourceInitialized()
 {
     static const bool initialized = [] {
         Q_INIT_RESOURCE(darkeye_ui_resources);
@@ -27,6 +22,12 @@ void ensureFallbackImageResourceInitialized()
     }();
     Q_UNUSED(initialized);
 }
+
+namespace darkeye {
+
+namespace {
+
+constexpr auto kAnonymousImagePath = ":/icons/anonymous.jpg";
 
 QImage renderAvatar(const QImage &source, const QSize &size, const QPainterPath &path,
                     bool shadow, qreal dpr)
