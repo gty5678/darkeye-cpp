@@ -103,6 +103,8 @@ QMap<QString, QString> ThemeTokens::toMap() const
 ThemeService::ThemeService(QApplication &application)
     : QObject(&application), m_application(application)
 {
+    // Use the same base widget style for every application using our theme.
+    m_application.setStyle(QStringLiteral("Fusion"));
 }
 
 ThemeId ThemeService::current() const

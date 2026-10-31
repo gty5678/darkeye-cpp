@@ -47,6 +47,7 @@ private slots:
     void initialCameraFramesShelf();
     void filtersAndLoadsVirtualizedShelf();
     void nativeRenderingAndActions();
+    void rightDragRotatesWithoutContextMenu();
     void relationGraphWaitsUntilLidNearlyCloses();
     void existingShelfVisualProbe();
     void scrollPerformanceProbe();
@@ -59,6 +60,45 @@ private slots:
     void routeJumpClearsFiltersAndKeepsWorkExpanded_data();
     void routeJumpClearsFiltersAndKeepsWorkExpanded();
 };
+
+void ShelfPageTest::rightDragRotatesWithoutContextMenu()
+{
+    darkeye::DvdShelfView view({}, {}, nullptr, {}, {});
+    darkeye::WorkSummary work;
+    work.id=1;
+    view.setWorks({work});
+    QVERIFY(view.openWork(1));
+    auto *scene=view.findChild<darkeye::dvd_scene::DvdSceneWidget *>();
+    QVERIFY(scene);
+    auto *menu=view.findChild<QMenu *>("ShelfContextMenu");
+    QVERIFY(menu);
+    // Cocoa can request a context menu immediately on right-button press.
+    // It must not steal the gesture before the user has a chance to rotate.
+    auto *canvas=scene->renderWidget();
+    QSignalSpy menuOpened(menu,&QMenu::aboutToShow);
+    const QPoint press(100,100);
+    QTest::mousePress(canvas,Qt::RightButton,Qt::NoModifier,press);
+    QContextMenuEvent mouseContext(QContextMenuEvent::Mouse,press,canvas->mapToGlobal(press));
+    QTimer::singleShot(0,menu,&QMenu::hide); // Keep a regression from blocking the test.
+    QApplication::sendEvent(canvas,&mouseContext);
+    QCOMPARE(menuOpened.count(),0);
+    const auto beforeRotation=canvas->camera().yaw;
+    const QPoint dragged=press+QPoint(QApplication::startDragDistance()+30,0);
+    QMouseEvent move(QEvent::MouseMove,dragged,canvas->mapToGlobal(dragged),
+                     Qt::NoButton,Qt::RightButton,Qt::NoModifier);
+    QApplication::sendEvent(canvas,&move);
+    QTest::mouseRelease(canvas,Qt::RightButton,Qt::NoModifier,dragged);
+    QApplication::processEvents();
+    QVERIFY(canvas->camera().yaw!=beforeRotation);
+    QCOMPARE(menuOpened.count(),0);
+    // A stationary click still opens exactly one menu after release.
+    QTest::mousePress(canvas,Qt::RightButton,Qt::NoModifier,press);
+    QApplication::sendEvent(canvas,&mouseContext);
+    QTest::mouseRelease(canvas,Qt::RightButton,Qt::NoModifier,press);
+    QTimer::singleShot(0,menu,&QMenu::hide);
+    QApplication::processEvents();
+    QCOMPARE(menuOpened.count(),1);
+}
 
 void ShelfPageTest::initialCameraFramesShelf_data()
 {

@@ -54,6 +54,7 @@ class ThemeService final : public QObject
     Q_OBJECT
 
 public:
+    // Initializes the application's Fusion base style; construct before widgets.
     explicit ThemeService(QApplication &application);
 
     ThemeId current() const;

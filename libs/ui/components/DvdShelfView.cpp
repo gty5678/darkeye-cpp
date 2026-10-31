@@ -865,6 +865,18 @@ void DvdShelfView::resizeEvent(QResizeEvent *event)
     layoutOverlays();
 }
 
+void DvdShelfView::showContextMenu(const QPoint &position)
+{
+    if(currentWorkId()>0) {
+        refresh_expanded_favorite_state(selectedIndex());
+        m_contextMenu->exec(position);
+    } else {
+        QMenu menu(this);
+        menu.addAction(m_scene->renderWidget()->statisticsAction());
+        menu.exec(position);
+    }
+}
+
 bool DvdShelfView::eventFilter(QObject *object,QEvent *event)
 {
     if(object==m_scene->renderWidget()) {
@@ -877,16 +889,22 @@ bool DvdShelfView::eventFilter(QObject *object,QEvent *event)
             if(mouse->buttons().testFlag(Qt::RightButton)
                 && (mouse->position()-m_rightPress).manhattanLength()>QApplication::startDragDistance()) m_rightDragged=true;
         }
+        if(event->type()==QEvent::MouseButtonRelease) {
+            const auto *mouse=static_cast<QMouseEvent *>(event);
+            if(mouse->button()==Qt::RightButton
+                && !m_rightDragged
+                && (mouse->position()-m_rightPress).manhattanLength()<=QApplication::startDragDistance()) {
+                const QPoint position=mouse->globalPosition().toPoint();
+                // Let the scene finish its release handling before opening a modal menu.
+                QTimer::singleShot(0,this,[this,position] { showContextMenu(position); });
+            }
+        }
         if(event->type()==QEvent::ContextMenu) {
             const auto *context=static_cast<QContextMenuEvent *>(event);
-            if(currentWorkId()>0 && (context->reason()==QContextMenuEvent::Keyboard || !m_rightDragged)) {
-                refresh_expanded_favorite_state(selectedIndex());
-                m_contextMenu->exec(context->globalPos());
-            } else if(currentWorkId()<=0 && (context->reason()==QContextMenuEvent::Keyboard || !m_rightDragged)) {
-                QMenu menu(this);
-                menu.addAction(m_scene->renderWidget()->statisticsAction());
-                menu.exec(context->globalPos());
-            }
+            // macOS sends mouse context menus on press. Handle mouse menus on
+            // release ourselves so they cannot interrupt right-button rotation.
+            if(context->reason()==QContextMenuEvent::Keyboard)
+                showContextMenu(context->globalPos());
             return true;
         }
         if(event->type()==QEvent::Wheel || event->type()==QEvent::MouseButtonPress

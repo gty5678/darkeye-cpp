@@ -118,6 +118,7 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
+    void showContextMenu(const QPoint &position);
     void updateInitialCamera();
     [[nodiscard]] qreal initialCameraX() const;
     void updateSelection();
